@@ -60,17 +60,6 @@ interface UserData {
   hard: number;
 }
 
-// Chart data for activity
-const activityChartData = [
-  { month: "Apr", problems: 12 },
-  { month: "May", problems: 25 },
-  { month: "Jun", problems: 18 },
-  { month: "Jul", problems: 32 },
-  { month: "Aug", problems: 28 },
-  { month: "Sep", problems: 35 },
-  { month: "Oct", problems: 47 },
-];
-
 const chartConfig = {
   problems: {
     label: "Problems Solved",
@@ -221,7 +210,7 @@ function Calendar({ streak }: { streak: number }) {
           <div>
             <CardTitle className="text-lg font-semibold">Activity Calendar</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              <span className="text-brand font-semibold">{streak} day</span> streak 🔥
+              <span className="text-brand font-semibold">Current Streak: {streak} {streak === 1 ? 'day' : 'days'}</span> 🔥
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -364,6 +353,8 @@ export default function DashboardPage() {
   const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
   const [showUpcomingEventDialog, setShowUpcomingEventDialog] = useState(false);
   const [eventToEdit, setEventToEdit] = useState<any>(null);
+  const [activityChartData, setActivityChartData] = useState<any[]>([]);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1M');
 
   // Fetch user data from Supabase
   useEffect(() => {
@@ -390,7 +381,7 @@ export default function DashboardPage() {
           email: data.user?.email || '',
           avatar: data.profile?.avatar_url || initials,
           streak: data.stats?.current_streak || 0,
-          problemsSolved: data.stats?.total_problems_solved || 0,
+          problemsSolved: data.stats?.total_solved || 0,
           easy: data.stats?.easy_solved || 0,
           medium: data.stats?.medium_solved || 0,
           hard: data.stats?.hard_solved || 0,
@@ -407,7 +398,13 @@ export default function DashboardPage() {
     fetchRecentActivity();
     fetchUpcomingEvents();
     fetchDailyChallenge();
+    fetchActivityChart();
   }, []);
+
+  // Fetch activity chart when timeframe changes
+  useEffect(() => {
+    fetchActivityChart();
+  }, [selectedTimeframe]);
 
   // Fetch study plans
   const fetchStudyPlans = async () => {
@@ -450,6 +447,17 @@ export default function DashboardPage() {
       setDailyChallenge(data.challenge || null);
     } catch (error) {
       console.error('Error fetching daily challenge:', error);
+    }
+  };
+
+  // Fetch activity chart
+  const fetchActivityChart = async () => {
+    try {
+      const response = await fetch(`/api/dashboard/activity-chart?timeframe=${selectedTimeframe}`);
+      const data = await response.json();
+      setActivityChartData(data.data || []);
+    } catch (error) {
+      console.error('Error fetching activity chart:', error);
     }
   };
 
@@ -750,8 +758,8 @@ export default function DashboardPage() {
 
               <div className="pt-4 border-t border-border/20">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Streak</span>
-                  <span className="text-xl font-bold text-brand">{user.streak} days 🔥</span>
+                  <span className="text-sm text-muted-foreground">Current Streak</span>
+                  <span className="text-xl font-bold text-brand">{user.streak} {user.streak === 1 ? 'day' : 'days'} 🔥</span>
                 </div>
               </div>
             </CardContent>
@@ -767,32 +775,57 @@ export default function DashboardPage() {
               <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
 
               <CardHeader>
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-cyan-500" />
-                  Problem Solving Activity
-                </CardTitle>
-                <CardDescription>
-                  Your progress over the last 7 months
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-cyan-500" />
+                      Problem Solving Activity
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      Track your coding progress
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-1">
+                    {['1D', '1W', '1M', '3M', 'YTD', 'ALL'].map((timeframe) => (
+                      <Button
+                        key={timeframe}
+                        variant={selectedTimeframe === timeframe ? 'default' : 'ghost'}
+                        size="sm"
+                        className={cn(
+                          "h-7 px-2 text-xs",
+                          selectedTimeframe === timeframe
+                            ? "bg-brand text-white hover:bg-brand/90"
+                            : "hover:bg-muted"
+                        )}
+                        onClick={() => setSelectedTimeframe(timeframe)}
+                      >
+                        {timeframe}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </CardHeader>
 
-              <CardContent>
-                <ChartContainer config={chartConfig}>
+              <CardContent className="h-[300px]">
+                <ChartContainer config={chartConfig} className="h-full w-full">
                   <AreaChart
                     accessibilityLayer
                     data={activityChartData}
                     margin={{
-                      left: 12,
-                      right: 12,
+                      left: 0,
+                      right: 0,
+                      top: 10,
+                      bottom: 0,
                     }}
                   >
                     <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
                     <XAxis
-                      dataKey="month"
+                      dataKey="label"
                       tickLine={false}
                       axisLine={false}
                       tickMargin={8}
-                      tick={{ fill: 'var(--muted-foreground)' }}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                      interval="preserveStartEnd"
                     />
                     <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
                     <defs>
@@ -811,7 +844,7 @@ export default function DashboardPage() {
                     </defs>
                     <Area
                       dataKey="problems"
-                      type="natural"
+                      type="monotone"
                       fill="url(#fillProblems)"
                       fillOpacity={0.4}
                       stroke="var(--brand)"
@@ -820,19 +853,6 @@ export default function DashboardPage() {
                   </AreaChart>
                 </ChartContainer>
               </CardContent>
-
-              <CardFooter>
-                <div className="flex w-full items-start gap-2 text-sm">
-                  <div className="grid gap-2">
-                    <div className="flex items-center gap-2 leading-none font-medium text-brand">
-                      Trending up by 34% this month <TrendingUp className="h-4 w-4" />
-                    </div>
-                    <div className="text-muted-foreground flex items-center gap-2 leading-none">
-                      April - October 2025
-                    </div>
-                  </div>
-                </div>
-              </CardFooter>
             </Card>
 
             {/* Recent Activity */}

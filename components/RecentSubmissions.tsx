@@ -3,7 +3,20 @@
 import { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Clock, Code2, CheckCircle, XCircle } from "lucide-react";
+import dynamic from 'next/dynamic';
+
+// @ts-ignore
+const ChevronDown: any = dynamic(() => import('lucide-react').then(mod => mod.ChevronDown), { ssr: false });
+// @ts-ignore
+const ChevronRight: any = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight), { ssr: false });
+// @ts-ignore
+const Clock: any = dynamic(() => import('lucide-react').then(mod => mod.Clock), { ssr: false });
+// @ts-ignore
+const Code2: any = dynamic(() => import('lucide-react').then(mod => mod.Code2), { ssr: false });
+// @ts-ignore
+const CheckCircle: any = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle2), { ssr: false });
+// @ts-ignore
+const XCircle: any = dynamic(() => import('lucide-react').then(mod => mod.XCircle), { ssr: false });
 
 interface Submission {
   id: string;
@@ -13,8 +26,8 @@ interface Submission {
   status: string;
   language: string;
   submitted_at: string;
-  runtime?: number;
-  memory?: number;
+  runtime?: number | null;
+  memory?: number | null;
 }
 
 interface RecentSubmissionsProps {

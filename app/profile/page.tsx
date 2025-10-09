@@ -30,6 +30,7 @@ import {
 import { EditProfileDialog } from "@/components/edit-profile-dialog";
 import { UserProfile, UserStats, Submission } from "@/types/database";
 import RecentSubmissions from "@/components/RecentSubmissions";
+import ActivityCalendar from "react-activity-calendar";
 
 interface Achievement {
   achievement_id: string;
@@ -61,11 +62,11 @@ interface ProfileData {
   achievementSummary: AchievementSummary;
 }
 
-// GitHub-style contribution data (52 weeks) with month labels
+// Convert submissions to format expected by react-activity-calendar
 const generateContributionData = (submissions: Submission[]) => {
-  const weeks = [];
   const today = new Date();
-  const monthLabels: { month: string; weekIndex: number }[] = [];
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(today.getFullYear() - 1);
 
   // Create a map of dates to submission counts
   const submissionsByDate = new Map<string, number>();
@@ -74,38 +75,24 @@ const generateContributionData = (submissions: Submission[]) => {
     submissionsByDate.set(date, (submissionsByDate.get(date) || 0) + 1);
   });
 
-  let lastMonth = -1;
+  // Generate array of all days with submission counts
+  const data: Array<{ date: string; count: number; level: number }> = [];
+  const currentDate = new Date(oneYearAgo);
 
-  for (let week = 0; week < 52; week++) {
-    const days = [];
-    for (let day = 0; day < 7; day++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - ((51 - week) * 7 + (6 - day)));
-      const dateStr = date.toISOString().split('T')[0];
+  while (currentDate <= today) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    const count = submissionsByDate.get(dateStr) || 0;
 
-      const count = submissionsByDate.get(dateStr) || 0;
-      days.push({
-        date: dateStr,
-        dateObj: new Date(date),
-        count,
-        level: count === 0 ? 0 : count <= 1 ? 1 : count <= 2 ? 2 : count <= 3 ? 3 : 4
-      });
+    data.push({
+      date: dateStr,
+      count,
+      level: count === 0 ? 0 : count <= 2 ? 1 : count <= 4 ? 2 : count <= 6 ? 3 : 4
+    });
 
-      // Track month boundaries (check first day of week)
-      if (day === 0) {
-        const month = date.getMonth();
-        if (month !== lastMonth && week > 0) {
-          monthLabels.push({
-            month: date.toLocaleDateString('en-US', { month: 'short' }),
-            weekIndex: week
-          });
-          lastMonth = month;
-        }
-      }
-    }
-    weeks.push(days);
+    currentDate.setDate(currentDate.getDate() + 1);
   }
-  return { weeks, monthLabels };
+
+  return data;
 };
 
 // Icon mapping for achievements - emoji fallback
@@ -200,8 +187,8 @@ export default function ProfilePage() {
   const { user, profile, stats, submissions, achievements, achievementSummary } = profileData;
 
   // Generate contribution data from submissions
-  const { weeks: contributionData, monthLabels } = generateContributionData(submissions);
-  const totalContributions = contributionData.flat().reduce((sum, day) => sum + day.count, 0);
+  const contributionData = generateContributionData(submissions);
+  const totalContributions = submissions.length;
 
   // Get user's initials for avatar
   const getInitials = () => {
@@ -392,89 +379,36 @@ export default function ProfilePage() {
               <div>
                 <CardTitle className="text-xl font-semibold flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-green-500" />
-                  {totalContributions} submissions in the last year
+                  {totalContributions} submissions in {new Date().getFullYear()}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Longest streak: {stats?.longest_streak || 0} days • Current streak: {stats?.current_streak || 0} days
+                  Longest streak: {stats?.longest_streak || 0} {stats?.longest_streak === 1 ? 'day' : 'days'} • Current streak: {stats?.current_streak || 0} {stats?.current_streak === 1 ? 'day' : 'days'}
                 </p>
               </div>
             </div>
           </CardHeader>
 
           <CardContent>
-            <div className="overflow-x-auto pb-4">
-              <div className="relative">
-                {/* Month Labels */}
-                <div className="flex gap-1 mb-2 ml-8">
-                  {monthLabels.map((label, idx) => (
-                    <div
-                      key={idx}
-                      className="text-xs text-muted-foreground absolute"
-                      style={{ left: `${label.weekIndex * 16}px` }}
-                    >
-                      {label.month}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Day Labels */}
-                <div className="flex gap-3">
-                  <div className="flex flex-col justify-around text-xs text-muted-foreground pr-2 py-1">
-                    <span>Mon</span>
-                    <span>Wed</span>
-                    <span>Fri</span>
-                  </div>
-
-                  {/* Contribution Grid */}
-                  <div className="inline-flex gap-1 mt-6">
-                    {contributionData.map((week, weekIndex) => (
-                      <div key={weekIndex} className="flex flex-col gap-1">
-                        {week.map((day, dayIndex) => (
-                          <div
-                            key={`${weekIndex}-${dayIndex}`}
-                            className={cn(
-                              "w-3 h-3 rounded-sm transition-all duration-200 cursor-pointer hover:scale-125 hover:ring-2 hover:ring-green-500 hover:z-10 relative group",
-                              day.level === 0 && "bg-muted/30 hover:bg-muted/50",
-                              day.level === 1 && "bg-green-500/30 hover:bg-green-500/40",
-                              day.level === 2 && "bg-green-500/50 hover:bg-green-500/60",
-                              day.level === 3 && "bg-green-500/70 hover:bg-green-500/80",
-                              day.level === 4 && "bg-green-500 hover:bg-green-500"
-                            )}
-                            title={`${day.count} ${day.count === 1 ? 'submission' : 'submissions'} on ${day.dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`}
-                          >
-                            {/* Enhanced Tooltip on Hover */}
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50">
-                              <div className="text-xs font-semibold text-white">
-                                {day.count} {day.count === 1 ? 'submission' : 'submissions'}
-                              </div>
-                              <div className="text-xs text-gray-400">
-                                {day.dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                              </div>
-                              {/* Tooltip arrow */}
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px">
-                                <div className="border-4 border-transparent border-t-gray-700"></div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-4">
-              <span>Less</span>
-              <div className="flex gap-1">
-                <div className="w-3 h-3 rounded-sm bg-muted/30" />
-                <div className="w-3 h-3 rounded-sm bg-green-500/30" />
-                <div className="w-3 h-3 rounded-sm bg-green-500/50" />
-                <div className="w-3 h-3 rounded-sm bg-green-500/70" />
-                <div className="w-3 h-3 rounded-sm bg-green-500" />
-              </div>
-              <span>More</span>
-            </div>
+            <ActivityCalendar
+              data={contributionData}
+              theme={{
+                light: ['#161618', '#0e4429', '#006d32', '#26a641', '#39d353'],
+                dark: ['#161618', '#0e4429', '#006d32', '#26a641', '#39d353'],
+              }}
+              blockSize={12}
+              blockMargin={4}
+              fontSize={14}
+              hideColorLegend={false}
+              hideMonthLabels={false}
+              hideTotalCount={true}
+              showWeekdayLabels={true}
+              labels={{
+                totalCount: '{{count}} submissions in {{year}}',
+              }}
+              style={{
+                color: 'hsl(var(--muted-foreground))',
+              }}
+            />
           </CardContent>
         </Card>
 

@@ -9,28 +9,28 @@ import Link from "next/link";
 import Image from "next/image";
 import CoduraLogo from "@/components/logos/codura-logo.svg";
 import { cn } from "@/lib/utils";
-import dynamic from 'next/dynamic';
 import { AddToListDialog } from "@/components/problems/add-to-list-dialog";
+import dynamic from 'next/dynamic';
 
-// Dynamic imports to avoid TypeScript issues with lucide-react type definitions
-// @ts-ignore - lucide-react has incomplete type definitions
-const Search = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Search as any })), { ssr: false });
+// Use dynamic imports to avoid build-time type issues with lucide-react
 // @ts-ignore
-const Filter = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Filter as any })), { ssr: false });
+const Search: any = dynamic(() => import('lucide-react').then(mod => mod.Search), { ssr: false });
 // @ts-ignore
-const CheckCircle2 = dynamic(() => import('lucide-react').then(mod => ({ default: mod.CheckCircle2 as any })), { ssr: false });
+const Filter: any = dynamic(() => import('lucide-react').then(mod => mod.Filter), { ssr: false });
 // @ts-ignore
-const Circle = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Circle as any })), { ssr: false });
+const CheckCircle2: any = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle2), { ssr: false });
 // @ts-ignore
-const Lock = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Lock as any })), { ssr: false });
+const Circle: any = dynamic(() => import('lucide-react').then(mod => mod.Circle), { ssr: false });
 // @ts-ignore
-const TrendingUp = dynamic(() => import('lucide-react').then(mod => ({ default: mod.TrendingUp as any })), { ssr: false });
+const Lock: any = dynamic(() => import('lucide-react').then(mod => mod.Lock), { ssr: false });
 // @ts-ignore
-const BarChart3 = dynamic(() => import('lucide-react').then(mod => ({ default: mod.BarChart3 as any })), { ssr: false });
+const TrendingUp: any = dynamic(() => import('lucide-react').then(mod => mod.TrendingUp), { ssr: false });
 // @ts-ignore
-const Bookmark = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Bookmark as any })), { ssr: false });
+const BarChart3: any = dynamic(() => import('lucide-react').then(mod => mod.BarChart3), { ssr: false });
 // @ts-ignore
-const BookmarkPlus = dynamic(() => import('lucide-react').then(mod => ({ default: mod.BookmarkPlus as any })), { ssr: false });
+const Bookmark: any = dynamic(() => import('lucide-react').then(mod => mod.Bookmark), { ssr: false });
+// @ts-ignore
+const BookmarkPlus: any = dynamic(() => import('lucide-react').then(mod => mod.BookmarkPlus), { ssr: false });
 
 interface Problem {
   id: number;

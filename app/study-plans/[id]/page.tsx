@@ -10,20 +10,21 @@ import Link from "next/link";
 import Image from "next/image";
 import CoduraLogo from "@/components/logos/codura-logo.svg";
 import { cn } from "@/lib/utils";
-import {
-  ArrowLeft,
-  X,
-  Check,
-} from "lucide-react";
 import dynamic from 'next/dynamic';
 
 // Dynamic imports to avoid TypeScript issues with lucide-react type definitions
-// @ts-ignore - lucide-react has incomplete type definitions
-const Search = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Search as any })), { ssr: false });
 // @ts-ignore
-const Trash2 = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Trash2 as any })), { ssr: false });
+const ArrowLeft: any = dynamic(() => import('lucide-react').then(mod => mod.ArrowLeft), { ssr: false });
 // @ts-ignore
-const Edit2 = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Edit2 as any })), { ssr: false });
+const X: any = dynamic(() => import('lucide-react').then(mod => mod.X), { ssr: false });
+// @ts-ignore
+const Check: any = dynamic(() => import('lucide-react').then(mod => mod.Check), { ssr: false });
+// @ts-ignore
+const Search: any = dynamic(() => import('lucide-react').then(mod => mod.Search), { ssr: false });
+// @ts-ignore
+const Trash2: any = dynamic(() => import('lucide-react').then(mod => mod.Trash2), { ssr: false });
+// @ts-ignore
+const Edit2: any = dynamic(() => import('lucide-react').then(mod => mod.Edit2), { ssr: false });
 
 interface ListProblem {
   id: string;

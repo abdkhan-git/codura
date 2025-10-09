@@ -13,7 +13,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Check, Plus, Bookmark, X } from "lucide-react";
+import dynamic from 'next/dynamic';
+
+// @ts-ignore
+const Check: any = dynamic(() => import('lucide-react').then(mod => mod.Check), { ssr: false });
+// @ts-ignore
+const Plus: any = dynamic(() => import('lucide-react').then(mod => mod.Plus), { ssr: false });
+// @ts-ignore
+const Bookmark: any = dynamic(() => import('lucide-react').then(mod => mod.Bookmark), { ssr: false });
+// @ts-ignore
+const X: any = dynamic(() => import('lucide-react').then(mod => mod.X), { ssr: false });
 
 interface AddToListDialogProps {
   open: boolean;
@@ -73,8 +82,8 @@ export function AddToListDialog({ open, onOpenChange, problemId, problemTitle }:
       const data = await response.json();
 
       if (data.lists) {
-        const listIds = new Set(data.lists.map((l: any) => l.list_id));
-        const problemMap = new Map(data.lists.map((l: any) => [l.list_id, l.id]));
+        const listIds = new Set<string>(data.lists.map((l: any) => l.list_id));
+        const problemMap = new Map<string, string>(data.lists.map((l: any) => [l.list_id, l.id]));
         setSelectedLists(listIds);
         setListProblemIds(problemMap);
       }

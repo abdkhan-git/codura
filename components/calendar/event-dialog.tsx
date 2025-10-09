@@ -19,7 +19,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Code, Video, Users, RadioTower } from "lucide-react";
+import dynamic from 'next/dynamic';
+
+// @ts-ignore
+const Code: any = dynamic(() => import('lucide-react').then(mod => mod.Code), { ssr: false });
+// @ts-ignore
+const Video: any = dynamic(() => import('lucide-react').then(mod => mod.Video), { ssr: false });
+// @ts-ignore
+const Users: any = dynamic(() => import('lucide-react').then(mod => mod.Users), { ssr: false });
+// @ts-ignore
+const RadioTower: any = dynamic(() => import('lucide-react').then(mod => mod.RadioTower), { ssr: false });
 
 interface EventDialogProps {
   open: boolean;

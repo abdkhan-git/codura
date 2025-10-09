@@ -2,7 +2,14 @@
 
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
-import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
+import dynamic from 'next/dynamic';
+
+// @ts-ignore
+const CheckIcon: any = dynamic(() => import('lucide-react').then(mod => mod.Check), { ssr: false });
+// @ts-ignore
+const ChevronRightIcon: any = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight), { ssr: false });
+// @ts-ignore
+const CircleIcon: any = dynamic(() => import('lucide-react').then(mod => mod.Circle), { ssr: false });
 
 import { cn } from "@/lib/utils"
 
