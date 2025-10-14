@@ -32,6 +32,8 @@ import RecentSubmissions from "@/components/RecentSubmissions";
 import ActivityCalendar from "react-activity-calendar";
 import { StudyPlanDetailDialog } from "@/components/study-plans/study-plan-detail-dialog";
 import { PrivacyBlurOverlay, PrivacyBadge } from "@/components/privacy-blur-overlay";
+import { InteractivePieChart } from "@/components/ui/interactive-pie-chart";
+import { processLanguageData, processDifficultyData, getChartSummaryStats } from "@/lib/chart-data-processor";
 import {
   Tooltip,
   TooltipContent,
@@ -879,6 +881,25 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
                 )}
               </CardContent>
             </Card>
+
+            {/* Interactive Pie Chart - Show for all profiles, but blur for private profiles */}
+            {submissions.length > 0 && (
+              <div className="mt-6">
+                <PrivacyBlurOverlay
+                  isPrivate={!isOwnProfile && (profileData?.isPrivate ?? false)}
+                  title="Analytics are Private"
+                  description={`Connect with ${profile?.full_name || profile?.username || 'this user'} to view their coding analytics and language distribution`}
+                  showConnectButton={true}
+                >
+                  <InteractivePieChart
+                    languageData={processLanguageData(submissions)}
+                    difficultyData={processDifficultyData(submissions)}
+                    totalSolved={stats?.total_solved || 0}
+                    totalSubmissions={submissions.length}
+                  />
+                </PrivacyBlurOverlay>
+              </div>
+            )}
           </div>
         </div>
       </main>

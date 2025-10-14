@@ -124,6 +124,7 @@ interface UpcomingEvent {
 }
 
 interface DailyChallenge {
+  id: number;
   title: string;
   difficulty: string;
   topics: string[];
@@ -886,7 +887,7 @@ export default function DashboardPage() {
                       </Badge>
                     ))}
                   </div>
-                  <Link href={dailyChallenge.slug ? `/problems/${dailyChallenge.slug}` : '/problems'}>
+                  <Link href={dailyChallenge.id ? `/problems/${dailyChallenge.id}` : '/problems'}>
                     <Button className="bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 text-brand-foreground hover:scale-105 transition-transform premium-button-hover">
                       Start Challenge
                     </Button>
