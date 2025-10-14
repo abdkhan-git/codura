@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useTheme } from "next-themes";
 import { saveEducationChoice } from "./actions";
 
 type School = {
@@ -10,6 +11,7 @@ type School = {
 };
 
 export default function SchoolSearchStep() {
+  const { theme } = useTheme();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<School[]>([]);
   const [open, setOpen] = useState(false);
@@ -165,7 +167,11 @@ export default function SchoolSearchStep() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] py-12 px-4">
+    <div className={`min-h-screen transition-colors duration-500 py-12 px-4 ${
+      theme === "light" 
+        ? "bg-gradient-to-br from-white via-gray-50 to-blue-50" 
+        : "bg-zinc-950"
+    }`}>
       <div className="max-w-2xl mx-auto">
         {/* Header Section */}
         <div className="text-center space-y-3 mb-12">

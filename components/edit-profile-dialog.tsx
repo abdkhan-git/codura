@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -18,6 +18,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Settings } from "lucide-react";
 import { UserProfile } from "@/types/database";
+import Image from "next/image";
+import { AvatarCropDialog } from "@/components/avatar-crop-dialog";
+import { useRouter } from "next/navigation";
 
 const profileSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(30).optional().or(z.literal("")),
@@ -40,9 +43,15 @@ interface EditProfileDialogProps {
 }
 
 export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialogProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<Blob | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
+  const [showCropDialog, setShowCropDialog] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -83,17 +92,89 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
     }
   }, [open, profile, reset]);
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      return;
+    }
+
+    setError(null);
+
+    // Create preview and show crop dialog
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setRawImageSrc(reader.result as string);
+      setShowCropDialog(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropComplete = (croppedImage: Blob) => {
+    setAvatarFile(croppedImage);
+
+    // Create preview from cropped blob
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAvatarPreview(reader.result as string);
+    };
+    reader.readAsDataURL(croppedImage);
+  };
+
+  const uploadAvatar = async (): Promise<string | null> => {
+    if (!avatarFile) return null;
+
+    try {
+      const formData = new FormData();
+      formData.append('avatar', avatarFile);
+
+      const response = await fetch('/api/profile/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload avatar');
+      }
+
+      const data = await response.json();
+      return data.avatarUrl;
+    } catch (err) {
+      console.error('Error uploading avatar:', err);
+      throw err;
+    }
+  };
+
   const onSubmit = async (data: ProfileFormData) => {
     setIsSubmitting(true);
     setError(null);
 
     try {
+      // Upload avatar first if there's a new one
+      let avatarUrl = profile?.avatar_url;
+      if (avatarFile) {
+        avatarUrl = await uploadAvatar();
+      }
+
       const response = await fetch("/api/profile", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          avatar_url: avatarUrl,
+        }),
       });
 
       if (!response.ok) {
@@ -103,7 +184,13 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
 
       const { profile: updatedProfile } = await response.json();
       onProfileUpdate(updatedProfile);
+      setAvatarFile(null);
+      setAvatarPreview(null);
       setOpen(false);
+
+      // Refresh the page to show updated avatar everywhere
+      router.refresh();
+      window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -114,7 +201,7 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="gap-2">
+        <Button size="sm" variant="outline" className="gap-2 cursor-pointer">
           <Settings className="w-4 h-4" />
           Edit Profile
         </Button>
@@ -133,6 +220,60 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
               {error}
             </div>
           )}
+
+          {/* Avatar Upload */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-brand">Profile Picture</h3>
+            <div className="flex items-center gap-6">
+              {/* Avatar Preview */}
+              <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-brand/30 bg-gradient-to-br from-brand/20 to-orange-300/20 flex items-center justify-center shadow-lg">
+                {avatarPreview ? (
+                  <Image
+                    src={avatarPreview}
+                    alt="Avatar preview"
+                    fill
+                    className="object-cover"
+                  />
+                ) : profile?.avatar_url ? (
+                  <Image
+                    src={profile.avatar_url}
+                    alt="Current avatar"
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <span className="text-white font-bold text-2xl">
+                    {profile?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'}
+                  </span>
+                )}
+              </div>
+
+              {/* Upload Button */}
+              <div className="flex-1">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full border-brand/30 hover:bg-brand/10"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  {avatarFile ? 'Change Photo' : 'Upload Photo'}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Max 5MB • JPG, PNG, or GIF
+                </p>
+              </div>
+            </div>
+          </div>
 
           {/* Basic Information */}
           <div className="space-y-4">
@@ -307,6 +448,16 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
           </div>
         </form>
       </DialogContent>
+
+      {/* Avatar Crop Dialog */}
+      {rawImageSrc && (
+        <AvatarCropDialog
+          open={showCropDialog}
+          onOpenChange={setShowCropDialog}
+          imageSrc={rawImageSrc}
+          onCropComplete={handleCropComplete}
+        />
+      )}
     </Dialog>
   );
 }

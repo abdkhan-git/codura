@@ -31,7 +31,7 @@ export async function login(formData: FormData) {
 
   if (error) {
     console.error('Login error:', error)
-    redirect('/error')
+    redirect(`/login?error=${encodeURIComponent(error.message || 'Login failed. Please check your credentials.')}`)
   }
 
   revalidatePath('/', 'layout')
@@ -48,17 +48,8 @@ export async function login(formData: FormData) {
     .eq('user_id', user.id)
     .single()
 
-  const fafsaCode = (profile?.federal_school_code ?? '').trim()
-  const hasValidCode = /^[0-9A-Za-z]{6}$/.test(fafsaCode)
-  const isCompleted = !!profile?.questionnaire_completed
-
-  if (isCompleted) {
-    redirect('/dashboard')
-  } else if (hasValidCode) {
-    redirect('/questionnaire')
-  } else {
-    redirect('/onboarding')
-  }
+  // Always redirect to dashboard - modals will handle onboarding/questionnaire
+  redirect('/dashboard')
 }
 
 /**
@@ -80,14 +71,14 @@ export async function signup(formData: FormData) {
   // Validate inputs
   if (!email || !password || !fullName || !username) {
     console.error('Missing required fields')
-    redirect('/error')
+    redirect(`/signup?error=${encodeURIComponent('All fields are required')}`)
   }
 
   // Validate username format
   const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/
   if (!usernameRegex.test(username)) {
     console.error('Invalid username format')
-    redirect('/error')
+    redirect(`/signup?error=${encodeURIComponent('Username must be 3-20 characters and can only contain letters, numbers, underscores and hyphens')}`)
   }
 
   // Check if username is already taken
@@ -99,17 +90,17 @@ export async function signup(formData: FormData) {
 
   if (existingUser) {
     console.error('Username already taken')
-    redirect('/error')
+    redirect(`/signup?error=${encodeURIComponent('Username is already taken. Please choose another one.')}`)
   }
 
   if (password !== confirmPassword) {
     console.error('Passwords do not match')
-    redirect('/error')
+    redirect(`/signup?error=${encodeURIComponent('Passwords do not match')}`)
   }
 
   if (password.length < 6) {
     console.error('Password too short (minimum 6 characters)')
-    redirect('/error')
+    redirect(`/signup?error=${encodeURIComponent('Password must be at least 6 characters long')}`)
   }
 
   const data = {
@@ -127,6 +118,11 @@ export async function signup(formData: FormData) {
 
   if (signUpError) {
     console.error('Signup error:', signUpError)
+    
+    // Handle specific error cases with better messages
+    if (signUpError.message?.includes('already registered')) {
+      redirect(`/signup?error=${encodeURIComponent('Email is already registered. Please login instead.')}`)
+    }
     
     // If there's a database trigger error, the user might still be created in auth.users
     // Let's check and handle it manually
@@ -168,7 +164,7 @@ export async function signup(formData: FormData) {
       }
     }
     
-    redirect('/error')
+    redirect(`/signup?error=${encodeURIComponent(signUpError.message || 'Signup failed. Please try again.')}`)
   }
 
   console.log('Signup successful:', signUpData.user?.id)

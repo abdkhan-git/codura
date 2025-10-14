@@ -11,6 +11,7 @@ export interface UserProfile {
   website: string | null;
   github_username: string | null;
   linkedin_username: string | null;
+  is_public: boolean | null;
   created_at: string;
   updated_at: string;
 }

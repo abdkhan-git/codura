@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
 
     // Filter by tags (using JSONB contains)
     if (tags && tags.length > 0) {
-      // Check if ANY of the tags match
-      const tagFilters = tags.map(tag => `topic_tags @> '[{"slug": "${tag}"}]'`);
-      query = query.or(tagFilters.join(','));
+      // Check if ANY of the tags match using PostgREST syntax
+      const tagFilters = tags.map(tag => `topic_tags.cs.[{"slug":"${tag}"}]`).join(',');
+      query = query.or(tagFilters);
     }
 
     // Filter out premium problems by default (optional)

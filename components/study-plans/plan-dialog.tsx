@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 
 interface PlanDialogProps {
   open: boolean;
@@ -55,7 +56,9 @@ export function PlanDialog({ open, onOpenChange, onPlanCreated }: PlanDialogProp
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create study plan');
+        const data = await response.json();
+        toast.error(data.error || 'Failed to create study plan');
+        return;
       }
 
       // Reset form
@@ -65,11 +68,12 @@ export function PlanDialog({ open, onOpenChange, onPlanCreated }: PlanDialogProp
         color: 'from-brand to-orange-300',
       });
 
+      toast.success('Study plan created successfully');
       onPlanCreated();
       onOpenChange(false);
     } catch (error) {
       console.error('Error creating study plan:', error);
-      alert('Failed to create study plan. Please try again.');
+      toast.error('Failed to create study plan. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 import dynamic from 'next/dynamic';
 
 // @ts-ignore
@@ -100,7 +101,9 @@ export function EventDialog({ open, onOpenChange, selectedDate, onEventCreated, 
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to ${isEditing ? 'update' : 'create'} event`);
+        const data = await response.json();
+        toast.error(data.error || `Failed to ${isEditing ? 'update' : 'create'} event`);
+        return;
       }
 
       // Reset form
@@ -112,11 +115,12 @@ export function EventDialog({ open, onOpenChange, selectedDate, onEventCreated, 
         end_time: '',
       });
 
+      toast.success(`Event ${isEditing ? 'updated' : 'created'} successfully`);
       onEventCreated();
       onOpenChange(false);
     } catch (error) {
       console.error(`Error ${existingEvent ? 'updating' : 'creating'} event:`, error);
-      alert(`Failed to ${existingEvent ? 'update' : 'create'} event. Please try again.`);
+      toast.error(`Failed to ${existingEvent ? 'update' : 'create'} event. Please try again.`);
     } finally {
       setLoading(false);
     }

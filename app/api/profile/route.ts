@@ -1,5 +1,10 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { calculateStreaks } from '@/utils/streak-calculator';
+
+// Add caching for better performance
+export const revalidate = 60; // Revalidate every 60 seconds
+export const dynamic = 'force-dynamic'; // Ensure fresh data for authenticated users
 
 export async function GET() {
   try {
@@ -89,6 +94,24 @@ export async function GET() {
       return NextResponse.json({ error: submissionsError.message }, { status: 500 });
     }
 
+    // Calculate current streak dynamically
+    const { currentStreak, longestStreak } = calculateStreaks(submissions || []);
+
+    // Update stats with calculated streaks
+    if (stats) {
+      stats.current_streak = currentStreak;
+      stats.longest_streak = Math.max(longestStreak, stats.longest_streak || 0);
+
+      // Update the database with the new streak values
+      await supabase
+        .from('user_stats')
+        .update({
+          current_streak: currentStreak,
+          longest_streak: Math.max(longestStreak, stats.longest_streak || 0)
+        })
+        .eq('user_id', user.id);
+    }
+
     // Get user achievements with achievement details (using optimized view)
     const { data: userAchievements, error: achievementsError } = await supabase
       .from('user_achievements_with_details')
@@ -113,6 +136,7 @@ export async function GET() {
       user: {
         id: user.id,
         email: user.email,
+        created_at: profile?.created_at || null,
       },
       profile: profile || null,
       stats: stats || null,
@@ -157,6 +181,7 @@ export async function PUT(request: Request) {
       website,
       github_username,
       linkedin_username,
+      is_public,
     } = body;
 
     // Check if username is already taken (if changed)
@@ -188,6 +213,7 @@ export async function PUT(request: Request) {
         website,
         github_username,
         linkedin_username,
+        is_public,
       })
       .eq('user_id', user.id)
       .select()

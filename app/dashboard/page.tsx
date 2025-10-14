@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
 import CoduraLogo from "@/components/logos/codura-logo.svg";
+import CoduraLogoDark from "@/components/logos/codura-logo-dark.svg";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -24,11 +26,10 @@ import {
   X,
   Plus,
   MoreVertical,
-  User,
   Settings,
-  LogOut,
   ChevronDown,
-  BarChart3
+  BarChart3,
+  User
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import {
@@ -41,23 +42,49 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { PlanDialog } from "@/components/study-plans/plan-dialog";
+import { StudyPlanDetailDialog } from "@/components/study-plans/study-plan-detail-dialog";
+import QuestionnaireModal from "@/components/QuestionnaireModal";
+import OnboardingModal from "@/components/OnboardingModal";
+
+// Theme-aware user name component
+function UserNameText({ name, email }: { name: string; email: string }) {
+  const { theme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDark = mounted ? (resolvedTheme === 'dark' || theme === 'dark') : false;
+
+  return (
+    <div className="flex-1 min-w-0">
+      <p className="text-sm font-semibold truncate" style={{ color: isDark ? '#F4F4F5' : '#18181B' }}>
+        {name}
+      </p>
+      <p className="text-xs truncate" style={{ color: isDark ? '#A1A1AA' : '#71717A' }}>
+        {email}
+      </p>
+    </div>
+  );
+}
 
 // User data type
 interface UserData {
   name: string;
   email: string;
   avatar: string;
+  username?: string;
   streak: number;
   problemsSolved: number;
   easy: number;
   medium: number;
   hard: number;
+  createdAt?: string;
 }
 
 const chartConfig = {
@@ -74,7 +101,9 @@ interface StudyPlan {
   description?: string;
   color: string;
   is_default?: boolean;
+  is_public?: boolean;
   problem_count: number;
+  solved_count?: number;
 }
 
 // Activity and event interfaces
@@ -202,8 +231,18 @@ function Calendar({ streak }: { streak: number }) {
   };
 
   return (
-    <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-brand/30 transition-all duration-500 shadow-xl">
-      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-brand/40 to-transparent" />
+    <Card 
+      className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-brand/30 transition-all duration-500 shadow-xl hover:scale-[1.01] shine-effect"
+      style={{ '--glow-color': 'var(--brand)' } as React.CSSProperties}
+    >
+      {/* Animated glow borders */}
+      <div className="glow-border-top" />
+      <div className="glow-border-bottom" />
+      <div className="glow-border-left" />
+      <div className="glow-border-right" />
+      
+      {/* Enhanced background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 group-hover:opacity-12 transition-opacity duration-700 pointer-events-none" />
 
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -258,7 +297,7 @@ function Calendar({ streak }: { streak: number }) {
                 onMouseLeave={() => setHoveredDay(null)}
                 className={cn(
                   "relative aspect-square flex items-center justify-center text-sm rounded-lg transition-all duration-300 cursor-pointer",
-                  isToday && "bg-brand text-white font-semibold shadow-lg shadow-brand/30",
+                  isToday && "bg-brand text-brand-foreground font-semibold shadow-lg shadow-brand/30",
                   !isToday && hasActivity && !isSelected && "bg-green-500/20 text-green-600 hover:bg-green-500/40",
                   !isToday && !hasActivity && "hover:bg-muted/50",
                   isSelected && "bg-brand/20 ring-2 ring-brand text-brand font-semibold",
@@ -343,8 +382,10 @@ function Calendar({ streak }: { streak: number }) {
 }
 
 export default function DashboardPage() {
+  const { theme: currentTheme } = useTheme();
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showBorder, setShowBorder] = useState(false);
   const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
@@ -355,109 +396,133 @@ export default function DashboardPage() {
   const [eventToEdit, setEventToEdit] = useState<any>(null);
   const [activityChartData, setActivityChartData] = useState<any[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1M');
+  const [selectedStudyPlan, setSelectedStudyPlan] = useState<{ id: string; name: string; color: string; is_public?: boolean } | null>(null);
+  const [showStudyPlanDialog, setShowStudyPlanDialog] = useState(false);
+  
+  // Onboarding and Questionnaire modal state
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [hasSchoolCode, setHasSchoolCode] = useState(true);
+  const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false);
+  const [questionnaireData, setQuestionnaireData] = useState<any>(null);
+  const [questionnaireCompleted, setQuestionnaireCompleted] = useState(true);
 
-  // Fetch user data from Supabase
+  // OPTIMIZED: Fetch ALL dashboard data in ONE API call
   useEffect(() => {
-    async function fetchUserData() {
+    async function fetchAllDashboardData() {
       try {
-        const response = await fetch('/api/profile');
-        if (!response.ok) throw new Error('Failed to fetch profile');
+        setIsLoading(true);
+        setError(null);
+
+        // Single unified API call instead of 6 separate calls!
+        const response = await fetch('/api/dashboard');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to fetch dashboard data');
+        }
 
         const data = await response.json();
 
-        // Map API response to UserData format
-        const fullName = data.profile?.full_name || data.user?.email?.split('@')[0] || 'User';
-        const initials = fullName
-          .split(' ')
-          .map((n: string) => n[0])
-          .join('')
-          .toUpperCase()
-          .slice(0, 2);
-
-
-          // Set user data
-        setUser({
-          name: fullName,
-          email: data.user?.email || '',
-          avatar: data.profile?.avatar_url || initials,
-          streak: data.stats?.current_streak || 0,
-          problemsSolved: data.stats?.total_solved || 0,
-          easy: data.stats?.easy_solved || 0,
-          medium: data.stats?.medium_solved || 0,
-          hard: data.stats?.hard_solved || 0,
-        });
+        // Set all state at once
+        setUser(data.user);
+        setStudyPlans(data.studyPlans || []);
+        setRecentActivity(data.recentActivity || []);
+        setUpcomingEvents(data.upcomingEvents || []);
+        setDailyChallenge(data.dailyChallenge);
+        setActivityChartData(data.activityChartData || []);
+        
+        // Check onboarding and questionnaire status
+        if (data.user) {
+          const code = data.user.federalSchoolCode;
+          const codeStr = code === null || code === undefined ? "" : String(code).trim();
+          const hasCode = codeStr.length > 0 && codeStr !== "no_school";
+          
+          setHasSchoolCode(hasCode || codeStr === "no_school");
+          
+          // Priority 1: Show onboarding if no school code at all
+          if (!hasCode && codeStr !== "no_school") {
+            setShowOnboardingModal(true);
+          } 
+          // Priority 2: Show questionnaire if has code but not completed
+          else if (data.user.questionnaireCompleted === false) {
+            setQuestionnaireCompleted(false);
+            fetchQuestionnaireData();
+          }
+        }
       } catch (error) {
-        console.error('Error fetching user data:', error);
+        console.error('Error fetching dashboard data:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load dashboard data');
       } finally {
         setIsLoading(false);
       }
     }
 
-    fetchUserData();
-    fetchStudyPlans();
-    fetchRecentActivity();
-    fetchUpcomingEvents();
-    fetchDailyChallenge();
-    fetchActivityChart();
+    fetchAllDashboardData();
   }, []);
 
   // Fetch activity chart when timeframe changes
   useEffect(() => {
+    async function fetchActivityChart() {
+      try {
+        const response = await fetch(`/api/dashboard/activity-chart?timeframe=${selectedTimeframe}`);
+        const data = await response.json();
+        setActivityChartData(data.data || []);
+      } catch (error) {
+        console.error('Error fetching activity chart:', error);
+      }
+    }
+
     fetchActivityChart();
   }, [selectedTimeframe]);
 
-  // Fetch study plans
-  const fetchStudyPlans = async () => {
+  // Fetch questionnaire data
+  const fetchQuestionnaireData = async () => {
     try {
-      const response = await fetch('/api/study-plans');
+      const response = await fetch('/api/questionnaire');
+      if (!response.ok) throw new Error('Failed to fetch questionnaire');
       const data = await response.json();
-      setStudyPlans(data.userLists || []);
+      setQuestionnaireData(data);
+      setQuestionnaireCompleted(false);
+      setShowQuestionnaireModal(true);
     } catch (error) {
-      console.error('Error fetching study plans:', error);
+      console.error('Error fetching questionnaire:', error);
     }
   };
 
-  // Fetch recent activity
-  const fetchRecentActivity = async () => {
-    try {
-      const response = await fetch('/api/dashboard/recent-activity');
-      const data = await response.json();
-      setRecentActivity(data.activity || []);
-    } catch (error) {
-      console.error('Error fetching recent activity:', error);
-    }
+  // Handle onboarding completion - show questionnaire next
+  const handleOnboardingComplete = () => {
+    setShowOnboardingModal(false);
+    setHasSchoolCode(true);
+    // Now show questionnaire modal
+    fetchQuestionnaireData();
   };
 
-  // Fetch upcoming events
-  const fetchUpcomingEvents = async () => {
-    try {
-      const response = await fetch('/api/dashboard/upcoming-events');
-      const data = await response.json();
-      setUpcomingEvents(data.events || []);
-    } catch (error) {
-      console.error('Error fetching upcoming events:', error);
-    }
+  // Handle questionnaire completion
+  const handleQuestionnaireComplete = () => {
+    setShowQuestionnaireModal(false);
+    setQuestionnaireCompleted(true);
+    // Refresh dashboard data
+    refetchDashboard();
   };
 
-  // Fetch daily challenge
-  const fetchDailyChallenge = async () => {
+  // Refetch function for when data needs to be refreshed
+  const refetchDashboard = async () => {
     try {
-      const response = await fetch('/api/dashboard/daily-challenge');
+      setError(null);
+      const response = await fetch('/api/dashboard');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch dashboard data');
+      }
       const data = await response.json();
-      setDailyChallenge(data.challenge || null);
+      setUser(data.user);
+      setStudyPlans(data.studyPlans || []);
+      setRecentActivity(data.recentActivity || []);
+      setUpcomingEvents(data.upcomingEvents || []);
+      setDailyChallenge(data.dailyChallenge);
+      setActivityChartData(data.activityChartData || []);
     } catch (error) {
-      console.error('Error fetching daily challenge:', error);
-    }
-  };
-
-  // Fetch activity chart
-  const fetchActivityChart = async () => {
-    try {
-      const response = await fetch(`/api/dashboard/activity-chart?timeframe=${selectedTimeframe}`);
-      const data = await response.json();
-      setActivityChartData(data.data || []);
-    } catch (error) {
-      console.error('Error fetching activity chart:', error);
+      console.error('Error refetching dashboard:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load dashboard data');
     }
   };
 
@@ -472,7 +537,7 @@ export default function DashboardPage() {
 
       if (!response.ok) throw new Error('Failed to delete event');
 
-      await fetchUpcomingEvents();
+      await refetchDashboard(); // OPTIMIZED: Use unified refetch
     } catch (error) {
       console.error('Error deleting event:', error);
       alert('Failed to delete event');
@@ -515,7 +580,7 @@ export default function DashboardPage() {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="caffeine-theme min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="caffeine-theme min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">Loading your dashboard...</p>
@@ -524,34 +589,65 @@ export default function DashboardPage() {
     );
   }
 
-  // Show error state if user data failed to load
-  if (!user) {
+  // Show error state if data failed to load
+  if (error || !user) {
     return (
-      <div className="caffeine-theme min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">Failed to load user data</p>
-          <Button onClick={() => window.location.reload()}>Retry</Button>
+      <div className="caffeine-theme min-h-screen bg-background relative flex items-center justify-center p-6">
+        {/* Background effects */}
+        <div className="fixed inset-0 pointer-events-none z-0">
+          <div className="absolute inset-0 bg-background" />
+          <div className="absolute top-[-10%] right-[20%] w-[500px] h-[500px] bg-brand/5 rounded-full blur-[100px] animate-pulse-slow" />
         </div>
+
+        <Card className="relative z-10 max-w-lg w-full border-2 border-destructive/30 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl shadow-2xl">
+          <CardHeader className="text-center pb-4">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
+              <X className="w-8 h-8 text-destructive" />
+            </div>
+            <CardTitle className="text-2xl text-destructive">Unable to Load Dashboard</CardTitle>
+            <CardDescription className="text-base mt-2">
+              {error || 'Failed to load user data. Please try again.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 pt-0">
+            <Button 
+              onClick={refetchDashboard} 
+              className="w-full"
+              size="lg"
+            >
+              Try Again
+            </Button>
+            <Button 
+              onClick={() => window.location.href = '/'} 
+              variant="outline"
+              className="w-full"
+            >
+              Go to Home
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
+  
+  // TypeScript: After this point, user is guaranteed to be non-null
 
   return (
-    <div className="caffeine-theme min-h-screen bg-zinc-950 relative">
+    <div className="caffeine-theme min-h-screen bg-background relative">
       {/* Animated Background */}
       <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-zinc-950" />
+        <div className="absolute inset-0 bg-background" />
 
         {/* Floating orbs */}
         <div
-          className="absolute top-[-10%] right-[20%] w-[500px] h-[500px] bg-brand/8 rounded-full blur-[100px] animate-pulse-slow"
+          className="absolute top-[-10%] right-[20%] w-[500px] h-[500px] bg-brand/5 dark:bg-brand/8 rounded-full blur-[100px] animate-pulse-slow"
         />
         <div
-          className="absolute bottom-[10%] left-[15%] w-[400px] h-[400px] bg-purple-500/6 rounded-full blur-[80px] animate-float-slow"
+          className="absolute bottom-[10%] left-[15%] w-[400px] h-[400px] bg-purple-500/3 dark:bg-purple-500/6 rounded-full blur-[80px] animate-float-slow"
           style={{ animationDelay: '2s' }}
         />
         <div
-          className="absolute top-[40%] right-[60%] w-[300px] h-[300px] bg-blue-500/5 rounded-full blur-[70px] animate-float"
+          className="absolute top-[40%] right-[60%] w-[300px] h-[300px] bg-blue-500/3 dark:bg-blue-500/5 rounded-full blur-[70px] animate-float"
           style={{ animationDelay: '4s' }}
         />
 
@@ -577,14 +673,14 @@ export default function DashboardPage() {
         className={cn(
           "fixed inset-x-0 top-0 z-50 border-b border-b-transparent bg-gradient-to-b shadow-none backdrop-blur-none transition-all duration-500",
           showBorder
-            ? "border-b-white/10 shadow-[0_4px_60px_0_rgba(0,0,0,0.90)] backdrop-blur-md from-neutral-950/80 to-neutral-950/50"
+            ? "border-b-border/50 shadow-xl backdrop-blur-md from-background/80 to-background/50"
             : ""
         )}
       >
         <div className="flex items-center justify-between py-4 max-w-7xl mx-auto px-6">
           <Link href="/" aria-label="Codura homepage" className="flex items-center group">
             <Image
-              src={CoduraLogo}
+              src={currentTheme === 'light' ? CoduraLogoDark : CoduraLogo}
               alt="Codura logo"
               width={90}
               height={40}
@@ -593,20 +689,20 @@ export default function DashboardPage() {
             />
           </Link>
 
-          <nav className="hidden items-center gap-6 text-base leading-7 font-light text-neutral-400 lg:flex">
-            <Link className="hover:text-neutral-200 transition-colors" href="/problems">
+          <nav className="hidden items-center gap-6 text-base leading-7 font-light text-muted-foreground lg:flex">
+            <Link className="hover:text-foreground transition-colors" href="/problems">
               Problems
             </Link>
-            <Link className="hover:text-neutral-200 transition-colors" href="/mock-interview">
+            <Link className="hover:text-foreground transition-colors" href="/mock-interview">
               Interview
             </Link>
-            <Link className="hover:text-neutral-200 transition-colors" href="/study-pods">
+            <Link className="hover:text-foreground transition-colors" href="/study-pods">
               Study Pods
             </Link>
-            <Link className="hover:text-neutral-200 transition-colors" href="/leaderboards">
+            <Link className="hover:text-foreground transition-colors" href="/leaderboards">
               Leaderboards
             </Link>
-            <Link className="hover:text-neutral-200 transition-colors" href="/discuss">
+            <Link className="hover:text-foreground transition-colors" href="/discuss">
               Discuss
             </Link>
           </nav>
@@ -616,47 +712,100 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 hover:bg-white/5">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand to-orange-300 flex items-center justify-center text-white font-semibold text-sm">
-                    {user.avatar}
+                <Button variant="ghost" className="flex items-center gap-2 hover:bg-muted/50 rounded-lg">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white font-semibold text-sm overflow-hidden relative ring-1 ring-border/50">
+                    {user.avatar && user.avatar.startsWith('http') ? (
+                      <img
+                        src={user.avatar}
+                        alt="Avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-sm">{user.avatar}</span>
+                    )}
                   </div>
-                  <span className="hidden sm:inline text-sm text-neutral-400">
+                  <span className="hidden sm:inline text-sm text-foreground font-medium">
                     {user.name.split(' ')[0]}
                   </span>
-                  <ChevronDown className="h-4 w-4 text-neutral-400" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-card/95 backdrop-blur-xl border-border/40">
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{user.name}</p>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
+              <DropdownMenuContent
+                align="end"
+                className="w-[280px] border border-border/50 bg-card/95 backdrop-blur-sm shadow-lg rounded-xl"
+              >
+                {/* Profile Header - Modern & Elegant */}
+                <div className="px-4 py-4 mb-1">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white font-semibold overflow-hidden ring-1 ring-border/50">
+                        {user.avatar && user.avatar.startsWith('http') ? (
+                          <img
+                            src={user.avatar}
+                            alt="Avatar"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-sm">{user.avatar}</span>
+                        )}
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full ring-2 ring-background" />
+                    </div>
+                    <UserNameText name={user.name} email={user.email} />
                   </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-border/40" />
-                <DropdownMenuItem asChild>
-                  <Link href="/profile" className="cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-border/40" />
-                <DropdownMenuItem
-                  className="cursor-pointer text-red-500 focus:text-red-500"
-                  onClick={async () => {
-                    await fetch('/auth/signout', { method: 'POST' });
-                    window.location.href = '/';
-                  }}
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign Out</span>
-                </DropdownMenuItem>
+                </div>
+
+                {/* Divider */}
+                <div className="h-px bg-border/30 my-2" />
+
+                {/* Menu Items - Balanced Design */}
+                <div className="py-1 space-y-0.5">
+                  <DropdownMenuItem asChild>
+                    <Link
+                      href={`/profile/${user?.username || ''}`}
+                      className="flex items-center gap-3 px-4 py-2.5 cursor-pointer text-sm font-medium group hover:bg-muted/50 rounded-lg mx-2"
+                    >
+                      <div className="w-5 h-5 rounded-md bg-gradient-to-br from-brand to-blue-600 dark:from-brand dark:to-orange-400 flex items-center justify-center group-hover:from-blue-600 group-hover:to-blue-700 dark:group-hover:from-orange-500 dark:group-hover:to-orange-600 transition-all shadow-sm">
+                        <User className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                      </div>
+                      <span className="text-foreground">Profile</span>
+                    </Link>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem asChild>
+                    <Link
+                      href="/settings"
+                      className="flex items-center gap-3 px-4 py-2.5 cursor-pointer text-sm font-medium group hover:bg-muted/50 rounded-lg mx-2"
+                    >
+                      <div className="w-5 h-5 rounded-md bg-gradient-to-br from-slate-500 to-slate-600 dark:from-brand dark:to-orange-400 flex items-center justify-center group-hover:from-slate-600 group-hover:to-slate-700 dark:group-hover:from-orange-500 dark:group-hover:to-orange-600 transition-all shadow-sm">
+                        <Settings className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                      </div>
+                      <span className="text-foreground">Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                </div>
+
+                {/* Divider */}
+                <div className="h-px bg-border/30 my-2" />
+
+                {/* Sign Out - Professional Emphasis */}
+                <div className="py-1">
+                  <DropdownMenuItem
+                    variant="destructive"
+                    className="flex items-center gap-3 px-4 py-2.5 cursor-pointer text-sm font-medium group hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg mx-2"
+                    onClick={async () => {
+                      await fetch('/auth/signout', { method: 'POST' });
+                      window.location.href = '/';
+                    }}
+                  >
+                    <div className="w-5 h-5 rounded-md bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center group-hover:from-red-600 group-hover:to-red-700 transition-all shadow-sm">
+                      <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </div>
+                    <span className="text-red-600">Sign out</span>
+                  </DropdownMenuItem>
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -665,20 +814,47 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-16">
-        <div className="mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold mb-3 bg-gradient-to-r from-foreground via-foreground to-brand bg-clip-text text-transparent">
-            Welcome to Codura
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            Continue your interview preparation journey
-          </p>
+        <div className="mb-12 relative">
+          {/* Decorative gradient orb behind text */}
+          <div className="absolute -top-8 -left-8 w-64 h-64 bg-gradient-to-br from-brand/10 via-purple-500/5 to-transparent rounded-full blur-[120px] opacity-40 animate-pulse-slow pointer-events-none" />
+
+          <div className="relative">
+            <h1 className="text-4xl md:text-5xl font-bold mb-3 relative">
+              <span className="bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent animate-gradient-x">
+                {(() => {
+                  const firstName = user.name.split(' ')[0];
+                  // Capitalize first letter
+                  const capitalizedName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+                  const isNewUser = user.createdAt ?
+                    new Date().getTime() - new Date(user.createdAt).getTime() < 24 * 60 * 60 * 1000 :
+                    false;
+                  return isNewUser
+                    ? `Welcome to Codura, ${capitalizedName}`
+                    : `Welcome back, ${capitalizedName}`;
+                })()}
+              </span>
+            </h1>
+            <p className="text-lg text-muted-foreground">
+              Continue your interview preparation journey
+            </p>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6 mb-8">
           {/* Daily Challenge - Featured */}
-          <Card className="lg:col-span-2 relative border-2 border-brand/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-brand/40 hover:shadow-2xl hover:shadow-brand/10 transition-all duration-500 shadow-xl hover:scale-[1.01]">
-            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <Card 
+            className="lg:col-span-2 relative border-2 border-brand/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-brand/40 hover:shadow-2xl hover:shadow-brand/10 transition-all duration-500 shadow-xl hover:scale-[1.01] shine-effect"
+            style={{ '--glow-color': 'var(--brand)' } as React.CSSProperties}
+          >
+            {/* Animated glow borders - top visible, others on hover */}
+            <div className="glow-border-top" />
+            <div className="glow-border-bottom" />
+            <div className="glow-border-left" />
+            <div className="glow-border-right" />
+            
+            {/* Enhanced background gradient with animation */}
+            <div className="absolute inset-0 bg-gradient-to-br from-brand/5 via-brand/3 to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-tl from-orange-500/5 to-transparent opacity-0 group-hover:opacity-10 transition-opacity duration-700 delay-100 pointer-events-none" />
 
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -704,14 +880,14 @@ export default function DashboardPage() {
                 <>
                   <h3 className="font-semibold text-xl mb-3 group-hover:text-brand transition-colors">{dailyChallenge.title}</h3>
                   <div className="flex flex-wrap gap-2 mb-4">
-                    {dailyChallenge.topics.map((topic, i) => (
+                    {Array.isArray(dailyChallenge.topics) && dailyChallenge.topics.map((topic, i) => (
                       <Badge key={i} variant="outline" className="bg-muted/50 hover:bg-brand/10 transition-colors">
-                        {topic}
+                        {typeof topic === 'string' ? topic : (topic as any).name || (topic as any).slug}
                       </Badge>
                     ))}
                   </div>
                   <Link href={dailyChallenge.slug ? `/problems/${dailyChallenge.slug}` : '/problems'}>
-                    <Button className="bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 text-white hover:scale-105 transition-transform">
+                    <Button className="bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 text-brand-foreground hover:scale-105 transition-transform premium-button-hover">
                       Start Challenge
                     </Button>
                   </Link>
@@ -725,8 +901,18 @@ export default function DashboardPage() {
           </Card>
 
           {/* Quick Stats */}
-          <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-purple-500/30 transition-all duration-500 shadow-xl">
-            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
+          <Card 
+            className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-purple-500/30 transition-all duration-500 shadow-xl hover:scale-[1.01] shine-effect"
+            style={{ '--glow-color': '#a855f7' } as React.CSSProperties}
+          >
+            {/* Animated glow borders */}
+            <div className="glow-border-top" />
+            <div className="glow-border-bottom" />
+            <div className="glow-border-left" />
+            <div className="glow-border-right" />
+            
+            {/* Enhanced background gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-15 transition-opacity duration-700 pointer-events-none" />
 
             <CardHeader>
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -771,8 +957,18 @@ export default function DashboardPage() {
           {/* Left Column */}
           <div className="lg:col-span-2 space-y-6">
             {/* Activity Chart */}
-            <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-cyan-500/30 transition-all duration-500 shadow-xl hover:scale-[1.01]">
-              <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
+            <Card 
+              className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-cyan-500/30 transition-all duration-500 shadow-xl hover:scale-[1.01] shine-effect"
+              style={{ '--glow-color': '#06b6d4' } as React.CSSProperties}
+            >
+              {/* Animated glow borders */}
+              <div className="glow-border-top" />
+              <div className="glow-border-bottom" />
+              <div className="glow-border-left" />
+              <div className="glow-border-right" />
+              
+              {/* Enhanced background gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-15 transition-opacity duration-700 pointer-events-none" />
 
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -794,7 +990,7 @@ export default function DashboardPage() {
                         className={cn(
                           "h-7 px-2 text-xs",
                           selectedTimeframe === timeframe
-                            ? "bg-brand text-white hover:bg-brand/90"
+                            ? "bg-brand text-brand-foreground hover:bg-brand/90"
                             : "hover:bg-muted"
                         )}
                         onClick={() => setSelectedTimeframe(timeframe)}
@@ -856,44 +1052,57 @@ export default function DashboardPage() {
             </Card>
 
             {/* Recent Activity */}
-            <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-green-500/30 transition-all duration-500 shadow-xl hover:scale-[1.01]">
-              <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-green-500/40 to-transparent" />
+            <Card 
+              className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-green-500/30 transition-all duration-500 shadow-xl hover:scale-[1.01] shine-effect"
+              style={{ '--glow-color': '#22c55e' } as React.CSSProperties}
+            >
+              {/* Animated glow borders */}
+              <div className="glow-border-top" />
+              <div className="glow-border-bottom" />
+              <div className="glow-border-left" />
+              <div className="glow-border-right" />
+              
+              {/* Enhanced background gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-15 transition-opacity duration-700 pointer-events-none" />
 
               <CardHeader>
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-green-500" />
                   Recent Activity
                 </CardTitle>
+                <CardDescription className="text-xs">
+                  Last 7 days
+                </CardDescription>
               </CardHeader>
 
               <CardContent>
                 {recentActivity.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {recentActivity.map((activity) => (
                       <div
                         key={activity.id}
-                        className="flex items-center gap-3 p-3 rounded-lg border border-border/40 hover:bg-muted/50 hover:border-brand/30 transition-all cursor-pointer hover:scale-[1.02]"
+                        className="flex items-center gap-3 p-2.5 rounded-lg border border-border/40 hover:bg-muted/50 hover:border-brand/30 transition-all cursor-pointer hover:scale-[1.01] activity-card-hover"
                       >
                         <div className={cn(
-                          "w-10 h-10 rounded-lg flex items-center justify-center transition-transform hover:scale-110",
+                          "w-8 h-8 rounded-lg flex items-center justify-center transition-transform hover:scale-110 flex-shrink-0",
                           activity.type === 'problem' && "bg-green-500/10 text-green-600",
                           activity.type === 'interview' && "bg-purple-500/10 text-purple-600",
                           activity.type === 'study' && "bg-blue-500/10 text-blue-600"
                         )}>
                           {activity.type === 'problem' ? (
-                            <CheckCircle2 className="w-5 h-5" />
+                            <CheckCircle2 className="w-4 h-4" />
                           ) : activity.type === 'interview' ? (
-                            <Video className="w-5 h-5" />
+                            <Video className="w-4 h-4" />
                           ) : (
-                            <Users className="w-5 h-5" />
+                            <Users className="w-4 h-4" />
                           )}
                         </div>
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{activity.title}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{activity.title}</p>
                           <p className="text-xs text-muted-foreground">{activity.time}</p>
                         </div>
                         {activity.difficulty && (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs flex-shrink-0">
                             {activity.difficulty}
                           </Badge>
                         )}
@@ -901,17 +1110,28 @@ export default function DashboardPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p className="text-sm">No recent activity</p>
-                    <p className="text-xs mt-1">Start solving problems to see your activity here</p>
+                  <div className="text-center py-6 text-muted-foreground">
+                    <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p className="text-sm font-medium">No recent activity</p>
+                    <p className="text-xs mt-1">Solve problems in the last 7 days to see activity</p>
                   </div>
                 )}
               </CardContent>
             </Card>
 
             {/* Upcoming Events */}
-            <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-blue-500/30 transition-all duration-500 shadow-xl">
-              <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
+            <Card 
+              className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-blue-500/30 transition-all duration-500 shadow-xl hover:scale-[1.01] shine-effect"
+              style={{ '--glow-color': '#3b82f6' } as React.CSSProperties}
+            >
+              {/* Animated glow borders */}
+              <div className="glow-border-top" />
+              <div className="glow-border-bottom" />
+              <div className="glow-border-left" />
+              <div className="glow-border-right" />
+              
+              {/* Enhanced background gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-15 transition-opacity duration-700 pointer-events-none" />
 
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -937,7 +1157,7 @@ export default function DashboardPage() {
                     {upcomingEvents.map((event) => (
                       <div
                         key={event.id}
-                        className="group/event flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/50 transition-colors"
+                        className="group/event flex items-center justify-between p-3 rounded-lg border border-border/30 hover:bg-muted/30 transition-colors"
                       >
                         <div className="flex items-center gap-3">
                           <div className={cn(
@@ -1002,8 +1222,18 @@ export default function DashboardPage() {
             <Calendar streak={user.streak} />
 
             {/* Study Plan Progress */}
-            <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-green-500/30 transition-all duration-500 shadow-xl hover:scale-[1.01]">
-              <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-green-500/40 to-transparent" />
+            <Card 
+              className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-green-500/30 transition-all duration-500 shadow-xl hover:scale-[1.01] shine-effect"
+              style={{ '--glow-color': '#22c55e' } as React.CSSProperties}
+            >
+              {/* Animated glow borders */}
+              <div className="glow-border-top" />
+              <div className="glow-border-bottom" />
+              <div className="glow-border-left" />
+              <div className="glow-border-right" />
+              
+              {/* Enhanced background gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-15 transition-opacity duration-700 pointer-events-none" />
 
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -1040,39 +1270,48 @@ export default function DashboardPage() {
                 ) : (
                   <>
                     {studyPlans.slice(0, 3).map((plan) => {
-                      // For now, show problem count as both total and completed (will be updated later with progress tracking)
+                      // Calculate progress stats
                       const total = plan.problem_count || 0;
-                      const completed = 0; // Will be calculated from user_problem_progress
+                      const completed = plan.solved_count || 0; // Will be real data from API
                       const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
                       return (
                         <div
                           key={plan.id}
-                          className="group/plan"
+                          className="group/plan cursor-pointer"
+                          onClick={() => {
+                            setSelectedStudyPlan({ id: plan.id, name: plan.name, color: plan.color, is_public: plan.is_public });
+                            setShowStudyPlanDialog(true);
+                          }}
                         >
-                          <Link href={`/study-plans/${plan.id}`} className="block">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium hover:text-brand transition-colors">{plan.name}</span>
-                                {plan.is_default && (
-                                  <Badge variant="outline" className="text-xs h-5 border-brand/30">
-                                    Default
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm text-muted-foreground">{total} problems</span>
-                              </div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-foreground hover:text-brand transition-colors">{plan.name}</span>
+                              {plan.is_default && (
+                                <Badge variant="outline" className="text-xs h-5 border-brand/30">
+                                  Default
+                                </Badge>
+                              )}
+                              {plan.is_public && (
+                                <Badge variant="outline" className="text-xs h-5 bg-green-500/10 text-green-500 border-green-500/30">
+                                  Public
+                                </Badge>
+                              )}
                             </div>
-                            <div className="relative w-full bg-muted/30 rounded-full h-2.5 overflow-hidden group-hover/plan:h-3 transition-all">
-                              <div
-                                className={`bg-gradient-to-r ${plan.color} h-full rounded-full transition-all duration-500 relative`}
-                                style={{ width: `${percentage}%` }}
-                              >
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                              </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">
+                                {completed}/{total} solved ({percentage}%)
+                              </span>
                             </div>
-                          </Link>
+                          </div>
+                          <div className="relative w-full bg-muted/30 rounded-full h-2.5 overflow-hidden group-hover/plan:h-3 transition-all">
+                            <div
+                              className={`bg-gradient-to-r ${plan.color} h-full rounded-full transition-all duration-500 relative`}
+                              style={{ width: `${percentage}%` }}
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
@@ -1102,16 +1341,41 @@ export default function DashboardPage() {
             <PlanDialog
               open={showPlanDialog}
               onOpenChange={setShowPlanDialog}
-              onPlanCreated={fetchStudyPlans}
+              onPlanCreated={refetchDashboard}
             />
 
             <EventDialog
               open={showUpcomingEventDialog}
               onOpenChange={setShowUpcomingEventDialog}
               selectedDate={eventToEdit?.event_date ? new Date(eventToEdit.event_date) : new Date()}
-              onEventCreated={fetchUpcomingEvents}
+              onEventCreated={refetchDashboard}
               existingEvent={eventToEdit}
             />
+
+            {selectedStudyPlan && (
+              <StudyPlanDetailDialog
+                open={showStudyPlanDialog}
+                onOpenChange={setShowStudyPlanDialog}
+                listId={selectedStudyPlan.id}
+                listName={selectedStudyPlan.name}
+                listColor={selectedStudyPlan.color}
+                isPublic={selectedStudyPlan.is_public}
+                onListUpdated={refetchDashboard}
+              />
+            )}
+
+            {/* Onboarding Modal - Shows for users without school code */}
+            {showOnboardingModal && !hasSchoolCode && (
+              <OnboardingModal onComplete={handleOnboardingComplete} />
+            )}
+
+            {/* Questionnaire Modal - Shows after onboarding or for users with school code but incomplete questionnaire */}
+            {showQuestionnaireModal && questionnaireData && !questionnaireCompleted && !showOnboardingModal && (
+              <QuestionnaireModal
+                items={questionnaireData.items}
+                onComplete={handleQuestionnaireComplete}
+              />
+            )}
           </div>
         </div>
       </main>

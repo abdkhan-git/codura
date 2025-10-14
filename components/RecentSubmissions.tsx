@@ -33,9 +33,10 @@ interface Submission {
 interface RecentSubmissionsProps {
   submissions: Submission[];
   compact?: boolean;
+  isOwnProfile?: boolean;
 }
 
-export default function RecentSubmissions({ submissions, compact = true }: RecentSubmissionsProps) {
+export default function RecentSubmissions({ submissions, compact = true, isOwnProfile = true }: RecentSubmissionsProps) {
   const [expanded, setExpanded] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<string | null>(null);
 
@@ -74,7 +75,11 @@ export default function RecentSubmissions({ submissions, compact = true }: Recen
       <div className="text-center py-12 text-muted-foreground">
         <Code2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
         <p className="text-sm">No submissions yet</p>
-        <p className="text-xs mt-1">Start solving problems to see your history</p>
+        <p className="text-xs mt-1">
+          {isOwnProfile
+            ? "Start solving problems to see your history"
+            : "This user hasn't submitted any solutions yet"}
+        </p>
       </div>
     );
   }

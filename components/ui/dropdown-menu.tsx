@@ -3,6 +3,7 @@
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import dynamic from 'next/dynamic';
+import { useTheme } from "next-themes"
 
 // @ts-ignore
 const CheckIcon: any = dynamic(() => import('lucide-react').then(mod => mod.Check), { ssr: false });
@@ -43,13 +44,42 @@ function DropdownMenuContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  const { theme, resolvedTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Determine if we're in dark mode
+  const isDark = mounted ? (resolvedTheme === 'dark' || theme === 'dark') : false
+
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md",
+          // Glassmorphic design with proper theme detection
+          isDark ? "bg-[#1A1A1D]" : "bg-white/98",
+          isDark ? "text-[#E4E4E7]" : "text-[#27272A]",
+          "backdrop-blur-2xl backdrop-saturate-150",
+          isDark ? "border-[#2A2A2D]/80" : "border-[#E4E4E7]/60",
+          isDark ? "shadow-2xl shadow-black/80" : "shadow-2xl shadow-black/[0.12]",
+          isDark ? "ring-1 ring-white/[0.12]" : "ring-1 ring-black/[0.05]",
+          // Animations
+          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          "data-[side=bottom]:slide-in-from-top-2",
+          "data-[side=left]:slide-in-from-right-2",
+          "data-[side=right]:slide-in-from-left-2",
+          "data-[side=top]:slide-in-from-bottom-2",
+          // Layout
+          "z-50 max-h-(--radix-dropdown-menu-content-available-height)",
+          "min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin)",
+          "overflow-x-hidden overflow-y-auto",
+          "rounded-xl p-2",
           className
         )}
         {...props}
@@ -75,13 +105,43 @@ function DropdownMenuItem({
   inset?: boolean
   variant?: "default" | "destructive"
 }) {
+  const { theme, resolvedTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const isDark = mounted ? (resolvedTheme === 'dark' || theme === 'dark') : false
+
   return (
     <DropdownMenuPrimitive.Item
       data-slot="dropdown-menu-item"
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 dark:data-[variant=destructive]:focus:bg-destructive/20 data-[variant=destructive]:focus:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        // Modern glassmorphic hover effects with theme detection
+        isDark ? "hover:bg-white/10 focus:bg-white/12" : "hover:bg-zinc-100/70 focus:bg-zinc-100/90",
+        isDark ? "active:bg-white/15" : "active:bg-zinc-200/80",
+        "transition-all duration-150 ease-out",
+        isDark ? "hover:shadow-black/20" : "hover:shadow-sm",
+        // Destructive variant
+        "data-[variant=destructive]:text-red-600 dark:data-[variant=destructive]:text-red-400",
+        "data-[variant=destructive]:hover:bg-red-500/15",
+        "dark:data-[variant=destructive]:hover:bg-red-500/20",
+        "data-[variant=destructive]:focus:bg-red-500/20",
+        "data-[variant=destructive]:*:[svg]:!text-red-600",
+        "dark:data-[variant=destructive]:*:[svg]:!text-red-400",
+        // Icon styling
+        "[&_svg:not([class*='text-'])]:text-muted-foreground",
+        // Layout
+        "relative flex cursor-default items-center gap-2",
+        "rounded-lg px-2 py-1.5 text-sm font-medium",
+        "outline-hidden select-none",
+        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "data-[inset]:pl-8",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "[&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -99,7 +159,19 @@ function DropdownMenuCheckboxItem({
     <DropdownMenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        // Modern glassmorphic hover effects
+        "focus:bg-gray-100/70 dark:focus:bg-white/12 focus:text-foreground",
+        "hover:bg-gray-100/50 dark:hover:bg-white/10 hover:text-foreground",
+        "active:bg-gray-200/70 dark:active:bg-white/15",
+        "transition-all duration-150 ease-out",
+        "hover:shadow-sm dark:hover:shadow-black/20",
+        // Layout
+        "relative flex cursor-default items-center gap-2",
+        "rounded-lg py-1.5 pr-2 pl-8 text-sm font-medium",
+        "outline-hidden select-none",
+        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "[&_svg:not([class*='size-'])]:size-4",
         className
       )}
       checked={checked}
@@ -135,7 +207,19 @@ function DropdownMenuRadioItem({
     <DropdownMenuPrimitive.RadioItem
       data-slot="dropdown-menu-radio-item"
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        // Modern glassmorphic hover effects
+        "focus:bg-gray-100/70 dark:focus:bg-white/12 focus:text-foreground",
+        "hover:bg-gray-100/50 dark:hover:bg-white/10 hover:text-foreground",
+        "active:bg-gray-200/70 dark:active:bg-white/15",
+        "transition-all duration-150 ease-out",
+        "hover:shadow-sm dark:hover:shadow-black/20",
+        // Layout
+        "relative flex cursor-default items-center gap-2",
+        "rounded-lg py-1.5 pr-2 pl-8 text-sm font-medium",
+        "outline-hidden select-none",
+        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "[&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -218,7 +302,17 @@ function DropdownMenuSubTrigger({
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[inset]:pl-8",
+        // Modern glassmorphic hover effects
+        "focus:bg-gray-100/70 dark:focus:bg-white/12 focus:text-foreground",
+        "hover:bg-gray-100/50 dark:hover:bg-white/10 hover:text-foreground",
+        "data-[state=open]:bg-gray-100/70 dark:data-[state=open]:bg-white/12",
+        "data-[state=open]:text-foreground",
+        "active:bg-gray-200/70 dark:active:bg-white/15",
+        "transition-all duration-150 ease-out",
+        "hover:shadow-sm dark:hover:shadow-black/20",
+        // Layout
+        "flex cursor-default items-center rounded-lg px-2 py-1.5 text-sm font-medium",
+        "outline-hidden select-none data-[inset]:pl-8",
         className
       )}
       {...props}
@@ -233,11 +327,37 @@ function DropdownMenuSubContent({
   className,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  const { theme, resolvedTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const isDark = mounted ? (resolvedTheme === 'dark' || theme === 'dark') : false
+
   return (
     <DropdownMenuPrimitive.SubContent
       data-slot="dropdown-menu-sub-content"
       className={cn(
-        "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md border p-1 shadow-lg",
+        // Glassmorphic design with proper theme detection
+        isDark ? "bg-[#1A1A1D]" : "bg-white/98",
+        isDark ? "text-[#E4E4E7]" : "text-[#27272A]",
+        "backdrop-blur-2xl backdrop-saturate-150",
+        isDark ? "border-[#2A2A2D]/80" : "border-[#E4E4E7]/60",
+        isDark ? "shadow-2xl shadow-black/80" : "shadow-2xl shadow-black/[0.12]",
+        isDark ? "ring-1 ring-white/[0.12]" : "ring-1 ring-black/[0.05]",
+        // Animations
+        "data-[state=open]:animate-in data-[state=closed]:animate-out",
+        "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+        "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+        "data-[side=bottom]:slide-in-from-top-2",
+        "data-[side=left]:slide-in-from-right-2",
+        "data-[side=right]:slide-in-from-left-2",
+        "data-[side=top]:slide-in-from-bottom-2",
+        // Layout
+        "z-50 min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin)",
+        "overflow-hidden rounded-xl p-2",
         className
       )}
       {...props}

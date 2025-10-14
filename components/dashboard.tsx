@@ -1,8 +1,8 @@
 // components/dashboard.tsx
 "use client"
-import { LogOut, RotateCcw, FileEdit } from "lucide-react"
 import React from "react"
 import Link from "next/link"
+import { LogOut, Settings, User, Trophy, BookOpen, Target, Flame } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/ui/mode-toggle"
-import { Trophy, BookOpen, Brain, Flame } from "lucide-react"
 
 type DashboardProps = {
   userData: {
@@ -46,16 +45,23 @@ export function Dashboard({
 
         {/* User Profile Section */}
         <div className="flex flex-col items-center gap-2">
-          <img
-            src={
-              userData.avatar_url ??
-              `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                userData.full_name
-              )}`
-            }
-            alt="User Avatar"
-            className="w-16 h-16 rounded-full border shadow-sm object-cover"
-          />
+          <div className="w-20 h-20 rounded-full border-2 border-brand/20 shadow-lg overflow-hidden relative bg-gradient-to-br from-brand to-orange-300 flex items-center justify-center">
+            {userData.avatar_url ? (
+              <img
+                src={userData.avatar_url}
+                alt="User Avatar"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  console.error('Image failed to load:', userData.avatar_url);
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <span className="text-white font-bold text-xl">
+                {userData.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'}
+              </span>
+            )}
+          </div>
           <p className="text-sm font-semibold">{userData.full_name}</p>
           <p className="text-xs opacity-70">{userData.email}</p>
         </div>
@@ -93,7 +99,7 @@ export function Dashboard({
                 className="w-full justify-start text-amber-500 hover:text-amber-600"
                 size="sm"
               >
-                <RotateCcw className="w-4 h-4 mr-2" />
+                <Settings className="w-4 h-4 mr-2" />
                 Reset Questionnaire
               </Button>
             </form>
@@ -142,7 +148,7 @@ export function Dashboard({
           {!questionnaireCompleted && (
             <Link href="/questionnaire">
               <Button size="sm" variant="secondary">
-                <FileEdit className="w-4 h-4 mr-2" />
+                <User className="w-4 h-4 mr-2" />
                 Finish now
               </Button>
             </Link>
@@ -173,7 +179,7 @@ export function Dashboard({
 
           <Card className="items-center text-center">
             <CardHeader className="flex flex-col items-center gap-2">
-              <Brain className="w-8 h-8 text-green-500" />
+              <Target className="w-8 h-8 text-green-500" />
               <CardTitle className="text-2xl font-bold">
                 {userDashboard?.mock_interviews ?? 0}
               </CardTitle>

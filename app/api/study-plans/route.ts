@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
-// GET - Fetch user's problem lists
+// GET - Fetch user's problem lists (OPTIMIZED - No N+1 queries!)
 export async function GET(request: Request) {
   try {
     const supabase = await createClient();
@@ -13,14 +13,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user's lists with problem count using the function
-    const { data: lists, error } = await supabase.rpc('get_user_problem_lists', {
-      p_user_id: user.id
-    });
+    // Use the optimized RPC function that gets counts in a single query!
+    // This eliminates N+1 query problem (was making 2 queries per list)
+    const { data: userLists, error: listsError } = await supabase
+      .rpc('get_user_study_plans_with_counts', { p_user_id: user.id });
 
-    if (error) {
-      console.error('Error fetching user problem lists:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (listsError) {
+      console.error('Error fetching user problem lists:', listsError);
+      return NextResponse.json({ error: listsError.message }, { status: 500 });
     }
 
     // Also get official problem lists for reference
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      userLists: lists || [],
+      userLists: userLists || [],
       officialLists: officialLists || []
     });
   } catch (error) {
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, description, color } = body;
+    const { name, description, color, is_public } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'List name is required' }, { status: 400 });
@@ -71,7 +71,8 @@ export async function POST(request: Request) {
         name,
         description: description || null,
         color: color || 'from-brand to-orange-300',
-        is_default: false
+        is_default: false,
+        is_public: is_public || false
       })
       .select()
       .single();
@@ -101,7 +102,7 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, name, description, color } = body;
+    const { id, name, description, color, is_public } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'List ID is required' }, { status: 400 });
@@ -111,6 +112,7 @@ export async function PUT(request: Request) {
     if (name !== undefined) updates.name = name;
     if (description !== undefined) updates.description = description;
     if (color !== undefined) updates.color = color;
+    if (is_public !== undefined) updates.is_public = is_public;
 
     // Update the list
     const { data: list, error } = await supabase

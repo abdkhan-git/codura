@@ -22,7 +22,7 @@ const Plus: any = dynamic(() => import('lucide-react').then(mod => mod.Plus), { 
 // @ts-ignore
 const Bookmark: any = dynamic(() => import('lucide-react').then(mod => mod.Bookmark), { ssr: false });
 // @ts-ignore
-const X: any = dynamic(() => import('lucide-react').then(mod => mod.X), { ssr: false });
+const Trash2: any = dynamic(() => import('lucide-react').then(mod => mod.Trash2), { ssr: false });
 
 interface AddToListDialogProps {
   open: boolean;
@@ -207,7 +207,7 @@ export function AddToListDialog({ open, onOpenChange, problemId, problemTitle }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-card/95 backdrop-blur-xl border-border/40">
+      <DialogContent className="sm:max-w-[500px] bg-white dark:bg-zinc-900 text-foreground backdrop-blur-xl border-border/40">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bookmark className="w-5 h-5 text-brand" />
@@ -234,17 +234,18 @@ export function AddToListDialog({ open, onOpenChange, problemId, problemTitle }:
           {defaultList && selectedLists.has(defaultList.id) && (
             <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/30">
               <div className="flex items-center gap-2">
-                <Check className="w-5 h-5 text-green-500" />
-                <span className="text-sm text-green-600">Saved to {defaultList.name}</span>
+                <Bookmark className="w-5 h-5 text-green-500" />
+                <span className="text-sm font-medium">Saved to {defaultList.name}</span>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 hover:bg-red-500/20"
+                className="h-7 w-7 hover:bg-red-500/20"
                 onClick={() => handleRemoveFromList(defaultList.id)}
                 disabled={loading}
+                title="Remove from list"
               >
-                <X className="h-4 w-4 text-red-500" />
+                <Trash2 className="h-4 w-4 text-red-500" />
               </Button>
             </div>
           )}
@@ -255,7 +256,7 @@ export function AddToListDialog({ open, onOpenChange, problemId, problemTitle }:
               <span className="w-full border-t border-border/40" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Or choose a list</span>
+              <span className="bg-white dark:bg-zinc-900 px-2 text-muted-foreground">Or choose a list</span>
             </div>
           </div>
 
@@ -281,24 +282,23 @@ export function AddToListDialog({ open, onOpenChange, problemId, problemTitle }:
                   </div>
                   <div className="flex items-center gap-2">
                     {isSelected ? (
-                      <>
-                        <Check className="w-5 h-5 text-green-500" />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 hover:bg-red-500/20"
-                          onClick={() => handleRemoveFromList(list.id)}
-                          disabled={loading}
-                        >
-                          <X className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 hover:bg-red-500/20"
+                        onClick={() => handleRemoveFromList(list.id)}
+                        disabled={loading}
+                        title="Remove from list"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
                     ) : (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleAddToList(list.id)}
                         disabled={loading}
+                        title="Add to list"
                       >
                         <Plus className="w-4 h-4" />
                       </Button>
