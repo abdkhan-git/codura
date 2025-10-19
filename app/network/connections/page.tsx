@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { UserSearchResult } from "@/types/database";
+import { SentRequestCard } from "@/components/social/sent-request-card";
 
 interface ConnectionData {
   user: UserSearchResult;
@@ -393,7 +394,7 @@ export default function ConnectionsPage() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className={cn(
-            "grid w-full grid-cols-2 mb-8 border-2 backdrop-blur-xl",
+            "grid w-full grid-cols-4 mb-8 border-2 backdrop-blur-xl",
             theme === 'light' 
               ? "bg-white/80 border-black/5" 
               : "bg-zinc-950/80 border-white/5"
@@ -410,7 +411,21 @@ export default function ConnectionsPage() {
               className="gap-2 data-[state=active]:bg-brand data-[state=active]:text-white"
             >
               <Clock className="w-4 h-4" />
-              Pending ({pendingRequests.length})
+              Pending ({pendingRequests.filter(req => req.type === 'received').length})
+            </TabsTrigger>
+            <TabsTrigger 
+              value="sent" 
+              className="gap-2 data-[state=active]:bg-brand data-[state=active]:text-white"
+            >
+              <UserPlus className="w-4 h-4" />
+              Sent ({pendingRequests.filter(req => req.type === 'sent').length})
+            </TabsTrigger>
+            <TabsTrigger 
+              value="activity" 
+              className="gap-2 data-[state=active]:bg-brand data-[state=active]:text-white"
+            >
+              <AlertCircle className="w-4 h-4" />
+              Activity
             </TabsTrigger>
           </TabsList>
 
@@ -516,6 +531,97 @@ export default function ConnectionsPage() {
               </Card>
             )}
           </TabsContent>
+
+          {/* Sent Requests Tab */}
+          <TabsContent value="sent" className="space-y-6">
+            {pendingRequests.filter(req => req.type === 'sent').length > 0 ? (
+              <div className={cn(
+                "grid gap-6",
+                viewMode === 'grid' 
+                  ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
+                  : "grid-cols-1"
+              )}>
+                {pendingRequests
+                  .filter(req => req.type === 'sent')
+                  .map((request, index) => (
+                    <SentRequestCard
+                      key={request.id}
+                      request={request}
+                      onCancel={handleCancelRequest}
+                      actionLoading={actionLoading}
+                      viewMode={viewMode}
+                      theme={theme}
+                      index={index}
+                    />
+                  ))}
+              </div>
+            ) : (
+              <Card className={cn(
+                "p-12 text-center border-2 backdrop-blur-xl",
+                theme === 'light' 
+                  ? "bg-white/80 border-black/5" 
+                  : "bg-zinc-950/80 border-white/5"
+              )}>
+                <div className={cn(
+                  "w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center",
+                  theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
+                )}>
+                  <UserPlus className={cn(
+                    "w-10 h-10",
+                    theme === 'light' ? "text-zinc-400" : "text-zinc-600"
+                  )} />
+                </div>
+                <h3 className={cn(
+                  "text-xl font-semibold mb-3",
+                  theme === 'light' ? "text-zinc-900" : "text-white"
+                )}>
+                  No sent requests
+                </h3>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  You haven't sent any connection requests yet.
+                </p>
+                <Button
+                  onClick={() => router.push('/discover')}
+                  className="gap-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Find People to Connect With
+                </Button>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Activity Tab */}
+          <TabsContent value="activity" className="space-y-6">
+            <Card className={cn(
+              "p-12 text-center border-2 backdrop-blur-xl",
+              theme === 'light' 
+                ? "bg-white/80 border-black/5" 
+                : "bg-zinc-950/80 border-white/5"
+            )}>
+              <div className={cn(
+                "w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center",
+                theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
+              )}>
+                <AlertCircle className={cn(
+                  "w-10 h-10",
+                  theme === 'light' ? "text-zinc-400" : "text-zinc-600"
+                )} />
+              </div>
+              <h3 className={cn(
+                "text-xl font-semibold mb-3",
+                theme === 'light' ? "text-zinc-900" : "text-white"
+              )}>
+                Activity Timeline
+              </h3>
+              <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                Track all your connection activity, requests, and network growth.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Coming soon - Activity timeline feature
+              </p>
+            </Card>
+          </TabsContent>
         </Tabs>
       </main>
     </div>
@@ -553,15 +659,17 @@ function ConnectionCard({
         <div className="relative flex-shrink-0">
           <div className={cn(
             "w-12 h-12 rounded-xl flex items-center justify-center text-lg font-semibold shadow-lg",
-            theme === 'light' 
-              ? "bg-gradient-to-br from-blue-500 to-cyan-500 text-white" 
-              : "bg-gradient-to-br from-blue-600 to-cyan-600 text-white"
+            "bg-gradient-to-br from-brand to-orange-300 text-white shadow-brand/20"
           )}>
             {connection.user.avatar_url ? (
               <img
                 src={connection.user.avatar_url}
                 alt={connection.user.full_name || connection.user.username || 'User'}
                 className="w-full h-full object-cover rounded-xl"
+                onError={(e) => {
+                  console.log('Connection avatar image failed to load:', connection.user.avatar_url);
+                  e.currentTarget.style.display = 'none';
+                }}
               />
             ) : (
               (connection.user.full_name || connection.user.username || 'U').charAt(0).toUpperCase()
@@ -702,15 +810,17 @@ function PendingRequestCard({
         <div className="relative flex-shrink-0">
           <div className={cn(
             "w-12 h-12 rounded-xl flex items-center justify-center text-lg font-semibold shadow-lg",
-            theme === 'light' 
-              ? "bg-gradient-to-br from-amber-500 to-orange-500 text-white" 
-              : "bg-gradient-to-br from-amber-600 to-orange-600 text-white"
+            "bg-gradient-to-br from-brand to-orange-300 text-white shadow-brand/20"
           )}>
             {request.user.avatar_url ? (
               <img
                 src={request.user.avatar_url}
                 alt={request.user.full_name || request.user.username || 'User'}
                 className="w-full h-full object-cover rounded-xl"
+                onError={(e) => {
+                  console.log('Pending request avatar image failed to load:', request.user.avatar_url);
+                  e.currentTarget.style.display = 'none';
+                }}
               />
             ) : (
               (request.user.full_name || request.user.username || 'U').charAt(0).toUpperCase()

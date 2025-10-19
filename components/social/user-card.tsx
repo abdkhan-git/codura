@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,10 +39,17 @@ interface UserCardProps {
 export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, onFeedback, isLoading, showSuggestionReasons }: UserCardProps) {
   const { theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
-  useState(() => {
+  useEffect(() => {
     setMounted(true);
-  });
+  }, []);
+
+  // Reset image error when user changes
+  useEffect(() => {
+    setImageError(false);
+  }, [user.user_id]);
+
 
   const currentTheme = mounted ? (resolvedTheme || theme) : 'light';
 
@@ -203,11 +210,15 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, onFee
                 currentTheme === 'light' ? "ring-white/50" : "ring-zinc-900/50"
               )}
             >
-              {user.avatar_url ? (
+              {user.avatar_url && !imageError ? (
                 <img
                   src={user.avatar_url}
                   alt={user.full_name || user.username || 'User'}
                   className="w-full h-full object-cover"
+                  onError={() => {
+                    console.log('Avatar image failed to load:', user.avatar_url);
+                    setImageError(true);
+                  }}
                 />
               ) : (
                 getInitials()

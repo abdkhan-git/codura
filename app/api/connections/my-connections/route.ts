@@ -100,6 +100,7 @@ export async function GET(request: Request) {
         return null; // Skip if user data not found
       }
 
+
       return {
         user: {
           user_id: userData.user_id,

@@ -108,6 +108,7 @@ export async function GET(request: Request) {
         return null; // Skip if user data not found
       }
 
+
       return {
         id: req.id,
         user: {
@@ -137,6 +138,7 @@ export async function GET(request: Request) {
       if (!userData) {
         return null; // Skip if user data not found
       }
+
 
       return {
         id: req.id,
