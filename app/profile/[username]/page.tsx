@@ -6,8 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
-import CoduraLogo from "@/components/logos/codura-logo.svg";
-import CoduraLogoDark from "@/components/logos/codura-logo-dark.svg";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import {
@@ -40,6 +38,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 
 interface Achievement {
   achievement_id: string;
@@ -126,7 +125,6 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
   const username = resolvedParams.username;
   const { theme } = useTheme();
 
-  const [showBorder, setShowBorder] = useState(false);
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -136,15 +134,7 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
   const [showListDialog, setShowListDialog] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
-
-  useEffect(() => {
-    const evaluateScrollPosition = () => {
-      setShowBorder(window.pageYOffset >= 24);
-    };
-    window.addEventListener("scroll", evaluateScrollPosition);
-    evaluateScrollPosition();
-    return () => window.removeEventListener("scroll", evaluateScrollPosition);
-  }, []);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     fetchProfile();
@@ -162,6 +152,14 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
         const currentUserData = await currentUserResponse.json();
         isOwn = currentUserData?.profile?.username === username;
         setIsOwnProfile(isOwn);
+
+        // Set current user for navbar
+        setCurrentUser({
+          name: currentUserData.profile?.full_name || currentUserData.user?.email?.split('@')[0] || 'User',
+          email: currentUserData.user?.email || '',
+          avatar: currentUserData.profile?.avatar_url || currentUserData.profile?.full_name?.charAt(0).toUpperCase() || 'U',
+          username: currentUserData.profile?.username || '',
+        });
 
         if (isOwn) {
           // Viewing own profile - get all lists
@@ -287,48 +285,7 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
       </div>
 
       {/* Navbar */}
-      <header
-        className={cn(
-          "fixed inset-x-0 top-0 z-50 border-b border-b-transparent bg-gradient-to-b shadow-none backdrop-blur-none transition-all duration-500",
-          showBorder
-            ? "border-b-border/50 shadow-xl backdrop-blur-md from-background/80 to-background/50"
-            : ""
-        )}
-      >
-        <div className="flex items-center justify-between py-4 max-w-7xl mx-auto px-6">
-          <Link href="/" aria-label="Codura homepage" className="flex items-center group">
-            <Image
-              src={theme === 'light' ? CoduraLogoDark : CoduraLogo}
-              alt="Codura logo"
-              width={90}
-              height={40}
-              priority
-              className="transition-all duration-200 group-hover:opacity-80"
-            />
-          </Link>
-
-          <nav className="hidden items-center gap-6 text-base leading-7 font-light text-muted-foreground lg:flex">
-            <Link className="hover:text-foreground transition-colors" href="/dashboard">
-              Dashboard
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/problems">
-              Problems
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/mock-interview">
-              Interview
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/leaderboards">
-              Leaderboards
-            </Link>
-          </nav>
-
-          <Link href="/dashboard">
-            <Button variant="ghost" className="text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50">
-              Back to Dashboard
-            </Button>
-          </Link>
-        </div>
-      </header>
+      {currentUser && <DashboardNavbar user={currentUser} />}
 
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-16">
