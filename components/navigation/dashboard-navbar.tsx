@@ -19,6 +19,7 @@ import {
   UserPlus,
   Bell,
   MessageCircle,
+  Calendar,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -439,18 +440,18 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                 )}
               >
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white font-semibold text-xs overflow-hidden relative ring-2 ring-background">
-                  {user.avatar && user.avatar.startsWith('http') ? (
+                  {user?.avatar && typeof user.avatar === 'string' && user.avatar.startsWith('http') ? (
                     <img
                       src={user.avatar}
                       alt="Avatar"
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <span className="text-xs">{user.avatar}</span>
+                    <span className="text-xs">{user?.avatar || user?.name?.charAt(0).toUpperCase() || 'U'}</span>
                   )}
                 </div>
                 <span className="hidden sm:inline text-sm font-medium">
-                  {user.name.split(' ')[0]}
+                  {user?.name?.split(' ')[0] || 'User'}
                 </span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-50" />
               </Button>
@@ -477,19 +478,19 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white font-semibold overflow-hidden ring-2 ring-border/50">
-                      {user.avatar && user.avatar.startsWith('http') ? (
+                      {user?.avatar && typeof user.avatar === 'string' && user.avatar.startsWith('http') ? (
                         <img
                           src={user.avatar}
                           alt="Avatar"
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-sm">{user.avatar}</span>
+                        <span className="text-sm">{user?.avatar || user?.name?.charAt(0).toUpperCase() || 'U'}</span>
                       )}
                     </div>
                     <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full ring-2 ring-background" />
                   </div>
-                  <UserNameText name={user.name} email={user.email} />
+                  <UserNameText name={user?.name || 'User'} email={user?.email || ''} />
                 </div>
               </div>
 
@@ -514,6 +515,28 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                       <User className="w-4 h-4 text-white" strokeWidth={2.5} />
                     </div>
                     <span className="text-sm font-medium">Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem asChild>
+                  <Link
+                    href={`/profile/${user?.username || ''}/posts-activity`}
+                    className="flex items-center gap-3 px-3 py-2 cursor-pointer rounded-lg group"
+                  >
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:scale-110",
+                      currentTheme === 'light'
+                        ? "bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/25"
+                        : "bg-gradient-to-br from-purple-600 to-pink-600 shadow-lg shadow-purple-500/25"
+                    )}>
+                      <Calendar className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Posts & Activity</p>
+                      <p className={cn("text-xs", currentTheme === 'light' ? "text-zinc-500" : "text-zinc-400")}>
+                        View timeline
+                      </p>
+                    </div>
                   </Link>
                 </DropdownMenuItem>
 
