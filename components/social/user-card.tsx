@@ -19,19 +19,24 @@ import {
   Clock,
   UserX,
   Shield,
+  Sparkles,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import type { UserSearchResult } from "@/types/database";
 
 interface UserCardProps {
-  user: UserSearchResult;
+  user: UserSearchResult & { suggestion_reasons?: string[], suggestion_score?: number };
   onConnect?: (userId: string) => void;
   onCancel?: (userId: string) => void;
   onAccept?: (userId: string) => void;
   onDecline?: (userId: string) => void;
+  onFeedback?: (userId: string, feedback: 'positive' | 'negative') => void;
   isLoading?: boolean;
+  showSuggestionReasons?: boolean;
 }
 
-export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoading }: UserCardProps) {
+export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, onFeedback, isLoading, showSuggestionReasons }: UserCardProps) {
   const { theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -160,7 +165,7 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoa
     <Card
       className={cn(
         "group relative overflow-hidden transition-all duration-500 hover:scale-[1.02]",
-        "border-2 backdrop-blur-xl",
+        "border-2 backdrop-blur-xl h-[480px] flex flex-col", // Increased height for better content fit
         currentTheme === 'light'
           ? "bg-white/80 border-black/5 hover:border-blue-500/30 shadow-lg hover:shadow-xl hover:shadow-blue-500/10"
           : "bg-zinc-950/80 border-white/5 hover:border-blue-500/30 shadow-lg hover:shadow-xl hover:shadow-blue-500/20"
@@ -184,9 +189,11 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoa
           : "bg-gradient-to-r from-blue-500/30 to-purple-500/30"
       )} />
 
-      <div className="relative z-10 p-6">
-        {/* Header: Avatar + Name + Action */}
-        <div className="flex items-start gap-4 mb-4">
+      <div className="relative z-10 p-6 flex flex-col h-full">
+        {/* Top Content */}
+        <div className="flex-1">
+          {/* Header: Avatar + Name + Action */}
+          <div className="flex items-start gap-4 mb-4">
           {/* Avatar */}
           <Link href={`/profile/${user.username}`} className="flex-shrink-0 group/avatar">
             <div
@@ -236,15 +243,27 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoa
           </div>
         </div>
 
-        {/* Bio */}
-        {user.bio && (user.is_public || user.connection_status === 'connected') && (
-          <p className={cn(
-            "text-sm mb-4 line-clamp-2",
-            currentTheme === 'light' ? "text-zinc-700" : "text-zinc-300"
-          )}>
-            {user.bio}
-          </p>
-        )}
+        {/* Bio - Always show something for consistent height */}
+        <div className="mb-4 min-h-[2.5rem] flex items-center">
+          {user.bio && (user.is_public || user.connection_status === 'connected') ? (
+            <p className={cn(
+              "text-sm line-clamp-2",
+              currentTheme === 'light' ? "text-zinc-700" : "text-zinc-300"
+            )}>
+              {user.bio}
+            </p>
+          ) : (
+            <p className={cn(
+              "text-sm italic",
+              currentTheme === 'light' ? "text-zinc-400" : "text-zinc-500"
+            )}>
+              {!user.is_public && user.connection_status !== 'connected' 
+                ? "Connect to view bio" 
+                : "No bio available"
+              }
+            </p>
+          )}
+        </div>
 
         {/* Private Profile Notice */}
         {!user.is_public && user.connection_status !== 'connected' && (
@@ -264,59 +283,81 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoa
           </div>
         )}
 
-        {/* Info Grid */}
+        {/* Info Grid - Always show both for consistent height */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           {/* University */}
-          {user.university && (user.is_public || user.connection_status === 'connected') && (
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                currentTheme === 'light'
-                  ? "bg-blue-100 text-blue-600"
-                  : "bg-blue-500/10 text-blue-400"
-              )}>
-                <GraduationCap className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <p className={cn(
-                  "text-xs font-medium truncate",
-                  currentTheme === 'light' ? "text-zinc-900" : "text-white"
-                )}>
-                  {user.university}
-                </p>
-                {user.graduation_year && (
-                  <p className={cn(
-                    "text-xs",
-                    currentTheme === 'light' ? "text-zinc-500" : "text-zinc-500"
-                  )}>
-                    Class of {user.graduation_year}
-                  </p>
-                )}
-              </div>
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+              currentTheme === 'light'
+                ? "bg-blue-100 text-blue-600"
+                : "bg-blue-500/10 text-blue-400"
+            )}>
+              <GraduationCap className="w-4 h-4" />
             </div>
-          )}
+            <div className="min-w-0">
+              {user.university && (user.is_public || user.connection_status === 'connected') ? (
+                <>
+                  <p className={cn(
+                    "text-xs font-medium truncate",
+                    currentTheme === 'light' ? "text-zinc-900" : "text-white"
+                  )}>
+                    {user.university}
+                  </p>
+                  {user.graduation_year && (
+                    <p className={cn(
+                      "text-xs",
+                      currentTheme === 'light' ? "text-zinc-500" : "text-zinc-500"
+                    )}>
+                      Class of {user.graduation_year}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className={cn(
+                  "text-xs italic",
+                  currentTheme === 'light' ? "text-zinc-400" : "text-zinc-500"
+                )}>
+                  {!user.is_public && user.connection_status !== 'connected' 
+                    ? "Connect to view" 
+                    : "No university"
+                  }
+                </p>
+              )}
+            </div>
+          </div>
 
           {/* Job Title */}
-          {user.job_title && (user.is_public || user.connection_status === 'connected') && (
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                currentTheme === 'light'
-                  ? "bg-purple-100 text-purple-600"
-                  : "bg-purple-500/10 text-purple-400"
-              )}>
-                <Briefcase className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+              currentTheme === 'light'
+                ? "bg-purple-100 text-purple-600"
+                : "bg-purple-500/10 text-purple-400"
+            )}>
+              <Briefcase className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              {user.job_title && (user.is_public || user.connection_status === 'connected') ? (
                 <p className={cn(
                   "text-xs font-medium truncate",
                   currentTheme === 'light' ? "text-zinc-900" : "text-white"
                 )}>
                   {user.job_title}
                 </p>
-              </div>
+              ) : (
+                <p className={cn(
+                  "text-xs italic",
+                  currentTheme === 'light' ? "text-zinc-400" : "text-zinc-500"
+                )}>
+                  {!user.is_public && user.connection_status !== 'connected' 
+                    ? "Connect to view" 
+                    : "No job title"
+                  }
+                </p>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Stats */}
@@ -404,6 +445,93 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoa
             </div>
           )}
         </div>
+
+
+        </div>
+
+        {/* Bottom Content - Always visible for suggestions */}
+        {showSuggestionReasons && (
+          <div className="mt-4 pt-4 border-t">
+            {/* Suggestion Reasons - Fixed height with scroll */}
+            {user.suggestion_reasons && user.suggestion_reasons.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className={cn(
+                    "w-4 h-4",
+                    currentTheme === 'light' ? "text-purple-500" : "text-purple-400"
+                  )} />
+                  <span className={cn(
+                    "text-sm font-medium",
+                    currentTheme === 'light' ? "text-zinc-700" : "text-zinc-300"
+                  )}>
+                    Why suggested
+                  </span>
+                </div>
+                <div className={cn(
+                  "flex flex-wrap gap-1 max-h-16 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-300 scrollbar-track-transparent",
+                  currentTheme === 'light' 
+                    ? "scrollbar-thumb-zinc-300" 
+                    : "scrollbar-thumb-zinc-600"
+                )}>
+                  {user.suggestion_reasons.map((reason, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className={cn(
+                        "text-xs px-2 py-1 flex-shrink-0",
+                        currentTheme === 'light' 
+                          ? "bg-purple-100 text-purple-700 hover:bg-purple-200" 
+                          : "bg-purple-500/10 text-purple-300 hover:bg-purple-500/20"
+                      )}
+                    >
+                      {reason}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Feedback Buttons - Always show for suggestions */}
+            {onFeedback && (
+              <div className="flex items-center justify-between">
+                <span className={cn(
+                  "text-xs",
+                  currentTheme === 'light' ? "text-zinc-500" : "text-zinc-400"
+                )}>
+                  Help us improve suggestions
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onFeedback(user.user_id, 'positive')}
+                    className={cn(
+                      "h-8 w-8 p-0",
+                      currentTheme === 'light' 
+                        ? "hover:bg-green-100 text-green-600" 
+                        : "hover:bg-green-500/10 text-green-400"
+                    )}
+                  >
+                    <ThumbsUp className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onFeedback(user.user_id, 'negative')}
+                    className={cn(
+                      "h-8 w-8 p-0",
+                      currentTheme === 'light' 
+                        ? "hover:bg-red-100 text-red-600" 
+                        : "hover:bg-red-500/10 text-red-400"
+                    )}
+                  >
+                    <ThumbsDown className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );

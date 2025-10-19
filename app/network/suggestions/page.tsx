@@ -12,7 +12,14 @@ import {
   Users, 
   UserPlus, 
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  RefreshCw,
+  ThumbsUp,
+  ThumbsDown,
+  CheckCircle,
+  XCircle,
+  Filter,
+  SortAsc
 } from "lucide-react";
 import { toast } from "sonner";
 import type { UserSearchResult } from "@/types/database";
@@ -33,6 +40,11 @@ export default function SuggestionsPage() {
   const [loading, setLoading] = useState(true);
   const [suggestions, setSuggestions] = useState<UserSearchResult[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [feedbackLoading, setFeedbackLoading] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState<'score' | 'recent' | 'mutual'>('score');
+  const [filterBy, setFilterBy] = useState<'all' | 'university' | 'skills' | 'mutual'>('all');
 
   // Fetch current user
   useEffect(() => {
@@ -62,9 +74,15 @@ export default function SuggestionsPage() {
     fetchSuggestions();
   }, []);
 
-  const fetchSuggestions = async () => {
+  const fetchSuggestions = async (refresh = false) => {
     try {
-      const response = await fetch('/api/users/suggestions?limit=12');
+      if (refresh) setRefreshing(true);
+      
+      const params = new URLSearchParams();
+      params.append('limit', '12');
+      if (refresh) params.append('refresh', 'true');
+      
+      const response = await fetch(`/api/users/suggestions?${params}`);
       if (response.ok) {
         const data = await response.json();
         setSuggestions(data.suggestions || []);
@@ -73,6 +91,70 @@ export default function SuggestionsPage() {
       }
     } catch (error) {
       console.error('Error fetching suggestions:', error);
+    } finally {
+      if (refresh) setRefreshing(false);
+    }
+  };
+
+  const handleRefreshSuggestions = async () => {
+    await fetchSuggestions(true);
+    toast.success('Suggestions refreshed!');
+  };
+
+  const handleFeedback = async (userId: string, feedback: 'positive' | 'negative') => {
+    try {
+      setFeedbackLoading(userId);
+      
+      const response = await fetch('/api/suggestions/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          suggested_user_id: userId, 
+          feedback_type: feedback 
+        }),
+      });
+
+      if (response.ok) {
+        toast.success(feedback === 'positive' ? 'Thanks for the feedback!' : 'We\'ll improve our suggestions');
+        // Remove the suggestion from the list
+        setSuggestions(prev => prev.filter(s => s.user_id !== userId));
+      } else {
+        toast.error('Failed to submit feedback');
+      }
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      toast.error('Failed to submit feedback');
+    } finally {
+      setFeedbackLoading(null);
+    }
+  };
+
+  const handleBulkConnect = async (userIds: string[]) => {
+    try {
+      setActionLoading('bulk');
+      
+      const promises = userIds.map(userId => 
+        fetch('/api/connections/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to_user_id: userId }),
+        })
+      );
+      
+      await Promise.all(promises);
+      toast.success(`Connection requests sent to ${userIds.length} users!`);
+      
+      // Update UI
+      setSuggestions(prev => prev.map(s => 
+        userIds.includes(s.user_id) 
+          ? { ...s, connection_status: 'pending_sent' as const }
+          : s
+      ));
+    } catch (error) {
+      console.error('Error sending bulk connections:', error);
+      toast.error('Failed to send some connection requests');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -226,6 +308,104 @@ export default function SuggestionsPage() {
           </div>
         </div>
 
+        {/* Enhanced Controls */}
+        <div className="mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleRefreshSuggestions}
+              disabled={refreshing}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+            
+            <Button
+              onClick={() => setShowFilters(!showFilters)}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {suggestions.length} suggestions
+            </span>
+            {suggestions.length > 0 && (
+              <Button
+                onClick={() => {
+                  const connectableUsers = suggestions
+                    .filter(s => s.connection_status === 'none')
+                    .map(s => s.user_id);
+                  if (connectableUsers.length > 0) {
+                    handleBulkConnect(connectableUsers.slice(0, 5)); // Limit to 5 for safety
+                  }
+                }}
+                disabled={actionLoading === 'bulk'}
+                size="sm"
+                className="gap-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                Connect All
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Filters */}
+        {showFilters && (
+          <Card className={cn(
+            "mb-6 p-4 border-2 backdrop-blur-xl",
+            theme === 'light' 
+              ? "bg-white/80 border-black/5" 
+              : "bg-zinc-950/80 border-white/5"
+          )}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Sort by</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className={cn(
+                    "w-full p-2 rounded-lg border-2 text-sm",
+                    theme === 'light' 
+                      ? "bg-white border-zinc-200" 
+                      : "bg-zinc-900 border-zinc-800"
+                  )}
+                >
+                  <option value="score">Relevance Score</option>
+                  <option value="recent">Recently Joined</option>
+                  <option value="mutual">Most Mutual Connections</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Filter by</label>
+                <select
+                  value={filterBy}
+                  onChange={(e) => setFilterBy(e.target.value as any)}
+                  className={cn(
+                    "w-full p-2 rounded-lg border-2 text-sm",
+                    theme === 'light' 
+                      ? "bg-white border-zinc-200" 
+                      : "bg-zinc-900 border-zinc-800"
+                  )}
+                >
+                  <option value="all">All Suggestions</option>
+                  <option value="university">Same University</option>
+                  <option value="skills">Similar Skills</option>
+                  <option value="mutual">Mutual Connections</option>
+                </select>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Suggestions */}
         {suggestions.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -241,6 +421,9 @@ export default function SuggestionsPage() {
                   onCancel={handleCancel}
                   onAccept={handleAccept}
                   onDecline={handleDecline}
+                  onFeedback={handleFeedback}
+                  showSuggestionReasons={true}
+                  isLoading={actionLoading === suggestion.user_id || feedbackLoading === suggestion.user_id}
                 />
               </div>
             ))}
