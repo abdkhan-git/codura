@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
@@ -29,6 +30,8 @@ interface PaginationData {
 
 export default function DiscoverPage() {
   const { theme } = useTheme();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -42,12 +45,19 @@ export default function DiscoverPage() {
     hasMore: false,
   });
 
-  // Search filters
-  const [searchQuery, setSearchQuery] = useState("");
-  const [university, setUniversity] = useState("");
-  const [graduationYear, setGraduationYear] = useState("");
-  const [minSolved, setMinSolved] = useState(0);
-  const [maxSolved, setMaxSolved] = useState(1000);
+  // Search filters - initialize from URL params
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || "");
+  const [university, setUniversity] = useState(searchParams.get('university') || "");
+  const [graduationYear, setGraduationYear] = useState(searchParams.get('year') || "");
+  const [minSolved, setMinSolved] = useState(parseInt(searchParams.get('min_solved') || '0'));
+  const [maxSolved, setMaxSolved] = useState(parseInt(searchParams.get('max_solved') || '1000'));
+  const [company, setCompany] = useState(searchParams.get('company') || "");
+  const [minRating, setMinRating] = useState(parseInt(searchParams.get('min_rating') || '0'));
+  const [maxRating, setMaxRating] = useState(parseInt(searchParams.get('max_rating') || '3000'));
+  const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'relevance');
+
+  // Debounce timer ref
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch current user
   useEffect(() => {
@@ -73,9 +83,18 @@ export default function DiscoverPage() {
     fetchUser();
   }, []);
 
-  // Fetch suggestions on mount
+  // Fetch suggestions on mount (only if no search params)
   useEffect(() => {
-    fetchSuggestions();
+    if (!searchParams.toString()) {
+      fetchSuggestions();
+    }
+  }, []);
+
+  // Auto-search on mount if URL has params
+  useEffect(() => {
+    if (searchParams.toString()) {
+      handleSearch(parseInt(searchParams.get('page') || '1'), false);
+    }
   }, []);
 
   const fetchSuggestions = async () => {
@@ -90,7 +109,26 @@ export default function DiscoverPage() {
     }
   };
 
-  const handleSearch = async (page = 1) => {
+  // Update URL with current filters
+  const updateURL = useCallback((page: number = 1) => {
+    const params = new URLSearchParams();
+
+    if (searchQuery) params.set('q', searchQuery);
+    if (university) params.set('university', university);
+    if (graduationYear) params.set('year', graduationYear);
+    if (company) params.set('company', company);
+    if (minSolved > 0) params.set('min_solved', minSolved.toString());
+    if (maxSolved < 1000) params.set('max_solved', maxSolved.toString());
+    if (minRating > 0) params.set('min_rating', minRating.toString());
+    if (maxRating < 3000) params.set('max_rating', maxRating.toString());
+    if (sortBy !== 'relevance') params.set('sort', sortBy);
+    if (page > 1) params.set('page', page.toString());
+
+    const newURL = params.toString() ? `/discover?${params.toString()}` : '/discover';
+    router.replace(newURL, { scroll: false });
+  }, [searchQuery, university, graduationYear, company, minSolved, maxSolved, minRating, maxRating, sortBy, router]);
+
+  const handleSearch = async (page = 1, updateUrl = true) => {
     try {
       setSearchLoading(true);
 
@@ -102,14 +140,23 @@ export default function DiscoverPage() {
       if (searchQuery) params.append('q', searchQuery);
       if (university) params.append('university', university);
       if (graduationYear) params.append('graduation_year', graduationYear);
+      if (company) params.append('company', company);
       if (minSolved > 0) params.append('min_solved', minSolved.toString());
       if (maxSolved < 1000) params.append('max_solved', maxSolved.toString());
+      if (minRating > 0) params.append('min_rating', minRating.toString());
+      if (maxRating < 3000) params.append('max_rating', maxRating.toString());
+      if (sortBy) params.append('sort', sortBy);
 
       const response = await fetch(`/api/users/search?${params}`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data.users || []);
         setPagination(data.pagination || pagination);
+
+        // Update URL with current filters
+        if (updateUrl) {
+          updateURL(page);
+        }
       } else {
         toast.error('Failed to search users');
       }
@@ -121,12 +168,46 @@ export default function DiscoverPage() {
     }
   };
 
+  // Debounced search - triggers 500ms after user stops typing
+  const debouncedSearch = useCallback(() => {
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    debounceTimer.current = setTimeout(() => {
+      handleSearch(1);
+    }, 500);
+  }, [searchQuery, university, graduationYear, company, minSolved, maxSolved, minRating, maxRating, sortBy]);
+
+  // Trigger search when filters change
+  useEffect(() => {
+    // Only auto-search if there are active filters
+    const hasActiveFilters = searchQuery || university || graduationYear || company ||
+                             minSolved > 0 || maxSolved < 1000 ||
+                             minRating > 0 || maxRating < 3000;
+
+    if (hasActiveFilters) {
+      debouncedSearch();
+    }
+
+    // Cleanup
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, [searchQuery, university, graduationYear, company, minSolved, maxSolved, minRating, maxRating, sortBy]);
+
   const handleReset = () => {
     setSearchQuery("");
     setUniversity("");
     setGraduationYear("");
+    setCompany("");
     setMinSolved(0);
     setMaxSolved(1000);
+    setMinRating(0);
+    setMaxRating(3000);
+    setSortBy('relevance');
     setUsers([]);
     setPagination({
       page: 1,
@@ -135,6 +216,8 @@ export default function DiscoverPage() {
       totalPages: 0,
       hasMore: false,
     });
+    router.replace('/discover', { scroll: false });
+    fetchSuggestions();
   };
 
   const handleConnect = async (userId: string) => {
@@ -175,7 +258,6 @@ export default function DiscoverPage() {
 
       if (response.ok) {
         toast.success('Connection request canceled');
-        // Update UI
         setUsers(prev => prev.map(u =>
           u.user_id === userId ? { ...u, connection_status: 'none' } : u
         ));
@@ -203,7 +285,6 @@ export default function DiscoverPage() {
 
       if (response.ok) {
         toast.success('Connection request accepted!');
-        // Update UI
         setUsers(prev => prev.map(u =>
           u.user_id === userId ? { ...u, connection_status: 'connected' } : u
         ));
@@ -231,7 +312,6 @@ export default function DiscoverPage() {
 
       if (response.ok) {
         toast.success('Connection request declined');
-        // Update UI
         setUsers(prev => prev.map(u =>
           u.user_id === userId ? { ...u, connection_status: 'none' } : u
         ));
@@ -254,6 +334,10 @@ export default function DiscoverPage() {
       </div>
     );
   }
+
+  const hasActiveFilters = searchQuery || university || graduationYear || company ||
+                          minSolved > 0 || maxSolved < 1000 ||
+                          minRating > 0 || maxRating < 3000;
 
   return (
     <div className="min-h-screen bg-background">
@@ -297,17 +381,24 @@ export default function DiscoverPage() {
           setUniversity={setUniversity}
           graduationYear={graduationYear}
           setGraduationYear={setGraduationYear}
+          company={company}
+          setCompany={setCompany}
           minSolved={minSolved}
           setMinSolved={setMinSolved}
           maxSolved={maxSolved}
           setMaxSolved={setMaxSolved}
-          onSearch={() => handleSearch(1)}
+          minRating={minRating}
+          setMinRating={setMinRating}
+          maxRating={maxRating}
+          setMaxRating={setMaxRating}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
           onReset={handleReset}
           isLoading={searchLoading}
         />
 
         {/* Suggestions Section (Show when no search) */}
-        {users.length === 0 && suggestions.length > 0 && (
+        {users.length === 0 && suggestions.length > 0 && !hasActiveFilters && (
           <div className="mt-8">
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className={cn(
@@ -349,8 +440,15 @@ export default function DiscoverPage() {
             </div>
 
             {searchLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <Card key={i} className={cn(
+                    "h-80 animate-pulse border-2 backdrop-blur-xl",
+                    theme === 'light'
+                      ? "bg-white/60 border-black/5"
+                      : "bg-zinc-950/60 border-white/5"
+                  )} />
+                ))}
               </div>
             ) : (
               <>
@@ -416,7 +514,7 @@ export default function DiscoverPage() {
         )}
 
         {/* Empty State */}
-        {users.length === 0 && !searchLoading && (searchQuery || university || graduationYear || minSolved > 0 || maxSolved < 1000) && (
+        {users.length === 0 && !searchLoading && hasActiveFilters && (
           <Card className={cn(
             "mt-8 p-12 text-center border-2 backdrop-blur-xl",
             theme === 'light'
