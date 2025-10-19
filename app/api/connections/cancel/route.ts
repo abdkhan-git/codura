@@ -15,25 +15,56 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get to_user_id from query params
+    // Get parameters from query params or request body
     const { searchParams } = new URL(request.url);
     const to_user_id = searchParams.get("to_user_id");
+    const request_id = searchParams.get("request_id");
+    
+    let requestBody = null;
+    try {
+      requestBody = await request.json();
+    } catch {
+      // Ignore JSON parse errors
+    }
 
-    if (!to_user_id) {
+    const final_to_user_id = to_user_id || requestBody?.to_user_id;
+    const final_request_id = request_id || requestBody?.request_id;
+
+    if (!final_to_user_id && !final_request_id) {
       return NextResponse.json(
-        { error: "to_user_id is required" },
+        { error: "to_user_id or request_id is required" },
         { status: 400 }
       );
     }
 
-    // Get the connection request (where current user sent to to_user_id)
-    const { data: connection, error: fetchError } = await supabase
-      .from("connections")
-      .select("*")
-      .eq("from_user_id", user.id)
-      .eq("to_user_id", to_user_id)
-      .eq("status", "pending")
-      .single();
+    let connection;
+    let fetchError;
+
+    if (final_request_id) {
+      // Cancel by request ID
+      const { data, error } = await supabase
+        .from("connections")
+        .select("*")
+        .eq("id", final_request_id)
+        .eq("from_user_id", user.id)
+        .eq("status", "pending")
+        .single();
+      
+      connection = data;
+      fetchError = error;
+    } else {
+      // Cancel by to_user_id (legacy support)
+      const { data, error } = await supabase
+        .from("connections")
+        .select("*")
+        .eq("from_user_id", user.id)
+        .eq("to_user_id", final_to_user_id)
+        .eq("status", "pending")
+        .single();
+      
+      connection = data;
+      fetchError = error;
+    }
 
     if (fetchError || !connection) {
       return NextResponse.json(

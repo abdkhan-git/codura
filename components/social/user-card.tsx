@@ -18,6 +18,7 @@ import {
   UserCheck,
   Clock,
   UserX,
+  Shield,
 } from "lucide-react";
 import type { UserSearchResult } from "@/types/database";
 
@@ -236,7 +237,7 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoa
         </div>
 
         {/* Bio */}
-        {user.bio && (
+        {user.bio && (user.is_public || user.connection_status === 'connected') && (
           <p className={cn(
             "text-sm mb-4 line-clamp-2",
             currentTheme === 'light' ? "text-zinc-700" : "text-zinc-300"
@@ -245,10 +246,28 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoa
           </p>
         )}
 
+        {/* Private Profile Notice */}
+        {!user.is_public && user.connection_status !== 'connected' && (
+          <div className={cn(
+            "p-3 rounded-lg mb-4 border-2",
+            currentTheme === 'light' 
+              ? "bg-amber-50 border-amber-200 text-amber-800" 
+              : "bg-amber-500/10 border-amber-500/20 text-amber-300"
+          )}>
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              <span className="text-sm font-medium">Private Profile</span>
+            </div>
+            <p className="text-xs mt-1">
+              Connect to view more details
+            </p>
+          </div>
+        )}
+
         {/* Info Grid */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           {/* University */}
-          {user.university && (
+          {user.university && (user.is_public || user.connection_status === 'connected') && (
             <div className="flex items-center gap-2">
               <div className={cn(
                 "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
@@ -278,7 +297,7 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoa
           )}
 
           {/* Job Title */}
-          {user.job_title && (
+          {user.job_title && (user.is_public || user.connection_status === 'connected') && (
             <div className="flex items-center gap-2">
               <div className={cn(
                 "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
@@ -320,7 +339,7 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoa
                 "text-sm font-semibold",
                 currentTheme === 'light' ? "text-zinc-900" : "text-white"
               )}>
-                {user.total_solved}
+                {user.is_public || user.connection_status === 'connected' ? user.total_solved : '***'}
               </p>
               <p className={cn(
                 "text-xs",
@@ -346,7 +365,7 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, isLoa
                 "text-sm font-semibold",
                 currentTheme === 'light' ? "text-zinc-900" : "text-white"
               )}>
-                {user.current_streak}
+                {user.is_public || user.connection_status === 'connected' ? user.current_streak : '***'}
               </p>
               <p className={cn(
                 "text-xs",

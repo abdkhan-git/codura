@@ -1,13 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { UserCard } from "@/components/social/user-card";
-import { Sparkles } from "lucide-react";
-import type { UserSearchResult } from "@/types/database";
+import { 
+  Users, 
+  UserPlus, 
+  Sparkles,
+  ArrowRight
+} from "lucide-react";
 import { toast } from "sonner";
+import type { UserSearchResult } from "@/types/database";
 
 interface UserData {
   name: string;
@@ -18,11 +26,15 @@ interface UserData {
 
 export default function SuggestionsPage() {
   const { theme } = useTheme();
+  const router = useRouter();
+  
+  // State
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [suggestions, setSuggestions] = useState<UserSearchResult[]>([]);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Fetch current user
   useEffect(() => {
     async function fetchUser() {
       try {
@@ -42,31 +54,31 @@ export default function SuggestionsPage() {
         setLoading(false);
       }
     }
-
     fetchUser();
   }, []);
 
+  // Fetch suggestions
   useEffect(() => {
     fetchSuggestions();
   }, []);
 
   const fetchSuggestions = async () => {
     try {
-      setSuggestionsLoading(true);
       const response = await fetch('/api/users/suggestions?limit=12');
       if (response.ok) {
         const data = await response.json();
         setSuggestions(data.suggestions || []);
+      } else {
+        console.error('Failed to fetch suggestions');
       }
     } catch (error) {
       console.error('Error fetching suggestions:', error);
-    } finally {
-      setSuggestionsLoading(false);
     }
   };
 
   const handleConnect = async (userId: string) => {
     try {
+      setActionLoading(userId);
       const response = await fetch('/api/connections/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,11 +99,14 @@ export default function SuggestionsPage() {
     } catch (error) {
       console.error('Error sending connection request:', error);
       toast.error('Failed to send connection request');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleCancel = async (userId: string) => {
     try {
+      setActionLoading(userId);
       const response = await fetch(`/api/connections/cancel?to_user_id=${userId}`, {
         method: 'DELETE',
       });
@@ -109,11 +124,14 @@ export default function SuggestionsPage() {
     } catch (error) {
       console.error('Error canceling connection request:', error);
       toast.error('Failed to cancel connection request');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleAccept = async (userId: string) => {
     try {
+      setActionLoading(userId);
       const response = await fetch('/api/connections/accept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,11 +151,14 @@ export default function SuggestionsPage() {
     } catch (error) {
       console.error('Error accepting connection:', error);
       toast.error('Failed to accept connection request');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleDecline = async (userId: string) => {
     try {
+      setActionLoading(userId);
       const response = await fetch('/api/connections/decline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -157,6 +178,8 @@ export default function SuggestionsPage() {
     } catch (error) {
       console.error('Error declining connection:', error);
       toast.error('Failed to decline connection request');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -170,11 +193,12 @@ export default function SuggestionsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Animated background */}
+      {/* Liquid Glass Background */}
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute inset-0 bg-background" />
-        <div className="absolute top-[-10%] right-[20%] w-[500px] h-[500px] bg-brand/5 dark:bg-brand/8 rounded-full blur-[100px] animate-pulse-slow" />
-        <div className="absolute bottom-[10%] left-[15%] w-[400px] h-[400px] bg-purple-500/3 dark:bg-purple-500/6 rounded-full blur-[80px] animate-float-slow" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-[-10%] right-[20%] w-[600px] h-[600px] bg-brand/5 dark:bg-brand/8 rounded-full blur-[120px] animate-pulse-slow" />
+        <div className="absolute bottom-[10%] left-[15%] w-[500px] h-[500px] bg-purple-500/3 dark:bg-purple-500/6 rounded-full blur-[100px] animate-float-slow" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-[30%] left-[50%] w-[400px] h-[400px] bg-cyan-500/2 dark:bg-cyan-500/4 rounded-full blur-[80px] animate-pulse-slow" style={{ animationDelay: '4s' }} />
       </div>
 
       {/* Navbar */}
@@ -182,41 +206,107 @@ export default function SuggestionsPage() {
 
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-16">
+        {/* Page Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-3">
             <div className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg",
-              theme === 'light'
-                ? "from-purple-500 to-pink-500 shadow-purple-500/25"
-                : "from-purple-600 to-pink-600 shadow-purple-500/25"
+              "w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg backdrop-blur-xl",
+              theme === 'light' 
+                ? "from-purple-500 to-pink-500 shadow-purple-500/25 bg-white/20" 
+                : "from-purple-600 to-pink-600 shadow-purple-500/25 bg-white/5"
             )}>
               <Sparkles className="w-6 h-6 text-white" />
             </div>
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
-                Suggested Connections
+                Connection Suggestions
               </h1>
-              <p className="text-muted-foreground">People you may want to connect with</p>
+              <p className="text-muted-foreground">Discover people you might want to connect with</p>
             </div>
           </div>
         </div>
 
-        {suggestionsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
+        {/* Suggestions */}
+        {suggestions.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {suggestions.map((suggestion, index) => (
+              <div
+                key={suggestion.user_id}
+                className="animate-in fade-in-0 slide-in-from-bottom-4"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <UserCard
+                  user={suggestion}
+                  onConnect={handleConnect}
+                  onCancel={handleCancel}
+                  onAccept={handleAccept}
+                  onDecline={handleDecline}
+                />
+              </div>
+            ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {suggestions.map((suggestion) => (
-              <UserCard
-                key={suggestion.user_id}
-                user={suggestion}
-                onConnect={handleConnect}
-                onCancel={handleCancel}
-                onAccept={handleAccept}
-                onDecline={handleDecline}
-              />
-            ))}
+          <Card className={cn(
+            "p-12 text-center border-2 backdrop-blur-xl",
+            theme === 'light' 
+              ? "bg-white/80 border-black/5" 
+              : "bg-zinc-950/80 border-white/5"
+          )}>
+            <div className={cn(
+              "w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center",
+              theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
+            )}>
+              <Sparkles className={cn(
+                "w-10 h-10",
+                theme === 'light' ? "text-zinc-400" : "text-zinc-600"
+              )} />
+            </div>
+            <h3 className={cn(
+              "text-xl font-semibold mb-3",
+              theme === 'light' ? "text-zinc-900" : "text-white"
+            )}>
+              No suggestions available
+            </h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              We couldn't find any connection suggestions at the moment. Try exploring the discover page to find developers.
+            </p>
+            <Button 
+              onClick={() => router.push('/discover')}
+              className="gap-2"
+            >
+              <UserPlus className="w-4 h-4" />
+              Discover Developers
+            </Button>
+          </Card>
+        )}
+
+        {/* Call to Action */}
+        {suggestions.length > 0 && (
+          <div className="mt-12 text-center">
+            <Card className={cn(
+              "p-8 border-2 backdrop-blur-xl",
+              theme === 'light' 
+                ? "bg-white/80 border-black/5" 
+                : "bg-zinc-950/80 border-white/5"
+            )}>
+              <h3 className={cn(
+                "text-xl font-semibold mb-3",
+                theme === 'light' ? "text-zinc-900" : "text-white"
+              )}>
+                Want to discover more developers?
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Use our advanced search and filters to find developers with specific skills, universities, or experience.
+              </p>
+              <Button 
+                onClick={() => router.push('/discover')}
+                className="gap-2"
+                size="lg"
+              >
+                Explore Discover Page
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Card>
           </div>
         )}
       </main>

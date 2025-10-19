@@ -21,7 +21,6 @@ BEGIN
     LEFT JOIN public.user_stats us ON u.user_id = us.user_id
     WHERE
       u.user_id != p_current_user_id -- Exclude current user
-      AND u.is_public = TRUE -- Only show public profiles
       AND (p_search_query IS NULL OR (
         u.username ILIKE '%' || p_search_query || '%' OR
         u.full_name ILIKE '%' || p_search_query || '%' OR

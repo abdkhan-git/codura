@@ -83,7 +83,6 @@ export async function GET(request: Request) {
           contest_rating
         )
       `)
-      .eq('is_public', true)
       .not('user_id', 'in', `(${Array.from(excludeUserIds).join(',')})`)
       .limit(limit * 3); // Get more than needed for filtering
 
