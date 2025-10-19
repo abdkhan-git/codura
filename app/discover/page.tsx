@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 import { UserCard } from "@/components/social/user-card";
 import { UserSearchFilters } from "@/components/social/user-search-filters";
+import { UserCardSkeleton } from "@/components/social/user-card-skeleton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Users, Sparkles, X } from "lucide-react";
@@ -83,10 +84,12 @@ export default function DiscoverPage() {
     fetchUser();
   }, []);
 
-  // Fetch suggestions on mount (only if no search params)
+  // Fetch suggestions and users on mount (only if no URL params)
   useEffect(() => {
     if (!searchParams.toString()) {
       fetchSuggestions();
+      // Always fetch users on mount to show them immediately
+      handleSearch(1, false);
     }
   }, []);
 
@@ -97,15 +100,32 @@ export default function DiscoverPage() {
     }
   }, []);
 
+  // Refresh connection status when page becomes visible (handles navigation back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && users.length > 0) {
+        // Page became visible and we have users, refresh their connection status
+        refreshConnectionStatus();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [users.length]);
+
   const fetchSuggestions = async () => {
     try {
       const response = await fetch('/api/users/suggestions?limit=6');
       if (response.ok) {
         const data = await response.json();
         setSuggestions(data.suggestions || []);
+      } else {
+        console.warn('Failed to fetch suggestions:', response.status);
+        setSuggestions([]);
       }
     } catch (error) {
       console.error('Error fetching suggestions:', error);
+      setSuggestions([]);
     }
   };
 
@@ -150,6 +170,10 @@ export default function DiscoverPage() {
       const response = await fetch(`/api/users/search?${params}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('Search results with connection status:', data.users?.map(u => ({
+          name: u.full_name,
+          connection_status: u.connection_status
+        })));
         setUsers(data.users || []);
         setPagination(data.pagination || pagination);
 
@@ -158,7 +182,10 @@ export default function DiscoverPage() {
           updateURL(page);
         }
       } else {
-        toast.error('Failed to search users');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Search failed:', errorData);
+        toast.error(errorData.error || 'Failed to search users');
+        setUsers([]);
       }
     } catch (error) {
       console.error('Error searching users:', error);
@@ -179,16 +206,10 @@ export default function DiscoverPage() {
     }, 500);
   }, [searchQuery, university, graduationYear, company, minSolved, maxSolved, minRating, maxRating, sortBy]);
 
-  // Trigger search when filters change
+  // Trigger search when filters change (including when clearing filters)
   useEffect(() => {
-    // Only auto-search if there are active filters
-    const hasActiveFilters = searchQuery || university || graduationYear || company ||
-                             minSolved > 0 || maxSolved < 1000 ||
-                             minRating > 0 || maxRating < 3000;
-
-    if (hasActiveFilters) {
-      debouncedSearch();
-    }
+    // Always trigger search when any filter changes, including when clearing them
+    debouncedSearch();
 
     // Cleanup
     return () => {
@@ -217,7 +238,19 @@ export default function DiscoverPage() {
       hasMore: false,
     });
     router.replace('/discover', { scroll: false });
+    // Fetch both suggestions and basic users when resetting
     fetchSuggestions();
+    handleSearch(1, false);
+  };
+
+  // Function to refresh connection status for all users
+  const refreshConnectionStatus = async () => {
+    try {
+      // Re-fetch the current search results to get updated connection status
+      await handleSearch(pagination.page, false);
+    } catch (error) {
+      console.error('Error refreshing connection status:', error);
+    }
   };
 
   const handleConnect = async (userId: string) => {
@@ -232,6 +265,7 @@ export default function DiscoverPage() {
 
       if (response.ok) {
         toast.success('Connection request sent!');
+        console.log('Connection request sent successfully for user:', userId);
         // Update user's connection status in UI
         setUsers(prev => prev.map(u =>
           u.user_id === userId ? { ...u, connection_status: 'pending_sent' } : u
@@ -240,6 +274,7 @@ export default function DiscoverPage() {
           u.user_id === userId ? { ...u, connection_status: 'pending_sent' } : u
         ));
       } else {
+        console.error('Connection request failed:', data);
         toast.error(data.error || 'Failed to send connection request');
       }
     } catch (error) {
@@ -355,21 +390,32 @@ export default function DiscoverPage() {
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-16">
         {/* Page Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-3">
-            <div className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg",
-              theme === 'light'
-                ? "from-blue-500 to-cyan-500 shadow-blue-500/25"
-                : "from-blue-600 to-cyan-600 shadow-blue-500/25"
-            )}>
-              <Users className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg",
+                theme === 'light'
+                  ? "from-blue-500 to-cyan-500 shadow-blue-500/25"
+                  : "from-blue-600 to-cyan-600 shadow-blue-500/25"
+              )}>
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
+                  Discover Developers
+                </h1>
+                <p className="text-muted-foreground">Find and connect with developers who share your interests</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
-                Discover Developers
-              </h1>
-              <p className="text-muted-foreground">Find and connect with developers who share your interests</p>
-            </div>
+            <Button
+              onClick={refreshConnectionStatus}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <Users className="w-4 h-4" />
+              Refresh Status
+            </Button>
           </div>
         </div>
 
@@ -397,8 +443,8 @@ export default function DiscoverPage() {
           isLoading={searchLoading}
         />
 
-        {/* Suggestions Section (Show when no search) */}
-        {users.length === 0 && suggestions.length > 0 && !hasActiveFilters && (
+        {/* Suggestions Section (Show when no active filters) */}
+        {!hasActiveFilters && suggestions.length > 0 && (
           <div className="mt-8">
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className={cn(
@@ -413,21 +459,26 @@ export default function DiscoverPage() {
               </h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {suggestions.map((suggestion) => (
-                <UserCard
+              {suggestions.map((suggestion, index) => (
+                <div
                   key={suggestion.user_id}
-                  user={suggestion}
-                  onConnect={handleConnect}
-                  onCancel={handleCancel}
-                  onAccept={handleAccept}
-                  onDecline={handleDecline}
-                />
+                  className="animate-in fade-in-0 slide-in-from-bottom-4"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <UserCard
+                    user={suggestion}
+                    onConnect={handleConnect}
+                    onCancel={handleCancel}
+                    onAccept={handleAccept}
+                    onDecline={handleDecline}
+                  />
+                </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Search Results */}
+        {/* Search Results or All Users */}
         {users.length > 0 && (
           <div className="mt-8">
             <div className="flex items-center justify-between mb-4">
@@ -435,33 +486,33 @@ export default function DiscoverPage() {
                 "text-xl font-semibold",
                 theme === 'light' ? "text-zinc-900" : "text-white"
               )}>
-                Search Results ({pagination.total} users)
+                {hasActiveFilters ? `Search Results (${pagination.total} users)` : `Developers (${pagination.total} users)`}
               </h2>
             </div>
 
             {searchLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
-                  <Card key={i} className={cn(
-                    "h-80 animate-pulse border-2 backdrop-blur-xl",
-                    theme === 'light'
-                      ? "bg-white/60 border-black/5"
-                      : "bg-zinc-950/60 border-white/5"
-                  )} />
+                  <UserCardSkeleton key={i} />
                 ))}
               </div>
             ) : (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {users.map((user) => (
-                    <UserCard
+                  {users.map((user, index) => (
+                    <div
                       key={user.user_id}
-                      user={user}
-                      onConnect={handleConnect}
-                      onCancel={handleCancel}
-                      onAccept={handleAccept}
-                      onDecline={handleDecline}
-                    />
+                      className="animate-in fade-in-0 slide-in-from-bottom-4"
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
+                      <UserCard
+                        user={user}
+                        onConnect={handleConnect}
+                        onCancel={handleCancel}
+                        onAccept={handleAccept}
+                        onDecline={handleDecline}
+                      />
+                    </div>
                   ))}
                 </div>
 
@@ -508,6 +559,13 @@ export default function DiscoverPage() {
                     </Button>
                   </div>
                 )}
+
+                {/* Results Summary */}
+                {pagination.total > 0 && (
+                  <div className="mt-4 text-center text-sm text-muted-foreground">
+                    Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} developers
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -516,33 +574,53 @@ export default function DiscoverPage() {
         {/* Empty State */}
         {users.length === 0 && !searchLoading && hasActiveFilters && (
           <Card className={cn(
-            "mt-8 p-12 text-center border-2 backdrop-blur-xl",
+            "mt-8 p-12 text-center border-2 backdrop-blur-xl animate-in fade-in-0 slide-in-from-top-4",
             theme === 'light'
               ? "bg-white/80 border-black/5"
               : "bg-zinc-950/80 border-white/5"
           )}>
             <div className={cn(
-              "w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center",
+              "w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center",
               theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
             )}>
               <Users className={cn(
-                "w-8 h-8",
+                "w-10 h-10",
                 theme === 'light' ? "text-zinc-400" : "text-zinc-600"
               )} />
             </div>
             <h3 className={cn(
-              "text-lg font-semibold mb-2",
+              "text-xl font-semibold mb-3",
               theme === 'light' ? "text-zinc-900" : "text-white"
             )}>
-              No users found
+              No developers found
             </h3>
-            <p className="text-muted-foreground mb-4">
-              Try adjusting your search filters or search terms
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              We couldn't find any developers matching your current filters. Try adjusting your search criteria or explore our suggestions.
             </p>
-            <Button onClick={handleReset} variant="outline" className="gap-2">
-              <X className="w-4 h-4" />
-              Clear filters
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button onClick={handleReset} variant="outline" className="gap-2">
+                <X className="w-4 h-4" />
+                Clear all filters
+              </Button>
+              <Button 
+                onClick={() => {
+                  setSearchQuery("");
+                  setUniversity("");
+                  setGraduationYear("");
+                  setCompany("");
+                  setMinSolved(0);
+                  setMaxSolved(1000);
+                  setMinRating(0);
+                  setMaxRating(3000);
+                  setSortBy('relevance');
+                }} 
+                variant="ghost" 
+                className="gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                View suggestions
+              </Button>
+            </div>
           </Card>
         )}
       </main>

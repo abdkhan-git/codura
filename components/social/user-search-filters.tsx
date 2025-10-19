@@ -9,7 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
-import { Search, X, Filter, GraduationCap, Trophy, Briefcase, TrendingUp, ArrowUpDown } from "lucide-react";
+import { Search, X, Filter, GraduationCap, Trophy, Briefcase, TrendingUp, ChevronDown, SlidersHorizontal } from "lucide-react";
 
 interface UserSearchFiltersProps {
   searchQuery: string;
@@ -89,12 +89,10 @@ export function UserSearchFilters({
       >
         <div className="flex gap-3">
           <div className="relative flex-1">
-            <svg className={cn(
+            <Search className={cn(
               "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none",
               currentTheme === 'light' ? "text-zinc-400" : "text-zinc-500"
-            )} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            )} />
             <Input
               type="text"
               placeholder="Search by name, username, university, company, or skills..."
@@ -182,7 +180,7 @@ export function UserSearchFilters({
       {showFilters && (
         <Card
           className={cn(
-            "p-6 border-2 backdrop-blur-xl animate-in fade-in-0 slide-in-from-top-2 duration-300",
+            "p-6 border-2 backdrop-blur-xl animate-in fade-in-0 slide-in-from-top-2 duration-500 ease-out",
             currentTheme === 'light'
               ? "bg-white/80 border-black/5 shadow-lg"
               : "bg-zinc-950/80 border-white/5 shadow-lg"
