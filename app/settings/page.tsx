@@ -311,6 +311,12 @@ export default function SettingsPage() {
                   >
                     Account
                   </button>
+                  <Link
+                    href="/settings/notifications"
+                    className="w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 text-muted-foreground hover:bg-muted hover:text-foreground block"
+                  >
+                    Notifications
+                  </Link>
                 </nav>
               </CardContent>
             </Card>

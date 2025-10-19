@@ -28,6 +28,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
+import { ActivityFeed } from "@/components/social/activity-feed";
 import type { UserSearchResult } from "@/types/database";
 import { SentRequestCard } from "@/components/social/sent-request-card";
 
@@ -823,34 +824,7 @@ export default function ConnectionsPage() {
 
           {/* Activity Tab */}
           <TabsContent value="activity" className="space-y-6">
-            <Card className={cn(
-              "p-12 text-center border-2 backdrop-blur-xl",
-              theme === 'light' 
-                ? "bg-white/80 border-black/5" 
-                : "bg-zinc-950/80 border-white/5"
-            )}>
-              <div className={cn(
-                "w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center",
-                theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
-              )}>
-                <AlertCircle className={cn(
-                  "w-10 h-10",
-              theme === 'light' ? "text-zinc-400" : "text-zinc-600"
-            )} />
-          </div>
-          <h3 className={cn(
-                "text-xl font-semibold mb-3",
-            theme === 'light' ? "text-zinc-900" : "text-white"
-          )}>
-                Activity Timeline
-          </h3>
-              <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                Track all your connection activity, requests, and network growth.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Coming soon - Activity timeline feature
-          </p>
-        </Card>
+            <ActivityFeed />
           </TabsContent>
         </Tabs>
       </main>

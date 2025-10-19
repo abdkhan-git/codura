@@ -39,6 +39,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
+import { RecentActivityCard } from "@/components/social/recent-activity-card";
 
 interface Achievement {
   achievement_id: string;
@@ -582,6 +583,14 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
                 </div>
               </CardContent>
             </Card>
+
+            {/* Recent Activity Card */}
+            {profile?.user_id && (
+              <RecentActivityCard 
+                userId={profile.user_id} 
+                className="mt-6"
+              />
+            )}
 
             {/* Tabbed Section: Recent Submissions & Lists */}
             <Card 
