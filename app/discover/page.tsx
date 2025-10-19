@@ -139,11 +139,111 @@ export default function DiscoverPage() {
 
   const handleConnect = async (userId: string) => {
     try {
-      toast.info('Connection request functionality coming soon!');
-      // TODO: Implement connection request
+      const response = await fetch('/api/connections/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_user_id: userId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('Connection request sent!');
+        // Update user's connection status in UI
+        setUsers(prev => prev.map(u =>
+          u.user_id === userId ? { ...u, connection_status: 'pending_sent' } : u
+        ));
+        setSuggestions(prev => prev.map(u =>
+          u.user_id === userId ? { ...u, connection_status: 'pending_sent' } : u
+        ));
+      } else {
+        toast.error(data.error || 'Failed to send connection request');
+      }
     } catch (error) {
       console.error('Error sending connection request:', error);
       toast.error('Failed to send connection request');
+    }
+  };
+
+  const handleCancel = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/connections/cancel?to_user_id=${userId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('Connection request canceled');
+        // Update UI
+        setUsers(prev => prev.map(u =>
+          u.user_id === userId ? { ...u, connection_status: 'none' } : u
+        ));
+        setSuggestions(prev => prev.map(u =>
+          u.user_id === userId ? { ...u, connection_status: 'none' } : u
+        ));
+      } else {
+        toast.error(data.error || 'Failed to cancel connection request');
+      }
+    } catch (error) {
+      console.error('Error canceling connection request:', error);
+      toast.error('Failed to cancel connection request');
+    }
+  };
+
+  const handleAccept = async (userId: string) => {
+    try {
+      const response = await fetch('/api/connections/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_user_id: userId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('Connection request accepted!');
+        // Update UI
+        setUsers(prev => prev.map(u =>
+          u.user_id === userId ? { ...u, connection_status: 'connected' } : u
+        ));
+        setSuggestions(prev => prev.map(u =>
+          u.user_id === userId ? { ...u, connection_status: 'connected' } : u
+        ));
+      } else {
+        toast.error(data.error || 'Failed to accept connection request');
+      }
+    } catch (error) {
+      console.error('Error accepting connection:', error);
+      toast.error('Failed to accept connection request');
+    }
+  };
+
+  const handleDecline = async (userId: string) => {
+    try {
+      const response = await fetch('/api/connections/decline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_user_id: userId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('Connection request declined');
+        // Update UI
+        setUsers(prev => prev.map(u =>
+          u.user_id === userId ? { ...u, connection_status: 'none' } : u
+        ));
+        setSuggestions(prev => prev.map(u =>
+          u.user_id === userId ? { ...u, connection_status: 'none' } : u
+        ));
+      } else {
+        toast.error(data.error || 'Failed to decline connection request');
+      }
+    } catch (error) {
+      console.error('Error declining connection:', error);
+      toast.error('Failed to decline connection request');
     }
   };
 
@@ -227,6 +327,9 @@ export default function DiscoverPage() {
                   key={suggestion.user_id}
                   user={suggestion}
                   onConnect={handleConnect}
+                  onCancel={handleCancel}
+                  onAccept={handleAccept}
+                  onDecline={handleDecline}
                 />
               ))}
             </div>
@@ -257,6 +360,9 @@ export default function DiscoverPage() {
                       key={user.user_id}
                       user={user}
                       onConnect={handleConnect}
+                      onCancel={handleCancel}
+                      onAccept={handleAccept}
+                      onDecline={handleDecline}
                     />
                   ))}
                 </div>
