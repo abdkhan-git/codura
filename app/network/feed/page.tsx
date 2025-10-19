@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
+import { CreatePostModal } from "@/components/social/create-post-modal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
@@ -115,15 +115,10 @@ export default function SocialFeedPage() {
   const [totalPosts, setTotalPosts] = useState(0);
   const [activeTab, setActiveTab] = useState('all');
   const [showCreatePost, setShowCreatePost] = useState(false);
-  const [newPostContent, setNewPostContent] = useState('');
-  const [newPostType, setNewPostType] = useState('text');
-  const [newPostMedia, setNewPostMedia] = useState<File[]>([]);
-  const [newPostLink, setNewPostLink] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showComments, setShowComments] = useState<{ [key: string]: boolean }>({});
   const [comments, setComments] = useState<{ [key: string]: any[] }>({});
   const [newComment, setNewComment] = useState<{ [key: string]: string }>({});
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState<string | null>(null);
 
@@ -217,76 +212,6 @@ export default function SocialFeedPage() {
     fetchPosts(1, true);
   }, [activeTab]);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length > 0) {
-      setNewPostMedia(prev => [...prev, ...files]);
-      setNewPostType('image');
-    }
-  };
-
-  const handleLinkInput = (link: string) => {
-    setNewPostLink(link);
-    if (link.trim()) {
-      setNewPostType('link');
-    }
-  };
-
-  const handleEmojiSelect = (emoji: string) => {
-    setNewPostContent(prev => prev + emoji);
-    setShowEmojiPicker(false);
-  };
-
-  const handleCreatePost = async () => {
-    if (!newPostContent.trim() && newPostMedia.length === 0 && !newPostLink.trim()) {
-      toast.error('Please enter some content or attach media');
-      return;
-    }
-
-    try {
-      setActionLoading('create');
-      
-      // Handle media uploads first
-      let mediaUrls: string[] = [];
-      if (newPostMedia.length > 0) {
-        // In a real app, you'd upload to a storage service like AWS S3, Cloudinary, etc.
-        // For now, we'll simulate with placeholder URLs
-        mediaUrls = newPostMedia.map((_, index) => `https://example.com/media/${Date.now()}-${index}.jpg`);
-      }
-
-      const response = await fetch('/api/feed/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: newPostContent,
-          post_type: newPostType,
-          media_urls: mediaUrls,
-          metadata: {
-            link: newPostLink || null,
-            uploaded_files: newPostMedia.length
-          },
-          is_public: true
-        })
-      });
-
-      if (response.ok) {
-        toast.success('Post created successfully!');
-        setNewPostContent('');
-        setNewPostMedia([]);
-        setNewPostLink('');
-        setShowCreatePost(false);
-        fetchPosts(1, true);
-      } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to create post');
-      }
-    } catch (error) {
-      console.error('Error creating post:', error);
-      toast.error('Failed to create post');
-    } finally {
-      setActionLoading(null);
-    }
-  };
 
   const handleDeletePost = async (postId: string) => {
     try {
@@ -502,191 +427,39 @@ export default function SocialFeedPage() {
             </div>
           </div>
 
-          {/* Create Post Section */}
-          <Card className={cn(
-            "p-6 mb-8 border-2 backdrop-blur-xl transition-all duration-300 hover:shadow-xl hover:scale-[1.01]",
-            theme === 'light' 
-              ? "bg-white/80 border-black/5 hover:border-blue-500/20 shadow-lg" 
-              : "bg-zinc-950/80 border-white/5 hover:border-blue-500/20 shadow-lg"
-          )}>
-            <div className="flex items-start gap-4">
-              <Avatar className="w-10 h-10">
+          {/* Create Post Trigger */}
+          <Card
+            className={cn(
+              "p-6 mb-8 border-2 backdrop-blur-xl transition-all duration-300 cursor-pointer",
+              "hover:shadow-xl hover:scale-[1.01]",
+              theme === 'light'
+                ? "bg-white/80 border-black/5 hover:border-brand/30"
+                : "bg-zinc-950/80 border-white/5 hover:border-brand/30"
+            )}
+            onClick={() => setShowCreatePost(true)}
+          >
+            <div className="flex items-center gap-4">
+              <Avatar className="w-12 h-12 ring-2 ring-brand/10">
                 <AvatarImage src={user.avatar} />
                 <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
                   {user.name.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 space-y-4">
-                <Textarea
-                  placeholder="What's on your mind?"
-                  value={newPostContent}
-                  onChange={(e) => setNewPostContent(e.target.value)}
-                  className="min-h-[100px] resize-none border-2"
-                  onClick={() => setShowCreatePost(true)}
-                />
-                
-                {/* Link Input */}
-                {newPostType === 'link' && (
-                  <Input
-                    placeholder="Paste a link here..."
-                    value={newPostLink}
-                    onChange={(e) => handleLinkInput(e.target.value)}
-                    className="mt-2"
-                  />
-                )}
-                
-                {/* Media Preview */}
-                {newPostMedia.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-sm text-muted-foreground">Attached files:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {newPostMedia.map((file, index) => (
-                        <div key={index} className="flex items-center gap-2 bg-muted px-2 py-1 rounded">
-                          <span className="text-sm">{file.name}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => setNewPostMedia(prev => prev.filter((_, i) => i !== index))}
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Emoji Picker */}
-                {showEmojiPicker && (
-                  <div className="mt-3 p-3 border rounded-lg bg-background">
-                    <div className="grid grid-cols-8 gap-2">
-                      {['😀', '😂', '😍', '🥳', '👍', '❤️', '🔥', '💯', '🎉', '🚀', '💪', '⭐', '🎯', '💡', '🌟', '🎊'].map((emoji) => (
-                        <Button
-                          key={emoji}
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => handleEmojiSelect(emoji)}
-                        >
-                          {emoji}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {showCreatePost && (
-                  <div className="space-y-4">
-                    {/* Post Type Selection */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Post type:</span>
-                      <Button
-                        variant={newPostType === 'text' ? 'default' : 'outline'}
-                        size="sm"
-                        className="gap-2"
-                        onClick={() => setNewPostType('text')}
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                        Text
-                      </Button>
-                      <Button
-                        variant={newPostType === 'image' ? 'default' : 'outline'}
-                        size="sm"
-                        className="gap-2"
-                        onClick={() => setNewPostType('image')}
-                      >
-                        <Image className="w-4 h-4" />
-                        Image
-                      </Button>
-                      <Button
-                        variant={newPostType === 'link' ? 'default' : 'outline'}
-                        size="sm"
-                        className="gap-2"
-                        onClick={() => setNewPostType('link')}
-                      >
-                        <Link className="w-4 h-4" />
-                        Link
-                      </Button>
-                    </div>
-                    
-                    {/* Action Buttons */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="file"
-                          id="media-upload"
-                          accept="image/*,video/*"
-                          multiple
-                          onChange={handleFileUpload}
-                          className="hidden"
-                        />
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="gap-2"
-                              onClick={() => document.getElementById('media-upload')?.click()}
-                            >
-                              <Image className="w-4 h-4" />
-                              Upload Media
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Upload images or videos</p>
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="gap-2"
-                              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                            >
-                              <Smile className="w-4 h-4" />
-                              Emoji
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Add emoji to your post</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          onClick={() => {
-                            setShowCreatePost(false);
-                            setNewPostContent('');
-                            setNewPostMedia([]);
-                            setNewPostLink('');
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={handleCreatePost}
-                          disabled={(!newPostContent.trim() && newPostMedia.length === 0 && !newPostLink.trim()) || actionLoading === 'create'}
-                          className="gap-2 bg-gradient-to-r from-brand to-purple-600 hover:from-brand/90 hover:to-purple-600/90 text-white"
-                        >
-                          {actionLoading === 'create' ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                              Posting...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="w-4 h-4" />
-                              Post
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              <div className="flex-1">
+                <p className="text-muted-foreground text-lg">
+                  What do you want to talk about?
+                </p>
               </div>
+              <Button
+                className="gap-2 bg-gradient-to-r from-brand to-purple-600 hover:from-brand/90 hover:to-purple-600/90 text-white shadow-lg"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCreatePost(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                Create Post
+              </Button>
             </div>
           </Card>
 
@@ -962,6 +735,14 @@ export default function SocialFeedPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          {/* Create Post Modal */}
+          <CreatePostModal
+            open={showCreatePost}
+            onOpenChange={setShowCreatePost}
+            user={user}
+            onPostCreated={() => fetchPosts(currentPage)}
+          />
         </main>
       </div>
     </TooltipProvider>
