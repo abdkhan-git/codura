@@ -2,23 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useTheme } from 'next-themes';
 import {
   MessageCircle,
   Heart,
-  Share2,
-  Trophy,
-  BookOpen,
-  Users,
   Clock,
-  Eye,
   Reply,
   Repeat,
-  TrendingUp,
   Zap,
   RefreshCw
 } from 'lucide-react';
@@ -26,40 +18,31 @@ import Link from 'next/link';
 
 interface RecentActivity {
   id: string;
-  type: 'post' | 'like' | 'comment' | 'repost' | 'achievement' | 'problem_solved';
-  title: string;
-  description: string;
-  timestamp: string;
+  type: 'post' | 'like' | 'comment' | 'repost';
+  created_at: string;
+  content?: string;
+  post_id?: string;
+  post_content?: string;
+  post_author?: string;
   metadata?: any;
-  user?: {
-    user_id: string;
-    username: string;
-    full_name: string;
-    avatar_url?: string;
-  };
-  post?: {
-    id: string;
-    content: string;
-    post_type: string;
-    like_count: number;
-    comment_count: number;
-    repost_count: number;
-  };
 }
 
 interface RecentActivityCardProps {
   userId: string;
+  username?: string;
   className?: string;
 }
 
-export function RecentActivityCard({ userId, className }: RecentActivityCardProps) {
-  const { theme } = useTheme();
+export function RecentActivityCard({ userId, username, className }: RecentActivityCardProps) {
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchRecentActivity();
+    if (userId) {
+      fetchRecentActivity();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const fetchRecentActivity = async (isRefresh = false) => {
@@ -69,11 +52,9 @@ export function RecentActivityCard({ userId, className }: RecentActivityCardProp
       } else {
         setLoading(true);
       }
-      console.log('Fetching recent activity for user:', userId);
-      const response = await fetch(`/api/users/${userId}/recent-activity?limit=5`);
+      const response = await fetch(`/api/users/${userId}/activity?limit=5`);
       if (response.ok) {
         const data = await response.json();
-        console.log('Recent activity data:', data);
         setActivities(data.activities || []);
       } else {
         console.error('Failed to fetch recent activity:', response.status, response.statusText);
@@ -88,25 +69,31 @@ export function RecentActivityCard({ userId, className }: RecentActivityCardProp
 
   const getActivityIcon = (type: string) => {
     switch (type) {
-      case 'post': return <MessageCircle className="w-4 h-4 text-blue-500" />;
-      case 'like': return <Heart className="w-4 h-4 text-red-500" />;
-      case 'comment': return <Reply className="w-4 h-4 text-green-500" />;
-      case 'repost': return <Repeat className="w-4 h-4 text-purple-500" />;
-      case 'achievement': return <Trophy className="w-4 h-4 text-yellow-500" />;
-      case 'problem_solved': return <TrendingUp className="w-4 h-4 text-orange-500" />;
-      default: return <Zap className="w-4 h-4 text-gray-500" />;
+      case 'post': return <MessageCircle className="w-4 h-4" />;
+      case 'like': return <Heart className="w-4 h-4" />;
+      case 'comment': return <Reply className="w-4 h-4" />;
+      case 'repost': return <Repeat className="w-4 h-4" />;
+      default: return <Zap className="w-4 h-4" />;
     }
   };
 
   const getActivityColor = (type: string) => {
     switch (type) {
-      case 'post': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400';
-      case 'like': return 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400';
-      case 'comment': return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400';
-      case 'repost': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400';
-      case 'achievement': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400';
-      case 'problem_solved': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400';
-      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-400';
+      case 'post': return 'from-blue-500 to-cyan-500';
+      case 'like': return 'from-red-500 to-pink-500';
+      case 'comment': return 'from-green-500 to-emerald-500';
+      case 'repost': return 'from-purple-500 to-indigo-500';
+      default: return 'from-gray-500 to-slate-500';
+    }
+  };
+
+  const getActivityBgColor = (type: string) => {
+    switch (type) {
+      case 'post': return 'bg-blue-500/10 dark:bg-blue-500/20';
+      case 'like': return 'bg-red-500/10 dark:bg-red-500/20';
+      case 'comment': return 'bg-green-500/10 dark:bg-green-500/20';
+      case 'repost': return 'bg-purple-500/10 dark:bg-purple-500/20';
+      default: return 'bg-gray-500/10 dark:bg-gray-500/20';
     }
   };
 
@@ -122,37 +109,57 @@ export function RecentActivityCard({ userId, className }: RecentActivityCardProp
     return date.toLocaleDateString();
   };
 
-  const getAvatarInitials = (user: { full_name: string | null; username: string | null }) => {
-    if (!user.full_name) return user.username?.[0]?.toUpperCase() || 'U';
-    return user.full_name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+  const getActivityTitle = (activity: RecentActivity) => {
+    switch (activity.type) {
+      case 'post': return 'Created a post';
+      case 'like': return `Liked ${activity.post_author ? activity.post_author + "'s post" : 'a post'}`;
+      case 'comment': return `Commented on ${activity.post_author ? activity.post_author + "'s post" : 'a post'}`;
+      case 'repost': return `Reposted ${activity.post_author ? activity.post_author + "'s post" : 'a post'}`;
+      default: return 'Activity';
+    }
+  };
+
+  const getActivityDescription = (activity: RecentActivity) => {
+    if (activity.type === 'post' && activity.content) {
+      return activity.content;
+    }
+    if (activity.type === 'comment' && activity.content) {
+      return activity.content;
+    }
+    if (activity.post_content) {
+      return activity.post_content;
+    }
+    return '';
   };
 
   if (loading) {
     return (
       <Card className={cn(
-        "border-2 backdrop-blur-xl",
-        theme === 'light' ? "bg-white/80 border-black/5" : "bg-zinc-950/80 border-white/5",
+        "relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden shadow-xl",
         className
       )}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-brand" />
-            Recent Activity
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center",
+              "bg-gradient-to-br from-brand/20 to-brand/5 backdrop-blur-sm"
+            )}>
+              <Clock className="w-5 h-5 text-brand" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">Recent Activity</h3>
+              <p className="text-xs text-muted-foreground font-normal">Latest updates</p>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="flex items-start gap-3 animate-pulse">
-                <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                <div className="w-10 h-10 rounded-xl bg-muted/50" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-3/4" />
-                  <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded w-1/2" />
+                  <div className="h-4 bg-muted/50 rounded w-3/4" />
+                  <div className="h-3 bg-muted/50 rounded w-1/2" />
                 </div>
               </div>
             ))}
@@ -165,28 +172,38 @@ export function RecentActivityCard({ userId, className }: RecentActivityCardProp
   if (activities.length === 0) {
     return (
       <Card className={cn(
-        "border-2 backdrop-blur-xl",
-        theme === 'light' ? "bg-white/80 border-black/5" : "bg-zinc-950/80 border-white/5",
+        "relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden shadow-xl shine-effect group hover:border-brand/40 transition-all duration-500",
         className
       )}>
+        <div className="glow-border-top" />
+        <div className="glow-border-right" />
+        <div className="glow-border-bottom" />
+        <div className="glow-border-left" />
+
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-brand" />
-            Recent Activity
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center",
+              "bg-gradient-to-br from-brand/20 to-brand/5 backdrop-blur-sm"
+            )}>
+              <Clock className="w-5 h-5 text-brand" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">Recent Activity</h3>
+              <p className="text-xs text-muted-foreground font-normal">Latest updates</p>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-6">
+          <div className="text-center py-8">
             <div className={cn(
-              "w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center",
-              theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
+              "w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center",
+              "bg-gradient-to-br from-muted/50 to-muted/20 backdrop-blur-sm"
             )}>
-              <Clock className={cn(
-                "w-6 h-6",
-                theme === 'light' ? "text-zinc-400" : "text-zinc-600"
-              )} />
+              <Clock className="w-8 h-8 text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground">No recent activity</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Activity will appear here</p>
           </div>
         </CardContent>
       </Card>
@@ -195,89 +212,150 @@ export function RecentActivityCard({ userId, className }: RecentActivityCardProp
 
   return (
     <Card className={cn(
-      "border-2 backdrop-blur-xl",
-      theme === 'light' ? "bg-white/80 border-black/5" : "bg-zinc-950/80 border-white/5",
+      "relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden shadow-xl shine-effect group hover:border-brand/40 transition-all duration-500",
       className
     )}>
+      {/* Animated glow borders */}
+      <div className="glow-border-top" />
+      <div className="glow-border-right" />
+      <div className="glow-border-bottom" />
+      <div className="glow-border-left" />
+
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-brand" />
-            Recent Activity
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center",
+              "bg-gradient-to-br from-brand/20 to-brand/5 backdrop-blur-sm",
+              "group-hover:scale-110 transition-transform duration-300"
+            )}>
+              <Clock className="w-5 h-5 text-brand" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">Recent Activity</h3>
+              <p className="text-xs text-muted-foreground font-normal">Latest updates</p>
+            </div>
           </CardTitle>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => fetchRecentActivity(true)}
             disabled={refreshing}
-            className="gap-2"
+            className={cn(
+              "gap-2 h-9 px-3 rounded-lg",
+              "hover:bg-brand/10 hover:text-brand transition-all duration-200",
+              "border border-transparent hover:border-brand/20"
+            )}
           >
             <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
-            {refreshing ? 'Refreshing...' : 'Refresh'}
+            <span className="text-xs font-medium">Refresh</span>
           </Button>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {activities.map((activity, index) => (
-            <div 
-              key={activity.id} 
-              className="flex items-start gap-3 animate-in fade-in-0 slide-in-from-left-4 duration-300"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-                getActivityColor(activity.type)
-              )}>
-                {getActivityIcon(activity.type)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium text-foreground">
-                    {activity.title}
-                  </span>
-                  <Badge variant="secondary" className="text-xs">
-                    {activity.type}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground mb-1">
-                  {activity.description}
-                </p>
-                {activity.post && (
-                  <div className="mt-2 p-2 rounded-lg bg-muted/50">
-                    <p className="text-xs text-foreground line-clamp-2">
-                      {activity.post.content}
-                    </p>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Heart className="w-3 h-3" />
-                        {activity.post.like_count}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Reply className="w-3 h-3" />
-                        {activity.post.comment_count}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Repeat className="w-3 h-3" />
-                        {activity.post.repost_count}
-                      </span>
+        <div className="space-y-2">
+          {activities.map((activity, index) => {
+            const activityLink = activity.post_id ? `/network/feed?post=${activity.post_id}` : '#';
+
+            return (
+              <Link
+                key={activity.id}
+                href={activityLink}
+                className="block"
+              >
+                <div
+                  className={cn(
+                    "flex items-start gap-3 p-3 rounded-xl",
+                    "bg-gradient-to-br from-muted/30 to-muted/10 backdrop-blur-sm",
+                    "border border-border/20",
+                    "hover:border-brand/30 hover:from-brand/5 hover:to-brand/10",
+                    "transition-all duration-300 ease-out",
+                    "hover:scale-[1.02] hover:shadow-lg hover:shadow-brand/10",
+                    "animate-in fade-in-0 slide-in-from-left-4 duration-300"
+                  )}
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
+                    "bg-gradient-to-br shadow-lg relative overflow-hidden",
+                    getActivityBgColor(activity.type),
+                    "transition-transform duration-300"
+                  )}>
+                    <div className={cn(
+                      "absolute inset-0 bg-gradient-to-br opacity-20",
+                      getActivityColor(activity.type)
+                    )} />
+                    <div className="relative z-10">
+                      {getActivityIcon(activity.type)}
                     </div>
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-sm font-semibold text-foreground">
+                        {getActivityTitle(activity)}
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          "text-xs px-2 py-0 h-5",
+                          "bg-gradient-to-br from-muted/50 to-muted/30",
+                          "border border-border/30"
+                        )}
+                      >
+                        {activity.type}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {formatTimeAgo(activity.created_at)}
+                      </span>
+                    </div>
+                    {getActivityDescription(activity) && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                        {getActivityDescription(activity)}
+                      </p>
+                    )}
+                    {activity.metadata && (
+                      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1 hover:text-red-500 transition-colors">
+                          <Heart className="w-3 h-3" />
+                          {activity.metadata.like_count || 0}
+                        </span>
+                        <span className="flex items-center gap-1 hover:text-green-500 transition-colors">
+                          <Reply className="w-3 h-3" />
+                          {activity.metadata.comment_count || 0}
+                        </span>
+                        <span className="flex items-center gap-1 hover:text-purple-500 transition-colors">
+                          <Repeat className="w-3 h-3" />
+                          {activity.metadata.repost_count || 0}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+        {username && (
+          <div className="mt-4 pt-4 border-t border-border/20">
+            <Link href={`/profile/${username}/posts-activity`}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "w-full rounded-lg",
+                  "bg-gradient-to-br from-brand/10 to-brand/5",
+                  "hover:from-brand/20 hover:to-brand/10",
+                  "border border-brand/20 hover:border-brand/40",
+                  "text-brand font-semibold",
+                  "transition-all duration-300",
+                  "hover:scale-[1.02] hover:shadow-lg hover:shadow-brand/20"
                 )}
-                <span className="text-xs text-muted-foreground">
-                  {formatTimeAgo(activity.timestamp)}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 pt-4 border-t" style={{
-          borderColor: theme === 'light' ? '#e4e4e7' : '#27272a'
-        }}>
-          <Button variant="ghost" size="sm" className="w-full">
-            View All Activity
-          </Button>
-        </div>
+              >
+                View All Activity
+              </Button>
+            </Link>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

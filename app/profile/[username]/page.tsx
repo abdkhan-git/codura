@@ -585,9 +585,10 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
             </Card>
 
             {/* Recent Activity Card */}
-            {profile?.user_id && (
-              <RecentActivityCard 
-                userId={profile.user_id} 
+            {(profile as any)?.user_id && (
+              <RecentActivityCard
+                userId={(profile as any).user_id}
+                username={(profile as any)?.username || undefined}
                 className="mt-6"
               />
             )}
