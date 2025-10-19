@@ -93,16 +93,18 @@ export async function middleware(req: NextRequest) {
         // Allow access to app pages for completed users
         const allowedAppPages = [
           "/dashboard",
-          "/profile", 
+          "/profile",
           "/settings",
           "/problems",
           "/mock-interview",
           "/study-pods",
           "/leaderboards",
-          "/discuss"
+          "/discuss",
+          "/discover",
+          "/network"
         ];
         const isAllowedAppPage = allowedAppPages.some(page => pathname.startsWith(page));
-        
+
         if (!isAllowedAppPage && !onAuth) {
           return NextResponse.redirect(new URL("/dashboard", origin));
         }
