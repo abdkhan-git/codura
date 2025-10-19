@@ -31,7 +31,7 @@ interface UserData {
   bio?: string;
 }
 
-type TabType = 'appearance' | 'profile' | 'account';
+type TabType = 'appearance' | 'profile' | 'account' | 'notifications';
 
 export default function SettingsPage() {
   const { theme: currentTheme, setTheme: setAppTheme } = useTheme();

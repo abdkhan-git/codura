@@ -27,7 +27,76 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error('Error fetching activity feed:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.log('Falling back to direct query');
+
+      // Fallback: Use direct query
+      let query = supabase
+        .from('activity_feed')
+        .select('*')
+        .or(`is_public.eq.true,user_id.eq.${user.id}`)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (activityTypes && activityTypes.length > 0) {
+        query = query.in('activity_type', activityTypes);
+      }
+
+      const { data: fallbackActivities, error: fallbackError } = await query;
+
+      if (fallbackError) {
+        console.error('Fallback query error:', fallbackError);
+        return NextResponse.json({ error: fallbackError.message }, { status: 500 });
+      }
+
+      // Fetch user data separately for each activity
+      const activitiesWithUsers = await Promise.all(
+        (fallbackActivities || []).map(async (activity) => {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('username, full_name, avatar_url')
+            .eq('user_id', activity.user_id)
+            .single();
+
+          // Check if user reacted
+          const { data: reactionData } = await supabase
+            .from('activity_reactions')
+            .select('id')
+            .eq('activity_id', activity.id)
+            .eq('user_id', user.id)
+            .single();
+
+          // Get reaction and comment counts
+          const { count: reactionCount } = await supabase
+            .from('activity_reactions')
+            .select('*', { count: 'exact', head: true })
+            .eq('activity_id', activity.id);
+
+          const { count: commentCount } = await supabase
+            .from('activity_comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('activity_id', activity.id);
+
+          return {
+            ...activity,
+            user_name: userData?.full_name || 'Unknown User',
+            user_username: userData?.username || 'unknown',
+            user_avatar_url: userData?.avatar_url || null,
+            user_reacted: !!reactionData,
+            reaction_count: reactionCount || 0,
+            comment_count: commentCount || 0
+          };
+        })
+      );
+
+      return NextResponse.json({
+        activities: activitiesWithUsers,
+        pagination: {
+          limit,
+          offset,
+          total: activitiesWithUsers.length,
+          hasMore: activitiesWithUsers.length >= limit
+        }
+      });
     }
 
     // Get total count for pagination

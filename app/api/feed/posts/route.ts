@@ -21,79 +21,106 @@ export async function GET(request: Request) {
     console.log('Fetching posts for user:', user.id);
     console.log('Parameters:', { limit, offset, postTypes, connectionsOnly });
 
-    // Use direct query approach (more reliable)
-    console.log('Using direct query approach');
-    
-    let query = supabase
-      .from('social_posts')
-      .select(`
-        id,
-        user_id,
-        content,
-        media_urls,
-        post_type,
-        metadata,
-        is_public,
-        is_pinned,
-        parent_post_id,
-        original_post_id,
-        repost_count,
-        like_count,
-        comment_count,
-        view_count,
-        created_at,
-        updated_at,
-        users (
-          username,
-          full_name,
-          avatar_url
-        )
-      `)
-      .or(`is_public.eq.true,user_id.eq.${user.id}`)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    // Fetch posts with proper joins
+    console.log('Fetching posts with joins');
 
-    if (postTypes && postTypes.length > 0) {
-      query = query.in('post_type', postTypes);
-    }
-
-    const { data: posts, error: queryError } = await query;
+    const { data: posts, error: queryError } = await supabase.rpc('get_social_feed', {
+      p_user_id: user.id,
+      p_limit: limit,
+      p_offset: offset,
+      p_post_types: postTypes,
+      p_connections_only: connectionsOnly
+    });
 
     if (queryError) {
-      console.error('Direct query error:', queryError);
-      return NextResponse.json({ 
-        error: queryError.message,
-        details: queryError.details,
-        hint: queryError.hint,
-        code: queryError.code
-      }, { status: 500 });
+      console.error('RPC query error:', queryError);
+      console.log('Falling back to direct query');
+
+      // Fallback: Use direct query with manual join
+      let query = supabase
+        .from('social_posts')
+        .select('*')
+        .or(`is_public.eq.true,user_id.eq.${user.id}`)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (postTypes && postTypes.length > 0) {
+        query = query.in('post_type', postTypes);
+      }
+
+      const { data: fallbackPosts, error: fallbackError } = await query;
+
+      if (fallbackError) {
+        console.error('Fallback query error:', fallbackError);
+        return NextResponse.json({
+          error: fallbackError.message,
+          details: fallbackError.details,
+          hint: fallbackError.hint,
+          code: fallbackError.code
+        }, { status: 500 });
+      }
+
+      // Fetch user data separately for each post
+      const postsWithUsers = await Promise.all(
+        (fallbackPosts || []).map(async (post) => {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('username, full_name, avatar_url')
+            .eq('user_id', post.user_id)
+            .single();
+
+          // Check if user liked/reposted
+          const { data: likeData } = await supabase
+            .from('post_likes')
+            .select('id')
+            .eq('post_id', post.id)
+            .eq('user_id', user.id)
+            .single();
+
+          const { data: repostData } = await supabase
+            .from('post_reposts')
+            .select('id')
+            .eq('post_id', post.id)
+            .eq('user_id', user.id)
+            .single();
+
+          return {
+            ...post,
+            user_name: userData?.full_name || 'Unknown User',
+            user_username: userData?.username || 'unknown',
+            user_avatar_url: userData?.avatar_url || null,
+            user_liked: !!likeData,
+            user_reposted: !!repostData
+          };
+        })
+      );
+
+      console.log('Posts from fallback query:', postsWithUsers.length);
+
+      return NextResponse.json({
+        posts: postsWithUsers,
+        pagination: {
+          limit,
+          offset,
+          total: postsWithUsers.length,
+          hasMore: postsWithUsers.length >= limit
+        }
+      });
     }
 
-    // Transform the data to match the expected format
-    const transformedPosts = (posts || []).map(post => ({
+    // Transform the data from RPC function
+    const transformedPosts = (posts || []).map((post: any) => ({
       ...post,
-      // Map to the expected interface fields
-      user_name: post.users?.full_name || 'Unknown User',
-      user_username: post.users?.username || 'Unknown',
-      user_avatar_url: post.users?.avatar_url || null,
-      user_liked: false,
-      user_reposted: false,
-      // Keep the author fields for compatibility
-      author_username: post.users?.username || 'Unknown',
-      author_full_name: post.users?.full_name || 'Unknown User',
-      author_avatar_url: post.users?.avatar_url || null,
-      original_author_username: null,
-      original_author_full_name: null,
-      original_author_avatar_url: null,
-      original_post_content: null,
-      original_post_media_urls: null,
-      original_post_type: null,
-      original_post_metadata: null,
-      has_liked: false,
-      has_reposted: false
+      // Ensure all fields are present
+      media_urls: post.media_urls || [],
+      metadata: post.metadata || {},
+      repost_count: post.repost_count || 0,
+      like_count: post.like_count || 0,
+      comment_count: post.comment_count || 0,
+      view_count: post.view_count || 0,
     }));
 
-    console.log('Posts from direct query:', transformedPosts.length);
+    console.log('Posts from RPC:', transformedPosts.length);
 
     return NextResponse.json({
       posts: transformedPosts,

@@ -153,14 +153,14 @@ export default function SocialFeedPage() {
     try {
       if (reset) {
         setLoading(true);
-        setOffset(0);
       } else {
         setLoadingMore(true);
       }
 
+      const currentOffset = reset ? 0 : offset;
       const params = new URLSearchParams({
         limit: '10',
-        offset: reset ? '0' : offset.toString()
+        offset: currentOffset.toString()
       });
 
       if (activeTab !== 'all' && activeTab !== 'connections') {
@@ -174,15 +174,16 @@ export default function SocialFeedPage() {
       const response = await fetch(`/api/feed/posts?${params}`);
       if (response.ok) {
         const data = await response.json();
-        
+
         if (reset) {
           setPosts(data.posts || []);
+          setOffset(10);
         } else {
           setPosts(prev => [...prev, ...(data.posts || [])]);
+          setOffset(prev => prev + 10);
         }
-        
+
         setHasMore(data.pagination.hasMore);
-        setOffset(prev => prev + 10);
       } else {
         toast.error('Failed to load posts');
       }
@@ -197,6 +198,7 @@ export default function SocialFeedPage() {
 
   useEffect(() => {
     fetchPosts(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
