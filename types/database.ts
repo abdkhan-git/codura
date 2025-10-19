@@ -1,5 +1,5 @@
 export interface UserProfile {
-  id: string;
+  user_id: string;
   username: string | null;
   full_name: string | null;
   bio: string | null;
@@ -13,7 +13,7 @@ export interface UserProfile {
   linkedin_username: string | null;
   is_public: boolean | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface UserStats {

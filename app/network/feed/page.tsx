@@ -33,10 +33,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { 
-  MessageCircle, 
-  Heart, 
-  Share2, 
+import {
+  MessageCircle,
+  Heart,
+  Share2,
   MoreHorizontal,
   Send,
   Image,
@@ -62,7 +62,15 @@ import {
   Video,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  PartyPopper,
+  Lightbulb,
+  Briefcase,
+  Target,
+  Calendar,
+  BookOpen,
+  Trophy,
+  Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -88,6 +96,7 @@ interface Post {
   user_avatar_url?: string;
   user_liked: boolean;
   user_reposted: boolean;
+  user_saved: boolean;
   original_post_content?: string;
   original_post_user_name?: string;
   original_post_user_username?: string;
@@ -124,16 +133,23 @@ export default function SocialFeedPage() {
 
   const postsPerPage = 10;
 
+  // Enhanced filter options matching post types
   const filterOptions = [
-    { value: 'all', label: 'All Posts', icon: Grid3X3 },
-    { value: 'my_posts', label: 'My Posts', icon: User },
-    { value: 'connections', label: 'Connections Only', icon: Users },
-    { value: 'text', label: 'Text', icon: MessageCircle },
-    { value: 'image', label: 'Images', icon: Image },
-    { value: 'video', label: 'Videos', icon: Video },
-    { value: 'link', label: 'Links', icon: Link },
-    { value: 'achievement', label: 'Achievements', icon: TrendingUp },
-    { value: 'problem_solved', label: 'Problems', icon: Users }
+    // General Filters
+    { value: 'all', label: 'All Posts', icon: Grid3X3, category: 'general' },
+    { value: 'my_posts', label: 'My Posts', icon: User, category: 'general' },
+    { value: 'connections', label: 'Connections', icon: Users, category: 'general' },
+
+    // Content Type Filters (matching Create Post types)
+    { value: 'celebrate', label: 'Celebrations', icon: PartyPopper, category: 'content', color: 'from-purple-500 to-pink-500' },
+    { value: 'find_expert', label: 'Find Expert', icon: Lightbulb, category: 'content', color: 'from-yellow-500 to-orange-500' },
+    { value: 'hiring', label: 'Job Opportunities', icon: Briefcase, category: 'content', color: 'from-blue-500 to-cyan-500' },
+    { value: 'study_pod', label: 'Study Pods', icon: Users, category: 'content', color: 'from-green-500 to-emerald-500' },
+    { value: 'mock_interview', label: 'Mock Interviews', icon: Target, category: 'content', color: 'from-red-500 to-rose-500' },
+    { value: 'event', label: 'Events', icon: Calendar, category: 'content', color: 'from-indigo-500 to-purple-500' },
+    { value: 'share_resource', label: 'Resources', icon: BookOpen, category: 'content', color: 'from-teal-500 to-cyan-500' },
+    { value: 'problem_solved', label: 'Solutions', icon: Trophy, category: 'content', color: 'from-amber-500 to-yellow-500' },
+    { value: 'general', label: 'General', icon: Sparkles, category: 'content', color: 'from-gray-500 to-slate-500' }
   ];
 
   // Fetch current user
@@ -383,6 +399,74 @@ export default function SocialFeedPage() {
     return date.toLocaleDateString();
   };
 
+  // Handle save/unsave post
+  const handleSave = async (postId: string) => {
+    try {
+      setActionLoading(postId);
+      const response = await fetch(`/api/feed/posts/${postId}/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collection: 'general' })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Update post in state
+        setPosts(posts.map(p =>
+          p.id === postId
+            ? { ...p, user_saved: data.saved }
+            : p
+        ));
+        toast.success(data.saved ? 'Post saved!' : 'Post unsaved');
+      } else {
+        toast.error('Failed to save post');
+      }
+    } catch (error) {
+      console.error('Error saving post:', error);
+      toast.error('An error occurred');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Handle copy link to post
+  const handleCopyLink = async (postId: string) => {
+    const postUrl = `${window.location.origin}/network/feed?post=${postId}`;
+    try {
+      await navigator.clipboard.writeText(postUrl);
+      toast.success('Link copied to clipboard!');
+    } catch (error) {
+      console.error('Error copying link:', error);
+      toast.error('Failed to copy link');
+    }
+  };
+
+  // Handle not interested
+  const handleNotInterested = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/feed/posts/${postId}/preference`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preference_type: 'not_interested',
+          reason: 'User selected not interested'
+        })
+      });
+
+      if (response.ok) {
+        // Remove post from feed
+        setPosts(posts.filter(p => p.id !== postId));
+        setTotalPosts(totalPosts - 1);
+        toast.success('Post hidden. We\'ll show you fewer posts like this.');
+      } else {
+        toast.error('Failed to hide post');
+      }
+    } catch (error) {
+      console.error('Error setting preference:', error);
+      toast.error('An error occurred');
+    }
+  };
+
   if (loading || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -484,30 +568,75 @@ export default function SocialFeedPage() {
                 </div>
               </div>
               
-              {/* Modern Filter Buttons */}
-              <div className="flex flex-wrap gap-3">
-                {filterOptions.map((type) => {
-                  const Icon = type.icon;
-                  const isActive = activeTab === type.value;
-                  return (
-                    <button
-                      key={type.value}
-                      onClick={() => setActiveTab(type.value)}
-                      className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105",
-                        isActive
-                          ? "bg-gradient-to-r from-brand to-purple-600 text-white shadow-lg shadow-brand/25"
-                          : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span>{type.label}</span>
-                      {isActive && (
-                        <div className="w-2 h-2 rounded-full bg-white/80" />
-                      )}
-                    </button>
-                  );
-                })}
+              {/* Enhanced Filter Buttons with Categories */}
+              <div className="space-y-4">
+                {/* General Filters */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                    View
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {filterOptions.filter(f => f.category === 'general').map((type) => {
+                      const Icon = type.icon;
+                      const isActive = activeTab === type.value;
+                      return (
+                        <button
+                          key={type.value}
+                          onClick={() => setActiveTab(type.value)}
+                          className={cn(
+                            "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105",
+                            isActive
+                              ? "bg-gradient-to-r from-brand to-purple-600 text-white shadow-lg shadow-brand/25"
+                              : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span>{type.label}</span>
+                          {isActive && (
+                            <div className="w-2 h-2 rounded-full bg-white/80" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Content Type Filters */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                    Filter by Topic
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {filterOptions.filter(f => f.category === 'content').map((type) => {
+                      const Icon = type.icon;
+                      const isActive = activeTab === type.value;
+                      return (
+                        <button
+                          key={type.value}
+                          onClick={() => setActiveTab(type.value)}
+                          className={cn(
+                            "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105 relative overflow-hidden group",
+                            isActive
+                              ? `bg-gradient-to-r ${type.color} text-white shadow-lg`
+                              : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          )}
+                        >
+                          {isActive && type.color && (
+                            <div className={cn(
+                              "absolute inset-0 bg-gradient-to-r opacity-20 animate-pulse",
+                              type.color
+                            )} />
+                          )}
+                          <Icon className="w-4 h-4 relative z-10" />
+                          <span className="relative z-10">{type.label}</span>
+                          {isActive && (
+                            <div className="w-2 h-2 rounded-full bg-white/90 relative z-10" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
               
               {/* Quick Actions */}
@@ -648,6 +777,9 @@ export default function SocialFeedPage() {
                       setPostToDelete(postId);
                       setDeleteDialogOpen(true);
                     }}
+                    onSave={handleSave}
+                    onCopyLink={handleCopyLink}
+                    onNotInterested={handleNotInterested}
                     actionLoading={actionLoading}
                     showComments={showComments}
                     setShowComments={setShowComments}
@@ -750,13 +882,16 @@ export default function SocialFeedPage() {
 }
 
 // Post Card Component
-function PostCard({ 
-  post, 
+function PostCard({
+  post,
   currentUserId,
-  onLike, 
-  onRepost, 
+  onLike,
+  onRepost,
   onComment,
   onDelete,
+  onSave,
+  onCopyLink,
+  onNotInterested,
   actionLoading,
   showComments,
   setShowComments,
@@ -764,7 +899,7 @@ function PostCard({
   newComment,
   setNewComment,
   formatTimeAgo,
-  theme 
+  theme
 }: {
   post: any;
   currentUserId: string;
@@ -772,6 +907,9 @@ function PostCard({
   onRepost: (postId: string) => void;
   onComment: (postId: string) => void;
   onDelete: (postId: string) => void;
+  onSave: (postId: string) => void;
+  onCopyLink: (postId: string) => void;
+  onNotInterested: (postId: string) => void;
   actionLoading: string | null;
   showComments: { [key: string]: boolean };
   setShowComments: (value: { [key: string]: boolean }) => void;
@@ -827,9 +965,24 @@ function PostCard({
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-56">
+              {/* Universal Actions (for all posts) */}
+              <DropdownMenuItem onClick={() => onSave(post.id)}>
+                <Bookmark className={cn(
+                  "w-4 h-4 mr-2",
+                  post.user_saved && "fill-current text-brand"
+                )} />
+                {post.user_saved ? 'Unsave Post' : 'Save Post'}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCopyLink(post.id)}>
+                <Link className="w-4 h-4 mr-2" />
+                Copy Link to Post
+              </DropdownMenuItem>
+
+              {/* Own Post Actions */}
               {isOwnPost && (
                 <>
+                  <div className="my-1 h-px bg-border" />
                   <DropdownMenuItem onClick={() => {}}>
                     <Pin className="w-4 h-4 mr-2" />
                     {post.is_pinned ? 'Unpin' : 'Pin'} Post
@@ -840,22 +993,33 @@ function PostCard({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => onDelete(post.id)}
-                    className="text-destructive"
+                    className="text-destructive focus:text-destructive"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete Post
                   </DropdownMenuItem>
                 </>
               )}
+
+              {/* Other User's Post Actions */}
               {!isOwnPost && (
                 <>
-                  <DropdownMenuItem>
+                  <div className="my-1 h-px bg-border" />
+                  <DropdownMenuItem onClick={() => onNotInterested(post.id)}>
+                    <X className="w-4 h-4 mr-2" />
+                    Not Interested
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {}}>
+                    <Eye className="w-4 h-4 mr-2" />
+                    Hide This Post
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {}}>
+                    <User className="w-4 h-4 mr-2" />
+                    Hide Posts from @{post.user_username}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive focus:text-destructive">
                     <Flag className="w-4 h-4 mr-2" />
                     Report Post
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Eye className="w-4 h-4 mr-2" />
-                    Hide Post
                   </DropdownMenuItem>
                 </>
               )}
