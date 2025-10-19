@@ -67,6 +67,10 @@ export default function ConnectionsPage() {
   const [sortBy, setSortBy] = useState('recent');
   const [showFilters, setShowFilters] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  // Bulk selection state
+  const [selectedRequests, setSelectedRequests] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   // Debounce timer ref
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
@@ -257,6 +261,128 @@ export default function ConnectionsPage() {
     }
   };
 
+  // Bulk selection functions
+  const handleSelectRequest = (requestId: string) => {
+    setSelectedRequests(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(requestId)) {
+        newSet.delete(requestId);
+      } else {
+        newSet.add(requestId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const currentTabRequests = activeTab === 'pending' 
+      ? pendingRequests.filter(req => req.type === 'received')
+      : activeTab === 'sent'
+      ? pendingRequests.filter(req => req.type === 'sent')
+      : [];
+    
+    if (selectedRequests.size === currentTabRequests.length) {
+      setSelectedRequests(new Set());
+    } else {
+      setSelectedRequests(new Set(currentTabRequests.map(req => req.id)));
+    }
+  };
+
+  const handleBulkAccept = async () => {
+    if (selectedRequests.size === 0) return;
+    
+    setBulkActionLoading(true);
+    const results = await Promise.allSettled(
+      Array.from(selectedRequests).map(requestId => 
+        fetch('/api/connections/accept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: requestId }),
+        })
+      )
+    );
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - successful;
+
+    if (successful > 0) {
+      toast.success(`${successful} connection${successful > 1 ? 's' : ''} accepted`);
+      setPendingRequests(prev => prev.filter(req => !selectedRequests.has(req.id)));
+      setConnections(prev => [...prev, ...pendingRequests.filter(req => selectedRequests.has(req.id)).map(req => ({
+        user: req.user,
+        connected_at: new Date().toISOString(),
+        mutual_connections: 0
+      }))]);
+    }
+    
+    if (failed > 0) {
+      toast.error(`${failed} request${failed > 1 ? 's' : ''} failed to accept`);
+    }
+
+    setSelectedRequests(new Set());
+    setBulkActionLoading(false);
+  };
+
+  const handleBulkDecline = async () => {
+    if (selectedRequests.size === 0) return;
+    
+    setBulkActionLoading(true);
+    const results = await Promise.allSettled(
+      Array.from(selectedRequests).map(requestId => 
+        fetch('/api/connections/decline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: requestId }),
+        })
+      )
+    );
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - successful;
+
+    if (successful > 0) {
+      toast.success(`${successful} request${successful > 1 ? 's' : ''} declined`);
+      setPendingRequests(prev => prev.filter(req => !selectedRequests.has(req.id)));
+    }
+    
+    if (failed > 0) {
+      toast.error(`${failed} request${failed > 1 ? 's' : ''} failed to decline`);
+    }
+
+    setSelectedRequests(new Set());
+    setBulkActionLoading(false);
+  };
+
+  const handleBulkCancel = async () => {
+    if (selectedRequests.size === 0) return;
+    
+    setBulkActionLoading(true);
+    const results = await Promise.allSettled(
+      Array.from(selectedRequests).map(requestId => 
+        fetch('/api/connections/cancel', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: requestId }),
+        })
+      )
+    );
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - successful;
+
+    if (successful > 0) {
+      toast.success(`${successful} request${successful > 1 ? 's' : ''} canceled`);
+      setPendingRequests(prev => prev.filter(req => !selectedRequests.has(req.id)));
+    }
+    
+    if (failed > 0) {
+      toast.error(`${failed} request${failed > 1 ? 's' : ''} failed to cancel`);
+    }
+
+    setSelectedRequests(new Set());
+    setBulkActionLoading(false);
+  };
+
   if (loading || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -292,9 +418,9 @@ export default function ConnectionsPage() {
               <Users className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
-                My Connections
-              </h1>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
+            My Connections
+          </h1>
               <p className="text-muted-foreground">Manage your professional network</p>
             </div>
           </div>
@@ -339,10 +465,54 @@ export default function ConnectionsPage() {
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
-            </div>
+        </div>
 
             {/* Controls */}
             <div className="flex items-center gap-3">
+              {/* Bulk Actions (only show for pending/sent tabs) */}
+              {(activeTab === 'pending' || activeTab === 'sent') && selectedRequests.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {selectedRequests.size} selected
+                  </span>
+                  {activeTab === 'pending' && (
+                    <>
+                      <Button
+                        onClick={handleBulkAccept}
+                        disabled={bulkActionLoading}
+                        size="sm"
+                        className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <Check className="w-4 h-4" />
+                        Accept All
+                      </Button>
+                      <Button
+                        onClick={handleBulkDecline}
+                        disabled={bulkActionLoading}
+                        size="sm"
+                        variant="destructive"
+                        className="gap-2"
+                      >
+                        <X className="w-4 h-4" />
+                        Decline All
+                      </Button>
+                    </>
+                  )}
+                  {activeTab === 'sent' && (
+                    <Button
+                      onClick={handleBulkCancel}
+                      disabled={bulkActionLoading}
+                      size="sm"
+                      variant="destructive"
+                      className="gap-2"
+                    >
+                      <X className="w-4 h-4" />
+                      Cancel All
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {/* Sort Dropdown */}
               <select
                 value={sortBy}
@@ -451,17 +621,17 @@ export default function ConnectionsPage() {
                 ))}
               </div>
             ) : (
-              <Card className={cn(
-                "p-12 text-center border-2 backdrop-blur-xl",
-                theme === 'light' 
-                  ? "bg-white/80 border-black/5" 
-                  : "bg-zinc-950/80 border-white/5"
-              )}>
-                <div className={cn(
+        <Card className={cn(
+          "p-12 text-center border-2 backdrop-blur-xl",
+          theme === 'light'
+            ? "bg-white/80 border-black/5"
+            : "bg-zinc-950/80 border-white/5"
+        )}>
+          <div className={cn(
                   "w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center",
-                  theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
-                )}>
-                  <Users className={cn(
+            theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
+          )}>
+            <Users className={cn(
                     "w-10 h-10",
                     theme === 'light' ? "text-zinc-400" : "text-zinc-600"
                   )} />
@@ -488,21 +658,52 @@ export default function ConnectionsPage() {
 
           {/* Pending Requests Tab */}
           <TabsContent value="pending" className="space-y-6">
-            {pendingRequests.length > 0 ? (
-              <div className="grid gap-6">
-                {pendingRequests.map((request, index) => (
-                  <PendingRequestCard
-                    key={request.id}
-                    request={request}
-                    onAccept={handleAcceptRequest}
-                    onDecline={handleDeclineRequest}
-                    onCancel={handleCancelRequest}
-                    actionLoading={actionLoading}
-                    theme={theme}
-                    index={index}
-                  />
-                ))}
-              </div>
+            {pendingRequests.filter(req => req.type === 'received').length > 0 ? (
+              <>
+                {/* Select All Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      onClick={handleSelectAll}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedRequests.size === pendingRequests.filter(req => req.type === 'received').length && selectedRequests.size > 0}
+                        onChange={handleSelectAll}
+                        className="w-4 h-4"
+                      />
+                      Select All
+                    </Button>
+                    {selectedRequests.size > 0 && (
+                      <span className="text-sm text-muted-foreground">
+                        {selectedRequests.size} of {pendingRequests.filter(req => req.type === 'received').length} selected
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-6">
+                  {pendingRequests
+                    .filter(req => req.type === 'received')
+                    .map((request, index) => (
+                      <PendingRequestCard
+                        key={request.id}
+                        request={request}
+                        onAccept={handleAcceptRequest}
+                        onDecline={handleDeclineRequest}
+                        onCancel={handleCancelRequest}
+                        onSelect={handleSelectRequest}
+                        isSelected={selectedRequests.has(request.id)}
+                        actionLoading={actionLoading}
+                        theme={theme}
+                        index={index}
+                      />
+                    ))}
+                </div>
+              </>
             ) : (
               <Card className={cn(
                 "p-12 text-center border-2 backdrop-blur-xl",
@@ -535,26 +736,55 @@ export default function ConnectionsPage() {
           {/* Sent Requests Tab */}
           <TabsContent value="sent" className="space-y-6">
             {pendingRequests.filter(req => req.type === 'sent').length > 0 ? (
-              <div className={cn(
-                "grid gap-6",
-                viewMode === 'grid' 
-                  ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
-                  : "grid-cols-1"
-              )}>
-                {pendingRequests
-                  .filter(req => req.type === 'sent')
-                  .map((request, index) => (
-                    <SentRequestCard
-                      key={request.id}
-                      request={request}
-                      onCancel={handleCancelRequest}
-                      actionLoading={actionLoading}
-                      viewMode={viewMode}
-                      theme={theme}
-                      index={index}
-                    />
-                  ))}
-              </div>
+              <>
+                {/* Select All Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      onClick={handleSelectAll}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedRequests.size === pendingRequests.filter(req => req.type === 'sent').length && selectedRequests.size > 0}
+                        onChange={handleSelectAll}
+                        className="w-4 h-4"
+                      />
+                      Select All
+                    </Button>
+                    {selectedRequests.size > 0 && (
+                      <span className="text-sm text-muted-foreground">
+                        {selectedRequests.size} of {pendingRequests.filter(req => req.type === 'sent').length} selected
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className={cn(
+                  "grid gap-6",
+                  viewMode === 'grid' 
+                    ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
+                    : "grid-cols-1"
+                )}>
+                  {pendingRequests
+                    .filter(req => req.type === 'sent')
+                    .map((request, index) => (
+                      <SentRequestCard
+                        key={request.id}
+                        request={request}
+                        onCancel={handleCancelRequest}
+                        onSelect={handleSelectRequest}
+                        isSelected={selectedRequests.has(request.id)}
+                        actionLoading={actionLoading}
+                        viewMode={viewMode}
+                        theme={theme}
+                        index={index}
+                      />
+                    ))}
+                </div>
+              </>
             ) : (
               <Card className={cn(
                 "p-12 text-center border-2 backdrop-blur-xl",
@@ -605,22 +835,22 @@ export default function ConnectionsPage() {
               )}>
                 <AlertCircle className={cn(
                   "w-10 h-10",
-                  theme === 'light' ? "text-zinc-400" : "text-zinc-600"
-                )} />
-              </div>
-              <h3 className={cn(
+              theme === 'light' ? "text-zinc-400" : "text-zinc-600"
+            )} />
+          </div>
+          <h3 className={cn(
                 "text-xl font-semibold mb-3",
-                theme === 'light' ? "text-zinc-900" : "text-white"
-              )}>
+            theme === 'light' ? "text-zinc-900" : "text-white"
+          )}>
                 Activity Timeline
-              </h3>
+          </h3>
               <p className="text-muted-foreground mb-6 max-w-md mx-auto">
                 Track all your connection activity, requests, and network growth.
               </p>
               <p className="text-sm text-muted-foreground">
                 Coming soon - Activity timeline feature
-              </p>
-            </Card>
+          </p>
+        </Card>
           </TabsContent>
         </Tabs>
       </main>
@@ -786,6 +1016,8 @@ function PendingRequestCard({
   onAccept, 
   onDecline, 
   onCancel, 
+  onSelect,
+  isSelected,
   actionLoading, 
   theme, 
   index 
@@ -794,6 +1026,8 @@ function PendingRequestCard({
   onAccept: (requestId: string, userId: string) => void;
   onDecline: (requestId: string, userId: string) => void;
   onCancel: (requestId: string) => void;
+  onSelect?: (requestId: string) => void;
+  isSelected?: boolean;
   actionLoading: string | null;
   theme: string | undefined;
   index: number;
@@ -803,9 +1037,19 @@ function PendingRequestCard({
       "p-6 border-2 backdrop-blur-xl transition-all duration-300 hover:shadow-lg animate-in fade-in-0 slide-in-from-bottom-4",
       theme === 'light' 
         ? "bg-white/80 border-black/5 hover:border-blue-500/20" 
-        : "bg-zinc-950/80 border-white/5 hover:border-blue-500/20"
+        : "bg-zinc-950/80 border-white/5 hover:border-blue-500/20",
+      isSelected && "ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-500/10"
     )} style={{ animationDelay: `${index * 50}ms` }}>
       <div className="flex items-center gap-4">
+        {/* Selection Checkbox */}
+        {onSelect && (
+          <input
+            type="checkbox"
+            checked={isSelected || false}
+            onChange={() => onSelect(request.id)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+          />
+        )}
         {/* Avatar */}
         <div className="relative flex-shrink-0">
           <div className={cn(
