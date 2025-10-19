@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
@@ -11,7 +11,28 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
   MessageCircle, 
   Heart, 
@@ -21,12 +42,11 @@ import {
   Image,
   Link,
   Smile,
-  Filter,
   Grid3X3,
-  List,
   Plus,
   TrendingUp,
   Users,
+  User,
   Clock,
   RefreshCw,
   Settings,
@@ -40,7 +60,9 @@ import {
   Pin,
   Unpin,
   Video,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -85,13 +107,13 @@ export default function SocialFeedPage() {
   const { theme } = useTheme();
   const router = useRouter();
   const [user, setUser] = useState<UserData | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [offset, setOffset] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalPosts, setTotalPosts] = useState(0);
   const [activeTab, setActiveTab] = useState('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPostContent, setNewPostContent] = useState('');
   const [newPostType, setNewPostType] = useState('text');
@@ -102,20 +124,14 @@ export default function SocialFeedPage() {
   const [comments, setComments] = useState<{ [key: string]: any[] }>({});
   const [newComment, setNewComment] = useState<{ [key: string]: string }>({});
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [connectionsOnly, setConnectionsOnly] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<string | null>(null);
 
-  const postTypes = [
-    { value: 'all', label: 'All Posts', icon: Grid3X3 },
-    { value: 'text', label: 'Text', icon: MessageCircle },
-    { value: 'image', label: 'Images', icon: Image },
-    { value: 'video', label: 'Videos', icon: Video },
-    { value: 'link', label: 'Links', icon: Link },
-    { value: 'achievement', label: 'Achievements', icon: TrendingUp },
-    { value: 'problem_solved', label: 'Problems', icon: Users }
-  ];
+  const postsPerPage = 10;
 
   const filterOptions = [
     { value: 'all', label: 'All Posts', icon: Grid3X3 },
+    { value: 'my_posts', label: 'My Posts', icon: User },
     { value: 'connections', label: 'Connections Only', icon: Users },
     { value: 'text', label: 'Text', icon: MessageCircle },
     { value: 'image', label: 'Images', icon: Image },
@@ -132,12 +148,18 @@ export default function SocialFeedPage() {
         const response = await fetch('/api/profile');
         if (response.ok) {
           const data = await response.json();
-          setUser({
+          const userData = {
             name: data.profile?.full_name || data.user?.email?.split('@')[0] || 'User',
             email: data.user?.email || '',
             avatar: data.profile?.avatar_url || data.profile?.full_name?.charAt(0).toUpperCase() || 'U',
             username: data.profile?.username || '',
-          });
+          };
+          setUser(userData);
+          // Set the actual user ID for comparison
+          const userId = data.user?.id || data.profile?.user_id || '';
+          setCurrentUserId(userId);
+          console.log('Current user ID set to:', userId);
+          console.log('User data:', data);
         }
       } catch (error) {
         console.error('Error fetching user:', error);
@@ -148,22 +170,20 @@ export default function SocialFeedPage() {
     fetchUser();
   }, []);
 
-  // Fetch posts
-  const fetchPosts = useCallback(async (reset = false) => {
+  // Fetch posts with pagination
+  const fetchPosts = useCallback(async (page: number, reset = false) => {
     try {
       if (reset) {
         setLoading(true);
-      } else {
-        setLoadingMore(true);
       }
 
-      const currentOffset = reset ? 0 : offset;
+      const offset = (page - 1) * postsPerPage;
       const params = new URLSearchParams({
-        limit: '10',
-        offset: currentOffset.toString()
+        limit: postsPerPage.toString(),
+        offset: offset.toString()
       });
 
-      if (activeTab !== 'all' && activeTab !== 'connections') {
+      if (activeTab !== 'all' && activeTab !== 'connections' && activeTab !== 'my_posts') {
         params.set('types', activeTab);
       }
 
@@ -171,19 +191,17 @@ export default function SocialFeedPage() {
         params.set('connections_only', 'true');
       }
 
+      if (activeTab === 'my_posts') {
+        params.set('user_id', user?.email || '');
+      }
+
       const response = await fetch(`/api/feed/posts?${params}`);
       if (response.ok) {
         const data = await response.json();
-
-        if (reset) {
-          setPosts(data.posts || []);
-          setOffset(10);
-        } else {
-          setPosts(prev => [...prev, ...(data.posts || [])]);
-          setOffset(prev => prev + 10);
-        }
-
-        setHasMore(data.pagination.hasMore);
+        setPosts(data.posts || []);
+        setTotalPosts(data.pagination?.total || 0);
+        setTotalPages(Math.ceil((data.pagination?.total || 0) / postsPerPage));
+        setCurrentPage(page);
       } else {
         toast.error('Failed to load posts');
       }
@@ -192,13 +210,11 @@ export default function SocialFeedPage() {
       toast.error('Failed to load posts');
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
-  }, [offset, activeTab]);
+  }, [activeTab, user?.email, postsPerPage]);
 
   useEffect(() => {
-    fetchPosts(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchPosts(1, true);
   }, [activeTab]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -259,7 +275,7 @@ export default function SocialFeedPage() {
         setNewPostMedia([]);
         setNewPostLink('');
         setShowCreatePost(false);
-        fetchPosts(true);
+        fetchPosts(1, true);
       } else {
         const data = await response.json();
         toast.error(data.error || 'Failed to create post');
@@ -269,6 +285,27 @@ export default function SocialFeedPage() {
       toast.error('Failed to create post');
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/feed/posts/${postId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        toast.success('Post deleted successfully');
+        setPosts(prev => prev.filter(p => p.id !== postId));
+        setDeleteDialogOpen(false);
+        setPostToDelete(null);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to delete post');
+      }
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      toast.error('Failed to delete post');
     }
   };
 
@@ -430,405 +467,515 @@ export default function SocialFeedPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Liquid Glass Background */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-background" />
-        <div className="absolute top-[-10%] right-[20%] w-[600px] h-[600px] bg-brand/5 dark:bg-brand/8 rounded-full blur-[120px] animate-pulse-slow" />
-        <div className="absolute bottom-[10%] left-[15%] w-[500px] h-[500px] bg-purple-500/3 dark:bg-purple-500/6 rounded-full blur-[100px] animate-float-slow" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-[30%] left-[50%] w-[400px] h-[400px] bg-cyan-500/2 dark:bg-cyan-500/4 rounded-full blur-[80px] animate-pulse-slow" style={{ animationDelay: '4s' }} />
-      </div>
-
-      {/* Navbar */}
-      <DashboardNavbar user={user} />
-
-      {/* Main Content */}
-      <main className="relative z-10 max-w-4xl mx-auto px-6 pt-24 pb-16">
-        {/* Page Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-3">
-            <div className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg backdrop-blur-xl",
-              theme === 'light' 
-                ? "from-blue-500 to-cyan-500 shadow-blue-500/25 bg-white/20" 
-                : "from-blue-600 to-cyan-600 shadow-blue-500/25 bg-white/5"
-            )}>
-              <MessageCircle className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
-                Social Feed
-              </h1>
-              <p className="text-muted-foreground">Connect, share, and engage with your network</p>
-            </div>
-          </div>
+    <TooltipProvider>
+      <div className="min-h-screen bg-background">
+        {/* Liquid Glass Background */}
+        <div className="fixed inset-0 pointer-events-none z-0">
+          <div className="absolute inset-0 bg-background" />
+          <div className="absolute top-[-10%] right-[20%] w-[600px] h-[600px] bg-brand/5 dark:bg-brand/8 rounded-full blur-[120px] animate-pulse-slow" />
+          <div className="absolute bottom-[10%] left-[15%] w-[500px] h-[500px] bg-purple-500/3 dark:bg-purple-500/6 rounded-full blur-[100px] animate-float-slow" style={{ animationDelay: '2s' }} />
+          <div className="absolute top-[30%] left-[50%] w-[400px] h-[400px] bg-cyan-500/2 dark:bg-cyan-500/4 rounded-full blur-[80px] animate-pulse-slow" style={{ animationDelay: '4s' }} />
         </div>
 
-        {/* Create Post Section */}
-        <Card className={cn(
-          "p-6 mb-8 border-2 backdrop-blur-xl transition-all duration-300",
-          theme === 'light' 
-            ? "bg-white/80 border-black/5 hover:border-blue-500/20 shadow-lg" 
-            : "bg-zinc-950/80 border-white/5 hover:border-blue-500/20 shadow-lg"
-        )}>
-          <div className="flex items-start gap-4">
-            <Avatar className="w-10 h-10">
-              <AvatarImage src={user.avatar} />
-              <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
-                {user.name.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 space-y-4">
-              <Textarea
-                placeholder="What's on your mind?"
-                value={newPostContent}
-                onChange={(e) => setNewPostContent(e.target.value)}
-                className="min-h-[100px] resize-none border-2"
-                onClick={() => setShowCreatePost(true)}
-              />
-              
-              {/* Link Input */}
-              {newPostType === 'link' && (
-                <Input
-                  placeholder="Paste a link here..."
-                  value={newPostLink}
-                  onChange={(e) => handleLinkInput(e.target.value)}
-                  className="mt-2"
-                />
-              )}
-              
-              {/* Media Preview */}
-              {newPostMedia.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-sm text-muted-foreground">Attached files:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {newPostMedia.map((file, index) => (
-                      <div key={index} className="flex items-center gap-2 bg-muted px-2 py-1 rounded">
-                        <span className="text-sm">{file.name}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={() => setNewPostMedia(prev => prev.filter((_, i) => i !== index))}
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* Emoji Picker */}
-              {showEmojiPicker && (
-                <div className="mt-3 p-3 border rounded-lg bg-background">
-                  <div className="grid grid-cols-8 gap-2">
-                    {['😀', '😂', '😍', '🥳', '👍', '❤️', '🔥', '💯', '🎉', '🚀', '💪', '⭐', '🎯', '💡', '🌟', '🎊'].map((emoji) => (
-                      <Button
-                        key={emoji}
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => handleEmojiSelect(emoji)}
-                      >
-                        {emoji}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {showCreatePost && (
-                <div className="space-y-4">
-                  {/* Post Type Selection */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Post type:</span>
-                    <Button
-                      variant={newPostType === 'text' ? 'default' : 'outline'}
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => setNewPostType('text')}
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      Text
-                    </Button>
-                    <Button
-                      variant={newPostType === 'image' ? 'default' : 'outline'}
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => setNewPostType('image')}
-                    >
-                      <Image className="w-4 h-4" />
-                      Image
-                    </Button>
-                    <Button
-                      variant={newPostType === 'link' ? 'default' : 'outline'}
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => setNewPostType('link')}
-                    >
-                      <Link className="w-4 h-4" />
-                      Link
-                    </Button>
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="file"
-                        id="media-upload"
-                        accept="image/*,video/*"
-                        multiple
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="gap-2"
-                        onClick={() => document.getElementById('media-upload')?.click()}
-                      >
-                        <Image className="w-4 h-4" />
-                        Upload Media
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="gap-2"
-                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      >
-                        <Smile className="w-4 h-4" />
-                        Emoji
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setShowCreatePost(false);
-                          setNewPostContent('');
-                          setNewPostMedia([]);
-                          setNewPostLink('');
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleCreatePost}
-                        disabled={(!newPostContent.trim() && newPostMedia.length === 0 && !newPostLink.trim()) || actionLoading === 'create'}
-                        className="gap-2 bg-gradient-to-r from-brand to-purple-600 hover:from-brand/90 hover:to-purple-600/90 text-white"
-                      >
-                        {actionLoading === 'create' ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                            Posting...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="w-4 h-4" />
-                            Post
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </Card>
+        {/* Navbar */}
+        <DashboardNavbar user={user} />
 
-        {/* Modern Filter Bar */}
-        <Card className={cn(
-          "p-6 mb-8 border-2 backdrop-blur-xl",
-          theme === 'light' 
-            ? "bg-white/80 border-black/5" 
-            : "bg-zinc-950/80 border-white/5"
-        )}>
-          <div className="flex flex-col space-y-4">
-            {/* Filter Header */}
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Filter Posts</h3>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Sort by:</span>
-                <select className="px-3 py-1 rounded-lg border border-border bg-background text-sm">
-                  <option>Latest</option>
-                  <option>Most Liked</option>
-                  <option>Most Comments</option>
-                </select>
+        {/* Main Content */}
+        <main className="relative z-10 max-w-4xl mx-auto px-6 pt-24 pb-16">
+          {/* Page Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-3">
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg backdrop-blur-xl",
+                theme === 'light' 
+                  ? "from-blue-500 to-cyan-500 shadow-blue-500/25 bg-white/20" 
+                  : "from-blue-600 to-cyan-600 shadow-blue-500/25 bg-white/5"
+              )}>
+                <MessageCircle className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
+                  Social Feed
+                </h1>
+                <p className="text-muted-foreground">Connect, share, and engage with your network</p>
               </div>
             </div>
-            
-            {/* Modern Filter Buttons */}
-            <div className="flex flex-wrap gap-3">
-              {filterOptions.map((type) => {
-                const Icon = type.icon;
-                const isActive = activeTab === type.value;
-                return (
-                  <button
-                    key={type.value}
-                    onClick={() => setActiveTab(type.value)}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105",
-                      isActive
-                        ? "bg-gradient-to-r from-brand to-purple-600 text-white shadow-lg shadow-brand/25"
-                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{type.label}</span>
-                    {isActive && (
-                      <div className="w-2 h-2 rounded-full bg-white/80" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            
-            {/* Quick Actions */}
-            <div className="flex items-center gap-2 pt-2 border-t border-border/20">
-              <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
-                <RefreshCw className="w-4 h-4" />
-                Refresh
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
-                <Settings className="w-4 h-4" />
-                Filter Settings
-              </Button>
-            </div>
           </div>
-        </Card>
 
-        {/* Posts Feed */}
-        {loading ? (
-          <div className="space-y-6">
-            {[...Array(5)].map((_, i) => (
-              <Card key={i} className={cn(
-                "p-6 border-2 backdrop-blur-xl animate-pulse",
-                theme === 'light' 
-                  ? "bg-white/60 border-black/5" 
-                  : "bg-zinc-950/60 border-white/5"
-              )}>
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-                  <div className="flex-1 space-y-3">
-                    <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-3/4" />
-                    <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-1/2" />
-                    <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-1/4" />
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        ) : posts.length === 0 ? (
+          {/* Create Post Section */}
           <Card className={cn(
-            "p-12 text-center border-2 backdrop-blur-xl",
+            "p-6 mb-8 border-2 backdrop-blur-xl transition-all duration-300 hover:shadow-xl hover:scale-[1.01]",
+            theme === 'light' 
+              ? "bg-white/80 border-black/5 hover:border-blue-500/20 shadow-lg" 
+              : "bg-zinc-950/80 border-white/5 hover:border-blue-500/20 shadow-lg"
+          )}>
+            <div className="flex items-start gap-4">
+              <Avatar className="w-10 h-10">
+                <AvatarImage src={user.avatar} />
+                <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
+                  {user.name.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 space-y-4">
+                <Textarea
+                  placeholder="What's on your mind?"
+                  value={newPostContent}
+                  onChange={(e) => setNewPostContent(e.target.value)}
+                  className="min-h-[100px] resize-none border-2"
+                  onClick={() => setShowCreatePost(true)}
+                />
+                
+                {/* Link Input */}
+                {newPostType === 'link' && (
+                  <Input
+                    placeholder="Paste a link here..."
+                    value={newPostLink}
+                    onChange={(e) => handleLinkInput(e.target.value)}
+                    className="mt-2"
+                  />
+                )}
+                
+                {/* Media Preview */}
+                {newPostMedia.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm text-muted-foreground">Attached files:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {newPostMedia.map((file, index) => (
+                        <div key={index} className="flex items-center gap-2 bg-muted px-2 py-1 rounded">
+                          <span className="text-sm">{file.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => setNewPostMedia(prev => prev.filter((_, i) => i !== index))}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Emoji Picker */}
+                {showEmojiPicker && (
+                  <div className="mt-3 p-3 border rounded-lg bg-background">
+                    <div className="grid grid-cols-8 gap-2">
+                      {['😀', '😂', '😍', '🥳', '👍', '❤️', '🔥', '💯', '🎉', '🚀', '💪', '⭐', '🎯', '💡', '🌟', '🎊'].map((emoji) => (
+                        <Button
+                          key={emoji}
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleEmojiSelect(emoji)}
+                        >
+                          {emoji}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {showCreatePost && (
+                  <div className="space-y-4">
+                    {/* Post Type Selection */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Post type:</span>
+                      <Button
+                        variant={newPostType === 'text' ? 'default' : 'outline'}
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => setNewPostType('text')}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        Text
+                      </Button>
+                      <Button
+                        variant={newPostType === 'image' ? 'default' : 'outline'}
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => setNewPostType('image')}
+                      >
+                        <Image className="w-4 h-4" />
+                        Image
+                      </Button>
+                      <Button
+                        variant={newPostType === 'link' ? 'default' : 'outline'}
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => setNewPostType('link')}
+                      >
+                        <Link className="w-4 h-4" />
+                        Link
+                      </Button>
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="file"
+                          id="media-upload"
+                          accept="image/*,video/*"
+                          multiple
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="gap-2"
+                              onClick={() => document.getElementById('media-upload')?.click()}
+                            >
+                              <Image className="w-4 h-4" />
+                              Upload Media
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Upload images or videos</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="gap-2"
+                              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            >
+                              <Smile className="w-4 h-4" />
+                              Emoji
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Add emoji to your post</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setShowCreatePost(false);
+                            setNewPostContent('');
+                            setNewPostMedia([]);
+                            setNewPostLink('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleCreatePost}
+                          disabled={(!newPostContent.trim() && newPostMedia.length === 0 && !newPostLink.trim()) || actionLoading === 'create'}
+                          className="gap-2 bg-gradient-to-r from-brand to-purple-600 hover:from-brand/90 hover:to-purple-600/90 text-white"
+                        >
+                          {actionLoading === 'create' ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                              Posting...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-4 h-4" />
+                              Post
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {/* Modern Filter Bar */}
+          <Card className={cn(
+            "p-6 mb-8 border-2 backdrop-blur-xl",
             theme === 'light' 
               ? "bg-white/80 border-black/5" 
               : "bg-zinc-950/80 border-white/5"
           )}>
-            {/* Modern Empty State */}
-            <div className="max-w-md mx-auto">
-              <div className={cn(
-                "w-24 h-24 rounded-2xl mx-auto mb-6 flex items-center justify-center",
-                "bg-gradient-to-br from-brand/10 to-purple-500/10",
-                "border-2 border-brand/20"
-              )}>
-                <MessageCircle className={cn(
-                  "w-12 h-12",
-                  "text-brand"
-                )} />
+            <div className="flex flex-col space-y-4">
+              {/* Filter Header */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Filter Posts</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Sort by:</span>
+                  <select className="px-3 py-1 rounded-lg border border-border bg-background text-sm">
+                    <option>Latest</option>
+                    <option>Most Liked</option>
+                    <option>Most Comments</option>
+                  </select>
+                </div>
               </div>
               
-              <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-foreground to-brand bg-clip-text text-transparent">
-                Your Social Feed Awaits
-              </h3>
+              {/* Modern Filter Buttons */}
+              <div className="flex flex-wrap gap-3">
+                {filterOptions.map((type) => {
+                  const Icon = type.icon;
+                  const isActive = activeTab === type.value;
+                  return (
+                    <button
+                      key={type.value}
+                      onClick={() => setActiveTab(type.value)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105",
+                        isActive
+                          ? "bg-gradient-to-r from-brand to-purple-600 text-white shadow-lg shadow-brand/25"
+                          : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{type.label}</span>
+                      {isActive && (
+                        <div className="w-2 h-2 rounded-full bg-white/80" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
               
-              <p className="text-muted-foreground mb-8 leading-relaxed">
-                Start connecting with fellow developers, share your coding journey, and discover what your network is working on.
-              </p>
-              
-              <div className="space-y-4">
-                <Button
-                  onClick={() => setShowCreatePost(true)}
-                  size="lg"
-                  className="w-full gap-3 bg-gradient-to-r from-brand to-purple-600 hover:from-brand/90 hover:to-purple-600/90 text-white shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 transition-all duration-300"
-                >
-                  <Plus className="w-5 h-5" />
-                  Create Your First Post
-                </Button>
-                
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                    <span>Connect with others</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    <span>Share achievements</span>
-                  </div>
-                </div>
+              {/* Quick Actions */}
+              <div className="flex items-center gap-2 pt-2 border-t border-border/20">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={() => fetchPosts(1, true)}
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Refresh
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Refresh the feed</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+                      <Settings className="w-4 h-4" />
+                      Filter Settings
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Advanced filter options</p>
+                  </TooltipContent>
+                </Tooltip>
+                {process.env.NODE_ENV === 'development' && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 text-xs"
+                    onClick={() => {
+                      // Force show pagination for testing
+                      setTotalPages(3);
+                      setTotalPosts(25);
+                    }}
+                  >
+                    Test Pagination
+                  </Button>
+                )}
               </div>
             </div>
           </Card>
-        ) : (
-          <>
+
+          {/* Posts Feed */}
+          {loading ? (
             <div className="space-y-6">
-              {posts.map((post) => (
-                <PostCard
+              {[...Array(5)].map((_, i) => (
+                <Card key={i} className={cn(
+                  "p-6 border-2 backdrop-blur-xl animate-pulse",
+                  theme === 'light' 
+                    ? "bg-white/60 border-black/5" 
+                    : "bg-zinc-950/60 border-white/5"
+                )}>
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="flex-1 space-y-3">
+                      <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-3/4" />
+                      <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-1/2" />
+                      <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-1/4" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : posts.length === 0 ? (
+            <Card className={cn(
+              "p-12 text-center border-2 backdrop-blur-xl",
+              theme === 'light' 
+                ? "bg-white/80 border-black/5" 
+                : "bg-zinc-950/80 border-white/5"
+            )}>
+              {/* Modern Empty State */}
+              <div className="max-w-md mx-auto">
+                <div className={cn(
+                  "w-24 h-24 rounded-2xl mx-auto mb-6 flex items-center justify-center",
+                  "bg-gradient-to-br from-brand/10 to-purple-500/10",
+                  "border-2 border-brand/20"
+                )}>
+                  <MessageCircle className={cn(
+                    "w-12 h-12",
+                    "text-brand"
+                  )} />
+                </div>
+                
+                <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-foreground to-brand bg-clip-text text-transparent">
+                  Your Social Feed Awaits
+                </h3>
+                
+                <p className="text-muted-foreground mb-8 leading-relaxed">
+                  Start connecting with fellow developers, share your coding journey, and discover what your network is working on.
+                </p>
+                
+                <div className="space-y-4">
+                  <Button
+                    onClick={() => setShowCreatePost(true)}
+                    size="lg"
+                    className="w-full gap-3 bg-gradient-to-r from-brand to-purple-600 hover:from-brand/90 hover:to-purple-600/90 text-white shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 transition-all duration-300"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Create Your First Post
+                  </Button>
+                  
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <span>Connect with others</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span>Share achievements</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ) : (
+            <>
+            <div className="space-y-6">
+              {posts.map((post, index) => (
+                <div
                   key={post.id}
-                  post={post}
-                  onLike={handleLike}
-                  onRepost={handleRepost}
-                  onComment={handleComment}
-                  actionLoading={actionLoading}
-                  showComments={showComments}
-                  setShowComments={setShowComments}
-                  comments={comments}
-                  newComment={newComment}
-                  setNewComment={setNewComment}
-                  formatTimeAgo={formatTimeAgo}
-                  theme={theme}
-                />
+                  className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <PostCard
+                    post={post}
+                    currentUserId={currentUserId}
+                    onLike={handleLike}
+                    onRepost={handleRepost}
+                    onComment={handleComment}
+                    onDelete={(postId) => {
+                      setPostToDelete(postId);
+                      setDeleteDialogOpen(true);
+                    }}
+                    actionLoading={actionLoading}
+                    showComments={showComments}
+                    setShowComments={setShowComments}
+                    comments={comments}
+                    newComment={newComment}
+                    setNewComment={setNewComment}
+                    formatTimeAgo={formatTimeAgo}
+                    theme={theme}
+                  />
+                </div>
               ))}
             </div>
 
-            {/* Load More */}
-            {hasMore && (
-              <div className="text-center mt-8">
-                <Button
-                  onClick={() => fetchPosts(false)}
-                  disabled={loadingMore}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  {loadingMore ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
-                      Loading...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4" />
-                      Load More
-                    </>
-                  )}
-                </Button>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-8">
+                  <Button
+                    onClick={() => fetchPosts(currentPage - 1, true)}
+                    disabled={currentPage === 1}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Previous
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const page = i + 1;
+                      return (
+                        <Button
+                          key={page}
+                          onClick={() => fetchPosts(page, true)}
+                          variant={currentPage === page ? "default" : "ghost"}
+                          size="sm"
+                          className="w-10"
+                        >
+                          {page}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    onClick={() => fetchPosts(currentPage + 1, true)}
+                    disabled={currentPage === totalPages}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Posts Count and Debug Info */}
+              <div className="text-center mt-4 text-sm text-muted-foreground">
+                Showing {posts.length} of {totalPosts} posts
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="mt-2 text-xs">
+                    Page {currentPage} of {totalPages} | Total: {totalPosts}
+                  </div>
+                )}
               </div>
-            )}
-          </>
-        )}
-      </main>
-    </div>
+            </>
+          )}
+
+          {/* Delete Confirmation Dialog */}
+          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete your post and all associated comments and reactions.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => postToDelete && handleDeletePost(postToDelete)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </main>
+      </div>
+    </TooltipProvider>
   );
 }
 
 // Post Card Component
 function PostCard({ 
   post, 
+  currentUserId,
   onLike, 
   onRepost, 
-  onComment, 
+  onComment,
+  onDelete,
   actionLoading,
   showComments,
   setShowComments,
@@ -839,9 +986,11 @@ function PostCard({
   theme 
 }: {
   post: any;
+  currentUserId: string;
   onLike: (postId: string) => void;
   onRepost: (postId: string) => void;
   onComment: (postId: string) => void;
+  onDelete: (postId: string) => void;
   actionLoading: string | null;
   showComments: { [key: string]: boolean };
   setShowComments: (value: { [key: string]: boolean }) => void;
@@ -851,9 +1000,12 @@ function PostCard({
   formatTimeAgo: (date: string) => string;
   theme: string | undefined;
 }) {
+  const isOwnPost = post.user_id === currentUserId;
+  console.log('PostCard - post.user_id:', post.user_id, 'currentUserId:', currentUserId, 'isOwnPost:', isOwnPost);
+
   return (
     <Card className={cn(
-      "p-6 border-2 backdrop-blur-xl transition-all duration-300 hover:shadow-lg",
+      "p-6 border-2 backdrop-blur-xl transition-all duration-300 hover:shadow-xl hover:scale-[1.01]",
       theme === 'light' 
         ? "bg-white/80 border-black/5 hover:border-blue-500/20" 
         : "bg-zinc-950/80 border-white/5 hover:border-blue-500/20"
@@ -869,8 +1021,8 @@ function PostCard({
           </Avatar>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-semibold text-foreground">{post.user_name}</span>
-              <span className="text-muted-foreground">@{post.user_username}</span>
+              <span className="font-bold text-base text-foreground">{post.user_name}</span>
+              <span className="text-sm text-muted-foreground">@{post.user_username}</span>
               <span className="text-muted-foreground">•</span>
               <span className="text-sm text-muted-foreground">
                 {formatTimeAgo(post.created_at)}
@@ -888,14 +1040,51 @@ function PostCard({
               )}
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="p-2">
-            <MoreHorizontal className="w-4 h-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="p-2">
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isOwnPost && (
+                <>
+                  <DropdownMenuItem onClick={() => {}}>
+                    <Pin className="w-4 h-4 mr-2" />
+                    {post.is_pinned ? 'Unpin' : 'Pin'} Post
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {}}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit Post
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => onDelete(post.id)}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Post
+                  </DropdownMenuItem>
+                </>
+              )}
+              {!isOwnPost && (
+                <>
+                  <DropdownMenuItem>
+                    <Flag className="w-4 h-4 mr-2" />
+                    Report Post
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Eye className="w-4 h-4 mr-2" />
+                    Hide Post
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Post Content */}
         <div className="space-y-3">
-          <p className="text-foreground whitespace-pre-wrap">{post.content}</p>
+          <p className="text-base leading-relaxed text-foreground whitespace-pre-wrap">{post.content}</p>
           
           {/* Original Post Content (for reposts) */}
           {post.original_post_content && (
@@ -938,86 +1127,132 @@ function PostCard({
           )}
         </div>
 
-        {/* Post Stats */}
-        <div className="flex items-center gap-6 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Eye className="w-4 h-4" />
-            {post.view_count}
+        {/* Engagement Preview */}
+        {(post.like_count > 0 || post.comment_count > 0 || post.repost_count > 0) && (
+          <div className="flex items-center gap-4 text-sm text-muted-foreground pb-3 border-b" style={{
+            borderColor: theme === 'light' ? '#e4e4e7' : '#27272a'
+          }}>
+            {post.like_count > 0 && (
+              <span className="flex items-center gap-1">
+                <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                {post.like_count} {post.like_count === 1 ? 'like' : 'likes'}
+              </span>
+            )}
+            {post.comment_count > 0 && (
+              <span>{post.comment_count} {post.comment_count === 1 ? 'comment' : 'comments'}</span>
+            )}
+            {post.repost_count > 0 && (
+              <span>{post.repost_count} {post.repost_count === 1 ? 'repost' : 'reposts'}</span>
+            )}
           </div>
-          <div className="flex items-center gap-1">
-            <Reply className="w-4 h-4" />
-            {post.comment_count}
-          </div>
-          <div className="flex items-center gap-1">
-            <Repeat className="w-4 h-4" />
-            {post.repost_count}
-          </div>
-        </div>
+        )}
 
         {/* Post Actions */}
         <div className="flex items-center justify-between pt-4 border-t" style={{
           borderColor: theme === 'light' ? '#e4e4e7' : '#27272a'
         }}>
           <div className="flex items-center gap-6">
-            <Button
-              onClick={() => onLike(post.id)}
-              disabled={actionLoading === post.id}
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "gap-2",
-                post.user_liked && "text-red-500"
-              )}
-            >
-              <Heart className={cn(
-                "w-4 h-4",
-                post.user_liked && "fill-current"
-              )} />
-              {post.like_count}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => onLike(post.id)}
+                  disabled={actionLoading === post.id}
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "gap-2",
+                    post.user_liked && "text-red-500"
+                  )}
+                >
+                  <Heart className={cn(
+                    "w-4 h-4",
+                    post.user_liked && "fill-current"
+                  )} />
+                  {post.like_count}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{post.user_liked ? 'Unlike' : 'Like'} this post</p>
+              </TooltipContent>
+            </Tooltip>
 
-            <Button
-              onClick={() => setShowComments(prev => ({
-                ...prev,
-                [post.id]: !prev[post.id]
-              }))}
-              variant="ghost"
-              size="sm"
-              className="gap-2"
-            >
-              <MessageCircle className="w-4 h-4" />
-              {post.comment_count}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setShowComments(prev => ({
+                    ...prev,
+                    [post.id]: !prev[post.id]
+                  }))}
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  {post.comment_count}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Comment on this post</p>
+              </TooltipContent>
+            </Tooltip>
 
-            <Button
-              onClick={() => onRepost(post.id)}
-              disabled={actionLoading === post.id}
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "gap-2",
-                post.user_reposted && "text-green-500"
-              )}
-            >
-              <Repeat className={cn(
-                "w-4 h-4",
-                post.user_reposted && "fill-current"
-              )} />
-              {post.repost_count}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => onRepost(post.id)}
+                  disabled={actionLoading === post.id}
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "gap-2",
+                    post.user_reposted && "text-green-500"
+                  )}
+                >
+                  <Repeat className={cn(
+                    "w-4 h-4",
+                    post.user_reposted && "fill-current"
+                  )} />
+                  {post.repost_count}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{post.user_reposted ? 'Remove repost' : 'Repost'} this post</p>
+              </TooltipContent>
+            </Tooltip>
 
-            <Button variant="ghost" size="sm" className="gap-2">
-              <Share2 className="w-4 h-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Share2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Share this post</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <Bookmark className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="sm" className="gap-2">
-              <Flag className="w-4 h-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Bookmark className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Save this post</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Flag className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Report this post</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -1029,8 +1264,9 @@ function PostCard({
             {/* Add Comment */}
             <div className="flex gap-3">
               <Avatar className="w-8 h-8">
+                <AvatarImage src={post.user_avatar_url} />
                 <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white text-sm">
-                  U
+                  {post.user_name.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 flex gap-2">

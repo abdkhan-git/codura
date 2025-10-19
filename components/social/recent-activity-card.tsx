@@ -19,7 +19,8 @@ import {
   Reply,
   Repeat,
   TrendingUp,
-  Zap
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -55,25 +56,33 @@ export function RecentActivityCard({ userId, className }: RecentActivityCardProp
   const { theme } = useTheme();
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchRecentActivity();
   }, [userId]);
 
-  const fetchRecentActivity = async () => {
+  const fetchRecentActivity = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      console.log('Fetching recent activity for user:', userId);
       const response = await fetch(`/api/users/${userId}/recent-activity?limit=5`);
       if (response.ok) {
         const data = await response.json();
+        console.log('Recent activity data:', data);
         setActivities(data.activities || []);
       } else {
-        console.error('Failed to fetch recent activity');
+        console.error('Failed to fetch recent activity:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Error fetching recent activity:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -191,15 +200,31 @@ export function RecentActivityCard({ userId, className }: RecentActivityCardProp
       className
     )}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Clock className="w-5 h-5 text-brand" />
-          Recent Activity
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-brand" />
+            Recent Activity
+          </CardTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => fetchRecentActivity(true)}
+            disabled={refreshing}
+            className="gap-2"
+          >
+            <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {activities.map((activity) => (
-            <div key={activity.id} className="flex items-start gap-3">
+          {activities.map((activity, index) => (
+            <div 
+              key={activity.id} 
+              className="flex items-start gap-3 animate-in fade-in-0 slide-in-from-left-4 duration-300"
+              style={{ animationDelay: `${index * 100}ms` }}
+            >
               <div className={cn(
                 "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
                 getActivityColor(activity.type)

@@ -62,6 +62,88 @@ export async function GET(
       console.error('Error fetching recent activities:', activitiesError);
     }
 
+    // Get recent likes by the user
+    const { data: recentLikes, error: likesError } = await supabase
+      .from('post_likes')
+      .select(`
+        id,
+        created_at,
+        social_posts!post_likes_post_id_fkey (
+          id,
+          content,
+          post_type,
+          user_id,
+          users!social_posts_user_id_fkey (
+            user_id,
+            username,
+            full_name,
+            avatar_url
+          )
+        )
+      `)
+      .eq('user_id', targetUserId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (likesError) {
+      console.error('Error fetching recent likes:', likesError);
+    }
+
+    // Get recent reposts by the user
+    const { data: recentReposts, error: repostsError } = await supabase
+      .from('post_reposts')
+      .select(`
+        id,
+        created_at,
+        social_posts!post_reposts_post_id_fkey (
+          id,
+          content,
+          post_type,
+          user_id,
+          users!social_posts_user_id_fkey (
+            user_id,
+            username,
+            full_name,
+            avatar_url
+          )
+        )
+      `)
+      .eq('user_id', targetUserId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (repostsError) {
+      console.error('Error fetching recent reposts:', repostsError);
+    }
+
+    // Get recent comments by the user
+    const { data: recentComments, error: commentsError } = await supabase
+      .from('post_comments')
+      .select(`
+        id,
+        content,
+        created_at,
+        social_posts!post_comments_post_id_fkey (
+          id,
+          content,
+          post_type,
+          user_id,
+          users!social_posts_user_id_fkey (
+            user_id,
+            username,
+            full_name,
+            avatar_url
+          )
+        )
+      `)
+      .eq('user_id', targetUserId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (commentsError) {
+      console.error('Error fetching recent comments:', commentsError);
+    }
+
     // Combine and format the data
     const activities = [];
 
@@ -90,6 +172,92 @@ export async function GET(
             repost_count: post.repost_count
           }
         });
+      });
+    }
+
+    // Add likes as activities
+    if (recentLikes) {
+      recentLikes.forEach((like: any) => {
+        const post = like.social_posts;
+        if (post) {
+          activities.push({
+            id: `like-${like.id}`,
+            type: 'like',
+            title: 'Liked a post',
+            description: `Liked "${post.content.length > 50 ? post.content.substring(0, 50) + '...' : post.content}"`,
+            timestamp: like.created_at,
+            metadata: {
+              post_id: post.id,
+              post_type: post.post_type,
+              original_author: post.users
+            },
+            post: {
+              id: post.id,
+              content: post.content,
+              post_type: post.post_type,
+              author: post.users
+            }
+          });
+        }
+      });
+    }
+
+    // Add reposts as activities
+    if (recentReposts) {
+      recentReposts.forEach((repost: any) => {
+        const post = repost.social_posts;
+        if (post) {
+          activities.push({
+            id: `repost-${repost.id}`,
+            type: 'repost',
+            title: 'Reposted',
+            description: `Reposted "${post.content.length > 50 ? post.content.substring(0, 50) + '...' : post.content}"`,
+            timestamp: repost.created_at,
+            metadata: {
+              post_id: post.id,
+              post_type: post.post_type,
+              original_author: post.users
+            },
+            post: {
+              id: post.id,
+              content: post.content,
+              post_type: post.post_type,
+              author: post.users
+            }
+          });
+        }
+      });
+    }
+
+    // Add comments as activities
+    if (recentComments) {
+      recentComments.forEach((comment: any) => {
+        const post = comment.social_posts;
+        if (post) {
+          activities.push({
+            id: `comment-${comment.id}`,
+            type: 'comment',
+            title: 'Commented on a post',
+            description: `Commented "${comment.content.length > 50 ? comment.content.substring(0, 50) + '...' : comment.content}"`,
+            timestamp: comment.created_at,
+            metadata: {
+              post_id: post.id,
+              post_type: post.post_type,
+              original_author: post.users,
+              comment_content: comment.content
+            },
+            post: {
+              id: post.id,
+              content: post.content,
+              post_type: post.post_type,
+              author: post.users
+            },
+            comment: {
+              id: comment.id,
+              content: comment.content
+            }
+          });
+        }
       });
     }
 
