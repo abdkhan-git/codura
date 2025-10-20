@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/users/[userId]/connections - Get user's connections with privacy
 export async function GET(
   request: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -24,7 +24,7 @@ export async function GET(
     const filterYear = searchParams.get('year');
     const filterLocation = searchParams.get('location');
 
-    const targetUserId = params.userId;
+    const { userId: targetUserId } = await params;
 
     // Get connections using the database function (handles privacy)
     const { data: connections, error } = await supabase

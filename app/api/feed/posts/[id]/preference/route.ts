@@ -8,7 +8,7 @@ type PreferenceType = 'not_interested' | 'hide_post' | 'hide_author' | 'report';
 // Set post preference (not interested, hide, report)
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -18,7 +18,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const postId = params.id;
+    const { id: postId } = await params;
     const body = await request.json();
     const { preference_type, reason = null, metadata = {} } = body as {
       preference_type: PreferenceType;
@@ -102,7 +102,7 @@ export async function POST(
 // Get all preferences for a post
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -112,7 +112,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const postId = params.id;
+    const { id: postId } = await params;
 
     const { data: preferences, error } = await supabase
       .from('post_preferences')
@@ -139,7 +139,7 @@ export async function GET(
 // Remove preference
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -149,7 +149,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const postId = params.id;
+    const { id: postId } = await params;
     const { searchParams } = new URL(request.url);
     const preferenceType = searchParams.get('type');
 

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/users/[userId]/connections/count - Get connection count with privacy
 export async function GET(
   request: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const targetUserId = params.userId;
+    const { userId: targetUserId } = await params;
 
     // Use the database function to get count with privacy
     const { data, error } = await supabase

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -20,7 +20,7 @@ export async function GET(
     const offset = parseInt(searchParams.get('offset') || '0');
     const activityType = searchParams.get('type');
 
-    const userId = params.userId;
+    const { userId } = await params;
 
     // Fetch different types of activities in parallel
     const [postsResult, likesResult, commentsResult, repostsResult] = await Promise.all([

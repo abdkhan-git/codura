@@ -6,13 +6,13 @@ export const dynamic = 'force-dynamic';
 // GET - Get a specific post by ID
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    const postId = params.id;
+    const { id: postId } = await params;
 
     // Fetch the post with user details
     const { data: post, error: postError } = await supabase
@@ -139,7 +139,7 @@ export async function GET(
 // DELETE - Delete a post
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -149,7 +149,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const postId = params.id;
+    const { id: postId } = await params;
 
     // Check if post exists and belongs to user
     const { data: post, error: fetchError } = await supabase
@@ -194,7 +194,7 @@ export async function DELETE(
 // PATCH - Update a post
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -204,7 +204,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const postId = params.id;
+    const { id: postId } = await params;
     const body = await request.json();
     const { content, is_pinned } = body;
 

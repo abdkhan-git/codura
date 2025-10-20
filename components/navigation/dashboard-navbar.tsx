@@ -10,16 +10,13 @@ import CoduraLogoDark from "../logos/codura-logo-dark.svg";
 import {
   Users,
   Trophy,
-  MessageSquare,
   Video,
   User,
   Settings,
   ChevronDown,
-  Search,
-  UserPlus,
-  Bell,
-  MessageCircle,
   Calendar,
+  Search,
+  MessageCircle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -29,7 +26,6 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "@/components/social/notifications-dropdown";
 
 interface UserData {
@@ -244,7 +240,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                       ? "bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/25"
                       : "bg-gradient-to-br from-purple-600 to-pink-600 shadow-lg shadow-purple-500/25"
                   )}>
-                    <UserPlus className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    <User className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">Suggestions</p>
@@ -352,7 +348,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                     : "text-zinc-300 hover:text-white hover:from-zinc-800 hover:to-zinc-900"
                 )}
               >
-                <MessageSquare className="w-4 h-4" />
+                <MessageCircle className="w-4 h-4" />
                 <span className="relative z-10">Community</span>
                 <ChevronDown className="w-3.5 h-3.5 opacity-50" />
                 {/* Underglow effect */}
@@ -408,7 +404,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                       ? "bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25"
                       : "bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/25"
                   )}>
-                    <MessageSquare className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    <MessageCircle className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">Discuss</p>
