@@ -96,12 +96,15 @@ export async function POST(request: Request) {
       .from("notifications")
       .insert({
         user_id: to_user_id,
+        actor_id: user.id,
         type: "connection_request",
+        notification_type: "connection_request",
         title: "New Connection Request",
         message: "You have a new connection request",
-        related_user_id: user.id,
-        related_entity_type: "connection",
-        related_entity_id: connection.id,
+        link: `/network/connections`,
+        metadata: {
+          connection_id: connection.id,
+        },
       });
 
     if (notificationError) {

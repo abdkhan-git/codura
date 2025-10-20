@@ -87,12 +87,13 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Delete related notifications
+    // Delete related notifications using metadata
     const { error: notificationError } = await supabase
       .from("notifications")
       .delete()
-      .eq("related_entity_type", "connection")
-      .eq("related_entity_id", connection.id);
+      .eq("user_id", connection.to_user_id)
+      .eq("type", "connection_request")
+      .filter("metadata->>connection_id", "eq", connection.id);
 
     if (notificationError) {
       console.error("Error deleting notifications:", notificationError);

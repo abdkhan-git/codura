@@ -65,12 +65,15 @@ export async function POST(request: Request) {
       .from("notifications")
       .insert({
         user_id: connection.from_user_id,
+        actor_id: user.id,
         type: "connection_accepted",
+        notification_type: "connection_accepted",
         title: "Connection Request Accepted",
         message: "Your connection request was accepted",
-        related_user_id: user.id,
-        related_entity_type: "connection",
-        related_entity_id: connection.id,
+        link: `/profile/${user.id}`,
+        metadata: {
+          connection_id: connection.id,
+        },
       });
 
     if (notificationError) {
