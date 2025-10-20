@@ -32,6 +32,7 @@ import type { SkillLevel } from "@/types/study-pods";
 export default function StudyPodsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
   const [pods, setPods] = useState<any[]>([]);
   const [myPods, setMyPods] = useState<any[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -44,9 +45,36 @@ export default function StudyPodsPage() {
   const [onlyWithSpace, setOnlyWithSpace] = useState(false);
 
   useEffect(() => {
+    fetchUser();
+  }, []);
+
+  useEffect(() => {
     fetchPods();
     fetchMyPods();
   }, [searchQuery, selectedSubject, selectedSkillLevel, onlyWithSpace]);
+
+  const fetchUser = async () => {
+    try {
+      const response = await fetch("/api/profile");
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Study Pods - Fetched user data:", data);
+        // Transform the data to match DashboardNavbar expectations
+        const transformedUser = {
+          name: data.profile?.full_name || data.user?.email?.split('@')[0] || 'User',
+          email: data.user?.email || '',
+          avatar: data.profile?.avatar_url || '',
+          username: data.profile?.username || '',
+        };
+        console.log("Study Pods - Transformed user data:", transformedUser);
+        setUser(transformedUser);
+      } else {
+        console.error("Study Pods - Failed to fetch user data:", response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error("Error fetching user:", error);
+    }
+  };
 
   const fetchPods = async () => {
     try {
@@ -125,7 +153,7 @@ export default function StudyPodsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardNavbar />
+      {user && <DashboardNavbar user={user} />}
 
       {/* Animated Background */}
       <div className="fixed inset-0 pointer-events-none z-0">

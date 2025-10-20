@@ -166,15 +166,20 @@ export async function GET(request: Request) {
 
     if (searchQuery) {
       allRequests = allRequests.filter(req =>
-        req.user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.user.job_title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.user.university?.toLowerCase().includes(searchQuery.toLowerCase())
+        req && (
+          req.user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          req.user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          req.user.job_title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          req.user.university?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
       );
     }
 
     // Sort by creation date (newest first)
-    allRequests.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    allRequests.sort((a, b) => {
+      if (!a || !b) return 0;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
     return NextResponse.json({
       requests: allRequests,

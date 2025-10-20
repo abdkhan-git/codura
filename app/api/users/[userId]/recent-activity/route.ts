@@ -145,7 +145,7 @@ export async function GET(
     }
 
     // Combine and format the data
-    const activities = [];
+    const activities: any[] = [];
 
     // Add posts as activities
     if (recentPosts) {

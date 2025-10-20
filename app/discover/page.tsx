@@ -170,7 +170,7 @@ export default function DiscoverPage() {
       const response = await fetch(`/api/users/search?${params}`);
       if (response.ok) {
         const data = await response.json();
-        console.log('Search results with connection status:', data.users?.map(u => ({
+        console.log('Search results with connection status:', data.users?.map((u: any) => ({
           name: u.full_name,
           connection_status: u.connection_status
         })));

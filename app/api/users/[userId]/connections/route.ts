@@ -44,25 +44,25 @@ export async function GET(
     let filteredConnections = connections || [];
 
     if (filterSchool) {
-      filteredConnections = filteredConnections.filter(c =>
+      filteredConnections = filteredConnections.filter((c: any) =>
         c.university?.toLowerCase().includes(filterSchool.toLowerCase())
       );
     }
 
     if (filterCompany) {
-      filteredConnections = filteredConnections.filter(c =>
+      filteredConnections = filteredConnections.filter((c: any) =>
         c.company?.toLowerCase().includes(filterCompany.toLowerCase())
       );
     }
 
     if (filterYear) {
-      filteredConnections = filteredConnections.filter(c =>
+      filteredConnections = filteredConnections.filter((c: any) =>
         c.graduation_year === filterYear
       );
     }
 
     if (filterLocation) {
-      filteredConnections = filteredConnections.filter(c =>
+      filteredConnections = filteredConnections.filter((c: any) =>
         c.location?.toLowerCase().includes(filterLocation.toLowerCase())
       );
     }

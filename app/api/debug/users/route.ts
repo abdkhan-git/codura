@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       total_users: processedUsers.length,
       users_with_avatars: processedUsers.filter(u => u.has_avatar).length,
-      users_without_avatars: processedUsers.filter(u => !u.has_avatars).length,
+      users_without_avatars: processedUsers.filter(u => !u.has_avatar).length,
       users: processedUsers
     });
 

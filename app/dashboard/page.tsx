@@ -24,6 +24,7 @@ import {
   Plus,
   MoreVertical,
   BarChart3,
+  Settings,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import {

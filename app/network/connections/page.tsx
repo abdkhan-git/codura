@@ -13,22 +13,16 @@ import { CompanyAutocomplete } from "@/components/ui/company-autocomplete";
 import { LocationAutocomplete } from "@/components/ui/location-autocomplete";
 import {
   Users,
-  Search,
-  UserPlus,
-  UserCheck,
+  Plus,
+  CheckCircle2,
   Clock,
-  Grid3X3,
-  List,
   X,
-  Check,
-  AlertCircle,
-  Filter,
+  Settings,
   GraduationCap,
   Briefcase,
   MapPin,
   Calendar,
   ChevronDown,
-  Building2,
   Sparkles,
   Trophy
 } from "lucide-react";
@@ -383,7 +377,7 @@ export default function ConnectionsPage() {
                 <div className="relative p-6 space-y-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Filter className="w-5 h-5 text-brand" />
+                      <Settings className="w-5 h-5 text-brand" />
                       <h3 className="text-lg font-semibold">Filters</h3>
                       {activeFiltersCount > 0 && (
                         <Badge className="bg-brand/20 text-brand border-brand/30">
@@ -450,7 +444,7 @@ export default function ConnectionsPage() {
                   {/* Company Filter */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-brand" />
+                      <Briefcase className="w-4 h-4 text-brand" />
                       Company
                     </label>
                     <CompanyAutocomplete
@@ -508,7 +502,7 @@ export default function ConnectionsPage() {
                 <div className="relative flex-1 max-w-md group">
                   <div className="absolute inset-0 bg-gradient-to-r from-brand via-purple-500 to-cyan-500 rounded-xl blur-sm opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+                    <Settings className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
                     <Input
                       type="text"
                       placeholder="Search by name, username, bio..."
@@ -538,7 +532,7 @@ export default function ConnectionsPage() {
                       showFilters && "bg-brand/10 border-brand/50 text-brand"
                     )}
                   >
-                    <Filter className="w-4 h-4" />
+                    <Settings className="w-4 h-4" />
                     Filters
                     {activeFiltersCount > 0 && (
                       <Badge className="ml-1 bg-brand text-white">
@@ -558,7 +552,7 @@ export default function ConnectionsPage() {
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
                       )}
                     >
-                      <Grid3X3 className="w-4 h-4" />
+                      <Users className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => setViewMode('list')}
@@ -569,7 +563,7 @@ export default function ConnectionsPage() {
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
                       )}
                     >
-                      <List className="w-4 h-4" />
+                      <Users className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -589,7 +583,7 @@ export default function ConnectionsPage() {
                   )}
                   {filterCompany && (
                     <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400">
-                      <Building2 className="w-3 h-3" />
+                      <Briefcase className="w-3 h-3" />
                       {filterCompany}
                       <button onClick={() => setFilterCompany("")} className="hover:bg-purple-500/20 rounded-full p-0.5">
                         <X className="w-3 h-3" />
@@ -625,7 +619,7 @@ export default function ConnectionsPage() {
                   value="connections"
                   className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 rounded-lg py-3"
                 >
-                  <UserCheck className="w-4 h-4" />
+                  <CheckCircle2 className="w-4 h-4" />
                   <span className="hidden sm:inline">Connections</span>
                   <Badge variant="secondary" className="ml-1 bg-background/50">
                     {filteredConnections.length}
@@ -645,7 +639,7 @@ export default function ConnectionsPage() {
                   value="sent"
                   className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 rounded-lg py-3"
                 >
-                  <UserPlus className="w-4 h-4" />
+                  <Plus className="w-4 h-4" />
                   <span className="hidden sm:inline">Sent</span>
                   <Badge variant="secondary" className="ml-1 bg-background/50">
                     {pendingRequests.filter(req => req.type === 'sent').length}
@@ -695,7 +689,7 @@ export default function ConnectionsPage() {
                       </Button>
                     ) : (
                       <Button onClick={() => router.push('/discover')} className="gap-2 bg-gradient-to-r from-brand to-purple-500 hover:opacity-90">
-                        <UserPlus className="w-4 h-4" />
+                        <Plus className="w-4 h-4" />
                         Discover Developers
                       </Button>
                     )}
@@ -757,12 +751,12 @@ export default function ConnectionsPage() {
                   </div>
                 ) : (
                   <EmptyState
-                    icon={UserPlus}
+                    icon={Plus}
                     title="No sent requests"
                     description="You haven't sent any connection requests yet"
                     action={
                       <Button onClick={() => router.push('/discover')} className="gap-2 bg-gradient-to-r from-brand to-purple-500 hover:opacity-90">
-                        <UserPlus className="w-4 h-4" />
+                        <Plus className="w-4 h-4" />
                         Find People to Connect With
                       </Button>
                     }
@@ -853,7 +847,7 @@ function ConnectionCard({
               )}
               {connection.user.company && (
                 <Badge variant="secondary" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
-                  <Building2 className="w-3 h-3 mr-1" />
+                  <Briefcase className="w-3 h-3 mr-1" />
                   {connection.user.company}
                 </Badge>
               )}
@@ -959,7 +953,7 @@ function PendingRequestCard({
                 disabled={actionLoading === request.id}
                 className="gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg"
               >
-                <Check className="w-4 h-4" />
+                <CheckCircle2 className="w-4 h-4" />
                 Accept
               </Button>
               <Button

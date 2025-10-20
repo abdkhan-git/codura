@@ -124,33 +124,48 @@ export async function GET(request: Request) {
     let filteredConnections = processedConnections;
     if (searchQuery) {
       filteredConnections = processedConnections.filter(conn =>
-        conn.user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conn.user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conn.user.job_title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conn.user.university?.toLowerCase().includes(searchQuery.toLowerCase())
+        conn && (
+          conn.user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          conn.user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          conn.user.job_title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          conn.user.university?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
       );
     }
 
     // Apply sorting
     switch (sortBy) {
       case 'name':
-        filteredConnections.sort((a, b) => (a.user.full_name || '').localeCompare(b.user.full_name || ''));
+        filteredConnections.sort((a, b) => {
+          if (!a || !b) return 0;
+          return (a.user.full_name || '').localeCompare(b.user.full_name || '');
+        });
         break;
       case 'activity':
-        filteredConnections.sort((a, b) => (b.user.total_solved || 0) - (a.user.total_solved || 0));
+        filteredConnections.sort((a, b) => {
+          if (!a || !b) return 0;
+          return (b.user.total_solved || 0) - (a.user.total_solved || 0);
+        });
         break;
       case 'mutual':
         // For mutual connections, we'll sort by connection date as a proxy
-        filteredConnections.sort((a, b) => new Date(b.connected_at).getTime() - new Date(a.connected_at).getTime());
+        filteredConnections.sort((a, b) => {
+          if (!a || !b) return 0;
+          return new Date(b.connected_at).getTime() - new Date(a.connected_at).getTime();
+        });
         break;
       case 'recent':
       default:
-        filteredConnections.sort((a, b) => new Date(b.connected_at).getTime() - new Date(a.connected_at).getTime());
+        filteredConnections.sort((a, b) => {
+          if (!a || !b) return 0;
+          return new Date(b.connected_at).getTime() - new Date(a.connected_at).getTime();
+        });
         break;
     }
 
     // Calculate mutual connections for each connection
     for (const connection of filteredConnections) {
+      if (!connection) continue;
       const { data: mutualCount } = await supabase.rpc('get_mutual_connections_count', {
         user1_id: user.id,
         user2_id: connection.user.user_id,

@@ -28,20 +28,59 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 
-export default function StudyPodDetailPage({ params }: { params: { id: string } }) {
+export default function StudyPodDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
   const [pod, setPod] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [podId, setPodId] = useState<string>("");
 
   useEffect(() => {
-    fetchPodDetails();
-  }, [params.id]);
+    fetchUser();
+  }, []);
+
+  useEffect(() => {
+    const initializeParams = async () => {
+      const { id } = await params;
+      setPodId(id);
+    };
+    initializeParams();
+  }, [params]);
+
+  const fetchUser = async () => {
+    try {
+      const response = await fetch("/api/profile");
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Study Pod Detail - Fetched user data:", data);
+        // Transform the data to match DashboardNavbar expectations
+        const transformedUser = {
+          name: data.profile?.full_name || data.user?.email?.split('@')[0] || 'User',
+          email: data.user?.email || '',
+          avatar: data.profile?.avatar_url || '',
+          username: data.profile?.username || '',
+        };
+        console.log("Study Pod Detail - Transformed user data:", transformedUser);
+        setUser(transformedUser);
+      } else {
+        console.error("Study Pod Detail - Failed to fetch user data:", response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error("Error fetching user:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (podId) {
+      fetchPodDetails();
+    }
+  }, [podId]);
 
   const fetchPodDetails = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/study-pods/${params.id}`);
+      const response = await fetch(`/api/study-pods/${podId}`);
 
       if (!response.ok) {
         toast.error("Failed to load study pod");
@@ -65,7 +104,7 @@ export default function StudyPodDetailPage({ params }: { params: { id: string } 
       const response = await fetch("/api/study-pods/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pod_id: params.id }),
+        body: JSON.stringify({ pod_id: podId }),
       });
 
       const data = await response.json();
@@ -90,7 +129,7 @@ export default function StudyPodDetailPage({ params }: { params: { id: string } 
 
     setActionLoading(true);
     try {
-      const response = await fetch(`/api/study-pods/${params.id}/leave`, {
+      const response = await fetch(`/api/study-pods/${podId}/leave`, {
         method: "POST",
       });
 
@@ -114,7 +153,7 @@ export default function StudyPodDetailPage({ params }: { params: { id: string } 
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <DashboardNavbar />
+        {user && <DashboardNavbar user={user} />}
         <div className="flex items-center justify-center h-[calc(100vh-80px)]">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
         </div>
@@ -139,7 +178,7 @@ export default function StudyPodDetailPage({ params }: { params: { id: string } 
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardNavbar />
+      {user && <DashboardNavbar user={user} />}
 
       {/* Animated Background */}
       <div className="fixed inset-0 pointer-events-none z-0">
