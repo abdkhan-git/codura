@@ -6,6 +6,7 @@ export interface UserProfile {
   avatar_url: string | null;
   university: string | null;
   graduation_year: string | null;
+  company: string | null;
   location: string | null;
   job_title: string | null;
   website: string | null;
@@ -141,6 +142,8 @@ export interface UserSearchResult {
   avatar_url: string | null;
   university: string | null;
   graduation_year: string | null;
+  company: string | null;
+  location: string | null;
   job_title: string | null;
   bio: string | null;
   total_solved: number;

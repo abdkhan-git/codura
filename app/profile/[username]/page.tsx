@@ -22,7 +22,8 @@ import {
   Github,
   Linkedin,
   Globe,
-  CheckCircle2
+  CheckCircle2,
+  Users
 } from "lucide-react";
 import { EditProfileDialog } from "@/components/edit-profile-dialog";
 import { UserProfile, UserStats, Submission } from "@/types/database";
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/tooltip";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 import { RecentActivityCard } from "@/components/social/recent-activity-card";
+import { ConnectionsModal } from "@/components/connections/connections-modal";
 
 interface Achievement {
   achievement_id: string;
@@ -133,6 +135,9 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
   const [userLists, setUserLists] = useState<any[]>([]);
   const [selectedList, setSelectedList] = useState<any | null>(null);
   const [showListDialog, setShowListDialog] = useState(false);
+  const [connectionCount, setConnectionCount] = useState<number | null>(null);
+  const [canViewConnections, setCanViewConnections] = useState(false);
+  const [showConnectionsModal, setShowConnectionsModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -140,6 +145,26 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
   useEffect(() => {
     fetchProfile();
   }, [username]);
+
+  // Fetch connection count when profile is loaded
+  useEffect(() => {
+    async function fetchConnectionCount() {
+      if (!profileData?.profile?.user_id) return;
+
+      try {
+        const response = await fetch(`/api/users/${profileData.profile.user_id}/connections/count`);
+        if (response.ok) {
+          const data = await response.json();
+          setConnectionCount(data.count);
+          setCanViewConnections(data.can_view_list);
+        }
+      } catch (error) {
+        console.error('Error fetching connection count:', error);
+      }
+    }
+
+    fetchConnectionCount();
+  }, [profileData?.profile?.user_id]);
 
   const fetchProfile = async () => {
     try {
@@ -379,6 +404,18 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
                       <a href={profile.website} target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors">
                         Portfolio
                       </a>
+                    </div>
+                  )}
+                  {connectionCount !== null && (
+                    <div
+                      className={cn(
+                        "flex items-center gap-2 text-sm transition-colors",
+                        canViewConnections ? "cursor-pointer hover:text-brand" : "cursor-default"
+                      )}
+                      onClick={() => canViewConnections && setShowConnectionsModal(true)}
+                    >
+                      <Users className="w-4 h-4 text-brand" />
+                      <span>{connectionCount} connection{connectionCount !== 1 ? 's' : ''}</span>
                     </div>
                   )}
                 </div>
@@ -882,6 +919,17 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
           isPublic={selectedList.is_public}
           isReadOnly={!isOwnProfile}
           onListUpdated={fetchProfile}
+        />
+      )}
+
+      {/* Connections Modal */}
+      {profile && (
+        <ConnectionsModal
+          open={showConnectionsModal}
+          onOpenChange={setShowConnectionsModal}
+          userId={profile.user_id}
+          username={profile.username || undefined}
+          isOwnProfile={isOwnProfile}
         />
       )}
     </div>

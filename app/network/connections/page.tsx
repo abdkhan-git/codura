@@ -3,34 +3,41 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useTheme } from "next-themes";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Users, 
-  Search, 
-  UserPlus, 
-  UserCheck, 
-  UserX, 
-  Clock, 
-  Shield, 
-  MoreHorizontal,
-  Filter,
-  SortAsc,
+import { CompanyAutocomplete } from "@/components/ui/company-autocomplete";
+import { LocationAutocomplete } from "@/components/ui/location-autocomplete";
+import {
+  Users,
+  Search,
+  UserPlus,
+  UserCheck,
+  Clock,
   Grid3X3,
   List,
   X,
   Check,
-  AlertCircle
+  AlertCircle,
+  Filter,
+  GraduationCap,
+  Briefcase,
+  MapPin,
+  Calendar,
+  ChevronDown,
+  Building2,
+  Sparkles,
+  Trophy
 } from "lucide-react";
 import { toast } from "sonner";
 import { ActivityFeed } from "@/components/social/activity-feed";
 import type { UserSearchResult } from "@/types/database";
 import { SentRequestCard } from "@/components/social/sent-request-card";
+import Image from "next/image";
+import Link from "next/link";
 
 interface ConnectionData {
   user: UserSearchResult;
@@ -53,28 +60,50 @@ interface UserData {
   username?: string;
 }
 
+// School autocomplete (reusing existing logic)
+interface School {
+  code: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+}
+
 export default function ConnectionsPage() {
-  const { theme } = useTheme();
   const router = useRouter();
-  
+
   // State
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [connections, setConnections] = useState<ConnectionData[]>([]);
+  const [filteredConnections, setFilteredConnections] = useState<ConnectionData[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("connections");
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [sortBy, setSortBy] = useState('recent');
   const [showFilters, setShowFilters] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  
+
+  // Advanced Filters
+  const [filterSchool, setFilterSchool] = useState("");
+  const [filterCompany, setFilterCompany] = useState("");
+  const [filterGradYear, setFilterGradYear] = useState("");
+  const [filterLocation, setFilterLocation] = useState("");
+
+  // School autocomplete state
+  const [schoolQuery, setSchoolQuery] = useState("");
+  const [schoolResults, setSchoolResults] = useState<School[]>([]);
+  const [showSchoolDropdown, setShowSchoolDropdown] = useState(false);
+
   // Bulk selection state
   const [selectedRequests, setSelectedRequests] = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   // Debounce timer ref
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Generate graduation years
+  const currentYear = new Date().getFullYear();
+  const gradYears = Array.from({ length: 10 }, (_, i) => (currentYear - 5 + i).toString());
 
   // Fetch current user
   useEffect(() => {
@@ -105,41 +134,77 @@ export default function ConnectionsPage() {
     fetchPendingRequests();
   }, []);
 
-  // Debounced search
-  const debouncedSearch = useCallback(() => {
-    if (debounceTimer.current) {
-      clearTimeout(debounceTimer.current);
+  // Apply filters
+  useEffect(() => {
+    let filtered = connections;
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(conn =>
+        conn.user.full_name?.toLowerCase().includes(query) ||
+        conn.user.username?.toLowerCase().includes(query) ||
+        conn.user.bio?.toLowerCase().includes(query)
+      );
     }
-    debounceTimer.current = setTimeout(() => {
-      if (activeTab === 'connections') {
-        fetchConnections();
-      } else {
-        fetchPendingRequests();
+
+    if (filterSchool) {
+      filtered = filtered.filter(conn =>
+        conn.user.university?.toLowerCase().includes(filterSchool.toLowerCase())
+      );
+    }
+
+    if (filterCompany) {
+      filtered = filtered.filter(conn =>
+        conn.user.company?.toLowerCase().includes(filterCompany.toLowerCase())
+      );
+    }
+
+    if (filterGradYear) {
+      filtered = filtered.filter(conn =>
+        conn.user.graduation_year === filterGradYear
+      );
+    }
+
+    if (filterLocation) {
+      filtered = filtered.filter(conn =>
+        conn.user.location?.toLowerCase().includes(filterLocation.toLowerCase())
+      );
+    }
+
+    setFilteredConnections(filtered);
+  }, [connections, searchQuery, filterSchool, filterCompany, filterGradYear, filterLocation]);
+
+  // School search
+  useEffect(() => {
+    if (schoolQuery.length < 2) {
+      setSchoolResults([]);
+      setShowSchoolDropdown(false);
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/schools?q=${encodeURIComponent(schoolQuery)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setSchoolResults(Array.isArray(data) ? data : []);
+          setShowSchoolDropdown(data.length > 0);
+        }
+      } catch (error) {
+        console.error('School search error:', error);
       }
     }, 300);
-  }, [searchQuery, activeTab]);
 
-  useEffect(() => {
-    debouncedSearch();
-    return () => {
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-      }
-    };
-  }, [debouncedSearch]);
+    return () => clearTimeout(timeout);
+  }, [schoolQuery]);
 
   const fetchConnections = async () => {
     try {
-      const params = new URLSearchParams();
-      if (searchQuery) params.append('q', searchQuery);
-      if (sortBy) params.append('sort', sortBy);
-
-      const response = await fetch(`/api/connections/my-connections?${params}`);
+      const response = await fetch(`/api/connections/my-connections`);
       if (response.ok) {
         const data = await response.json();
         setConnections(data.connections || []);
-      } else {
-        console.error('Failed to fetch connections');
+        setFilteredConnections(data.connections || []);
       }
     } catch (error) {
       console.error('Error fetching connections:', error);
@@ -148,15 +213,10 @@ export default function ConnectionsPage() {
 
   const fetchPendingRequests = async () => {
     try {
-      const params = new URLSearchParams();
-      if (searchQuery) params.append('q', searchQuery);
-
-      const response = await fetch(`/api/connections/pending-requests?${params}`);
+      const response = await fetch(`/api/connections/pending-requests`);
       if (response.ok) {
         const data = await response.json();
         setPendingRequests(data.requests || []);
-      } else {
-        console.error('Failed to fetch pending requests');
       }
     } catch (error) {
       console.error('Error fetching pending requests:', error);
@@ -174,9 +234,7 @@ export default function ConnectionsPage() {
 
       if (response.ok) {
         toast.success('Connection request accepted!');
-        // Remove from pending and add to connections
         setPendingRequests(prev => prev.filter(req => req.id !== requestId));
-        // Refresh connections to show the new connection
         fetchConnections();
       } else {
         const data = await response.json();
@@ -262,127 +320,15 @@ export default function ConnectionsPage() {
     }
   };
 
-  // Bulk selection functions
-  const handleSelectRequest = (requestId: string) => {
-    setSelectedRequests(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(requestId)) {
-        newSet.delete(requestId);
-      } else {
-        newSet.add(requestId);
-      }
-      return newSet;
-    });
+  const clearAllFilters = () => {
+    setFilterSchool("");
+    setFilterCompany("");
+    setFilterGradYear("");
+    setFilterLocation("");
+    setSchoolQuery("");
   };
 
-  const handleSelectAll = () => {
-    const currentTabRequests = activeTab === 'pending' 
-      ? pendingRequests.filter(req => req.type === 'received')
-      : activeTab === 'sent'
-      ? pendingRequests.filter(req => req.type === 'sent')
-      : [];
-    
-    if (selectedRequests.size === currentTabRequests.length) {
-      setSelectedRequests(new Set());
-    } else {
-      setSelectedRequests(new Set(currentTabRequests.map(req => req.id)));
-    }
-  };
-
-  const handleBulkAccept = async () => {
-    if (selectedRequests.size === 0) return;
-    
-    setBulkActionLoading(true);
-    const results = await Promise.allSettled(
-      Array.from(selectedRequests).map(requestId => 
-        fetch('/api/connections/accept', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ request_id: requestId }),
-        })
-      )
-    );
-
-    const successful = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.length - successful;
-
-    if (successful > 0) {
-      toast.success(`${successful} connection${successful > 1 ? 's' : ''} accepted`);
-      setPendingRequests(prev => prev.filter(req => !selectedRequests.has(req.id)));
-      setConnections(prev => [...prev, ...pendingRequests.filter(req => selectedRequests.has(req.id)).map(req => ({
-        user: req.user,
-        connected_at: new Date().toISOString(),
-        mutual_connections: 0
-      }))]);
-    }
-    
-    if (failed > 0) {
-      toast.error(`${failed} request${failed > 1 ? 's' : ''} failed to accept`);
-    }
-
-    setSelectedRequests(new Set());
-    setBulkActionLoading(false);
-  };
-
-  const handleBulkDecline = async () => {
-    if (selectedRequests.size === 0) return;
-    
-    setBulkActionLoading(true);
-    const results = await Promise.allSettled(
-      Array.from(selectedRequests).map(requestId => 
-        fetch('/api/connections/decline', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ request_id: requestId }),
-        })
-      )
-    );
-
-    const successful = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.length - successful;
-
-    if (successful > 0) {
-      toast.success(`${successful} request${successful > 1 ? 's' : ''} declined`);
-      setPendingRequests(prev => prev.filter(req => !selectedRequests.has(req.id)));
-    }
-    
-    if (failed > 0) {
-      toast.error(`${failed} request${failed > 1 ? 's' : ''} failed to decline`);
-    }
-
-    setSelectedRequests(new Set());
-    setBulkActionLoading(false);
-  };
-
-  const handleBulkCancel = async () => {
-    if (selectedRequests.size === 0) return;
-    
-    setBulkActionLoading(true);
-    const results = await Promise.allSettled(
-      Array.from(selectedRequests).map(requestId => 
-        fetch('/api/connections/cancel', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ request_id: requestId }),
-        })
-      )
-    );
-
-    const successful = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.length - successful;
-
-    if (successful > 0) {
-      toast.success(`${successful} request${successful > 1 ? 's' : ''} canceled`);
-      setPendingRequests(prev => prev.filter(req => !selectedRequests.has(req.id)));
-    }
-    
-    if (failed > 0) {
-      toast.error(`${failed} request${failed > 1 ? 's' : ''} failed to cancel`);
-    }
-
-    setSelectedRequests(new Set());
-    setBulkActionLoading(false);
-  };
+  const activeFiltersCount = [filterSchool, filterCompany, filterGradYear, filterLocation].filter(Boolean).length;
 
   if (loading || !user) {
     return (
@@ -394,12 +340,12 @@ export default function ConnectionsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Liquid Glass Background */}
-      <div className="fixed inset-0 pointer-events-none z-0">
+      {/* iOS 26 Liquid Glass Background */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute inset-0 bg-background" />
-        <div className="absolute top-[-10%] right-[20%] w-[600px] h-[600px] bg-brand/5 dark:bg-brand/8 rounded-full blur-[120px] animate-pulse-slow" />
-        <div className="absolute bottom-[10%] left-[15%] w-[500px] h-[500px] bg-purple-500/3 dark:bg-purple-500/6 rounded-full blur-[100px] animate-float-slow" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-[30%] left-[50%] w-[400px] h-[400px] bg-cyan-500/2 dark:bg-cyan-500/4 rounded-full blur-[80px] animate-pulse-slow" style={{ animationDelay: '4s' }} />
+        <div className="absolute top-[-20%] right-[10%] w-[800px] h-[800px] bg-gradient-to-br from-brand/8 via-purple-500/6 to-cyan-500/4 rounded-full blur-[120px] animate-pulse-slow" />
+        <div className="absolute bottom-[-10%] left-[5%] w-[600px] h-[600px] bg-gradient-to-tr from-purple-500/5 via-pink-500/4 to-brand/6 rounded-full blur-[100px] animate-float-slow" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-[40%] left-[50%] w-[500px] h-[500px] bg-gradient-to-bl from-cyan-500/3 via-blue-500/4 to-purple-500/3 rounded-full blur-[90px] animate-pulse-slow" style={{ animationDelay: '4s' }} />
       </div>
 
       {/* Navbar */}
@@ -410,667 +356,594 @@ export default function ConnectionsPage() {
         {/* Page Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-3">
-            <div className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg backdrop-blur-xl",
-              theme === 'light' 
-                ? "from-blue-500 to-cyan-500 shadow-blue-500/25 bg-white/20" 
-                : "from-blue-600 to-cyan-600 shadow-blue-500/25 bg-white/5"
-            )}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br from-brand via-purple-500 to-cyan-500 shadow-lg shadow-brand/25">
               <Users className="w-6 h-6 text-white" />
             </div>
             <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
-            My Connections
-          </h1>
-              <p className="text-muted-foreground">Manage your professional network</p>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
+                My Network
+              </h1>
+              <p className="text-muted-foreground">Grow and manage your professional connections</p>
             </div>
           </div>
         </div>
 
-        {/* Search and Controls */}
-        <Card className={cn(
-          "p-6 mb-8 border-2 backdrop-blur-xl transition-all duration-300",
-          theme === 'light' 
-            ? "bg-white/80 border-black/5 hover:border-blue-500/20 shadow-lg" 
-            : "bg-zinc-950/80 border-white/5 hover:border-blue-500/20 shadow-lg"
-        )}>
-          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-            {/* Search Bar */}
-            <div className="relative flex-1 max-w-md">
-              <Search className={cn(
-                "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none",
-                theme === 'light' ? "text-zinc-400" : "text-zinc-500"
-              )} />
-              <Input
-                type="text"
-                placeholder="Search connections..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={cn(
-                  "pl-10 h-11 border-2 transition-all duration-300",
-                  theme === 'light' 
-                    ? "bg-white/60 border-zinc-200 focus:border-blue-500 focus:ring-blue-500/20" 
-                    : "bg-zinc-900/60 border-zinc-800 focus:border-blue-500 focus:ring-blue-500/20"
-                )}
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className={cn(
-                    "absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center transition-all",
-                    theme === 'light' 
-                      ? "hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600" 
-                      : "hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300"
-                  )}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-        </div>
-
-            {/* Controls */}
-            <div className="flex items-center gap-3">
-              {/* Bulk Actions (only show for pending/sent tabs) */}
-              {(activeTab === 'pending' || activeTab === 'sent') && selectedRequests.size > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    {selectedRequests.size} selected
-                  </span>
-                  {activeTab === 'pending' && (
-                    <>
-                      <Button
-                        onClick={handleBulkAccept}
-                        disabled={bulkActionLoading}
-                        size="sm"
-                        className="gap-2 bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        <Check className="w-4 h-4" />
-                        Accept All
-                      </Button>
-                      <Button
-                        onClick={handleBulkDecline}
-                        disabled={bulkActionLoading}
-                        size="sm"
-                        variant="destructive"
-                        className="gap-2"
-                      >
-                        <X className="w-4 h-4" />
-                        Decline All
-                      </Button>
-                    </>
-                  )}
-                  {activeTab === 'sent' && (
-                    <Button
-                      onClick={handleBulkCancel}
-                      disabled={bulkActionLoading}
-                      size="sm"
-                      variant="destructive"
-                      className="gap-2"
-                    >
-                      <X className="w-4 h-4" />
-                      Cancel All
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              {/* Sort Dropdown */}
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className={cn(
-                  "px-3 py-2 rounded-lg border-2 text-sm transition-all duration-300",
-                  theme === 'light' 
-                    ? "bg-white/60 border-zinc-200 focus:border-blue-500" 
-                    : "bg-zinc-900/60 border-zinc-800 focus:border-blue-500"
-                )}
-              >
-                <option value="recent">Recently Added</option>
-                <option value="name">Name A-Z</option>
-                <option value="activity">Most Active</option>
-                <option value="mutual">Most Mutual</option>
-              </select>
-
-              {/* View Mode Toggle */}
-              <div className="flex rounded-lg border-2 overflow-hidden" style={{
-                borderColor: theme === 'light' ? '#e4e4e7' : '#27272a'
-              }}>
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={cn(
-                    "p-2 transition-all duration-300",
-                    viewMode === 'grid' 
-                      ? (theme === 'light' ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white')
-                      : (theme === 'light' ? 'bg-white/60 text-zinc-600 hover:bg-zinc-100' : 'bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800')
-                  )}
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={cn(
-                    "p-2 transition-all duration-300",
-                    viewMode === 'list' 
-                      ? (theme === 'light' ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white')
-                      : (theme === 'light' ? 'bg-white/60 text-zinc-600 hover:bg-zinc-100' : 'bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800')
-                  )}
-                >
-                  <List className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={cn(
-            "grid w-full grid-cols-4 mb-8 border-2 backdrop-blur-xl",
-            theme === 'light' 
-              ? "bg-white/80 border-black/5" 
-              : "bg-zinc-950/80 border-white/5"
-          )}>
-            <TabsTrigger 
-              value="connections" 
-              className="gap-2 data-[state=active]:bg-brand data-[state=active]:text-white"
-            >
-              <UserCheck className="w-4 h-4" />
-              Connections ({connections.length})
-            </TabsTrigger>
-            <TabsTrigger 
-              value="pending" 
-              className="gap-2 data-[state=active]:bg-brand data-[state=active]:text-white"
-            >
-              <Clock className="w-4 h-4" />
-              Pending ({pendingRequests.filter(req => req.type === 'received').length})
-            </TabsTrigger>
-            <TabsTrigger 
-              value="sent" 
-              className="gap-2 data-[state=active]:bg-brand data-[state=active]:text-white"
-            >
-              <UserPlus className="w-4 h-4" />
-              Sent ({pendingRequests.filter(req => req.type === 'sent').length})
-            </TabsTrigger>
-            <TabsTrigger 
-              value="activity" 
-              className="gap-2 data-[state=active]:bg-brand data-[state=active]:text-white"
-            >
-              <AlertCircle className="w-4 h-4" />
-              Activity
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Connections Tab */}
-          <TabsContent value="connections" className="space-y-6">
-            {connections.length > 0 ? (
-              <div className={cn(
-                "grid gap-6",
-                viewMode === 'grid' 
-                  ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
-                  : "grid-cols-1"
-              )}>
-                {connections.map((connection, index) => (
-                  <ConnectionCard
-                    key={connection.user.user_id}
-                    connection={connection}
-                    onUnfriend={handleUnfriend}
-                    actionLoading={actionLoading}
-                    viewMode={viewMode}
-                    theme={theme}
-                    index={index}
-                  />
-                ))}
-              </div>
-            ) : (
-        <Card className={cn(
-          "p-12 text-center border-2 backdrop-blur-xl",
-          theme === 'light'
-            ? "bg-white/80 border-black/5"
-            : "bg-zinc-950/80 border-white/5"
-        )}>
+        <div className="flex gap-6">
+          {/* Filter Sidebar - iOS 26 Style */}
           <div className={cn(
-                  "w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center",
-            theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
+            "transition-all duration-500 ease-out",
+            showFilters ? "w-80 opacity-100" : "w-0 opacity-0 overflow-hidden"
           )}>
-            <Users className={cn(
-                    "w-10 h-10",
-                    theme === 'light' ? "text-zinc-400" : "text-zinc-600"
-                  )} />
+            <div className="sticky top-24">
+              <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/80 via-card/60 to-transparent backdrop-blur-2xl overflow-hidden shadow-2xl">
+                {/* Glassmorphic glow effects */}
+                <div className="absolute inset-0 bg-gradient-to-br from-brand/5 via-purple-500/5 to-transparent opacity-50" />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-brand/20 to-transparent rounded-full blur-3xl" />
+
+                <div className="relative p-6 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Filter className="w-5 h-5 text-brand" />
+                      <h3 className="text-lg font-semibold">Filters</h3>
+                      {activeFiltersCount > 0 && (
+                        <Badge className="bg-brand/20 text-brand border-brand/30">
+                          {activeFiltersCount}
+                        </Badge>
+                      )}
+                    </div>
+                    {activeFiltersCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearAllFilters}
+                        className="text-xs h-7 text-muted-foreground hover:text-foreground"
+                      >
+                        Clear all
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* School Filter */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-brand" />
+                      School
+                    </label>
+                    <div className="relative">
+                      <Input
+                        placeholder="Search universities..."
+                        value={schoolQuery}
+                        onChange={(e) => setSchoolQuery(e.target.value)}
+                        className="bg-muted/30 border-border/40 focus:border-brand/50 backdrop-blur-sm"
+                      />
+                      {showSchoolDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-card/95 border-2 border-border/20 rounded-lg shadow-2xl backdrop-blur-xl max-h-48 overflow-y-auto">
+                          {schoolResults.map((school) => (
+                            <button
+                              key={school.code}
+                              onClick={() => {
+                                setFilterSchool(school.name);
+                                setSchoolQuery(school.name);
+                                setShowSchoolDropdown(false);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-muted/30 transition-colors border-b border-border/10 last:border-b-0"
+                            >
+                              <div className="font-medium text-sm">{school.name}</div>
+                              {school.city && school.state && (
+                                <div className="text-xs text-muted-foreground">{school.city}, {school.state}</div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {filterSchool && (
+                        <button
+                          onClick={() => { setFilterSchool(""); setSchoolQuery(""); }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Company Filter */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-brand" />
+                      Company
+                    </label>
+                    <CompanyAutocomplete
+                      value={filterCompany}
+                      onValueChange={setFilterCompany}
+                      placeholder="Search companies..."
+                      className="bg-muted/30 border-border/40 focus:border-brand/50"
+                    />
+                  </div>
+
+                  {/* Graduation Year Filter */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-brand" />
+                      Graduation Year
+                    </label>
+                    <select
+                      value={filterGradYear}
+                      onChange={(e) => setFilterGradYear(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-muted/30 border-2 border-border/40 focus:border-brand/50 backdrop-blur-sm transition-all outline-none"
+                    >
+                      <option value="">All years</option>
+                      {gradYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Location Filter */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-brand" />
+                      Location
+                    </label>
+                    <LocationAutocomplete
+                      value={filterLocation}
+                      onValueChange={setFilterLocation}
+                      placeholder="Search locations worldwide..."
+                      className="bg-muted/30 border-border/40 focus:border-brand/50"
+                    />
+                  </div>
                 </div>
-                <h3 className={cn(
-                  "text-xl font-semibold mb-3",
-                  theme === 'light' ? "text-zinc-900" : "text-white"
-                )}>
-                  No connections yet
-                </h3>
-                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                  Start building your network by discovering and connecting with other developers.
-                </p>
-                <Button 
-                  onClick={() => router.push('/discover')}
-                  className="gap-2"
+              </Card>
+            </div>
+          </div>
+
+          {/* Main Content Area */}
+          <div className="flex-1 space-y-6">
+            {/* Search and Controls - Glassmorphic */}
+            <Card className="relative p-6 border-2 border-border/20 bg-gradient-to-br from-card/80 via-card/60 to-transparent backdrop-blur-2xl overflow-hidden shadow-xl animate-in fade-in-0 slide-in-from-top-4 duration-700" style={{ animationDelay: '100ms' }}>
+              <div className="absolute inset-0 bg-gradient-to-r from-brand/5 via-purple-500/5 to-cyan-500/5 opacity-30" />
+
+              <div className="relative flex flex-col lg:flex-row gap-4 items-center justify-between">
+                {/* Search Bar with gradient border */}
+                <div className="relative flex-1 max-w-md group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-brand via-purple-500 to-cyan-500 rounded-xl blur-sm opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+                    <Input
+                      type="text"
+                      placeholder="Search by name, username, bio..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 h-11 bg-muted/30 border-2 border-border/40 focus:border-brand/50 backdrop-blur-sm transition-all"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-muted transition-all"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Controls */}
+                <div className="flex items-center gap-3">
+                  {/* Filter Toggle */}
+                  <Button
+                    onClick={() => setShowFilters(!showFilters)}
+                    variant="outline"
+                    className={cn(
+                      "gap-2 transition-all duration-300",
+                      showFilters && "bg-brand/10 border-brand/50 text-brand"
+                    )}
+                  >
+                    <Filter className="w-4 h-4" />
+                    Filters
+                    {activeFiltersCount > 0 && (
+                      <Badge className="ml-1 bg-brand text-white">
+                        {activeFiltersCount}
+                      </Badge>
+                    )}
+                  </Button>
+
+                  {/* View Mode Toggle - iOS style */}
+                  <div className="flex rounded-xl border-2 border-border/20 overflow-hidden bg-muted/20 backdrop-blur-sm">
+                    <button
+                      onClick={() => setViewMode('grid')}
+                      className={cn(
+                        "p-2.5 transition-all duration-300",
+                        viewMode === 'grid'
+                          ? 'bg-gradient-to-r from-brand to-purple-500 text-white shadow-lg'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                      )}
+                    >
+                      <Grid3X3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={cn(
+                        "p-2.5 transition-all duration-300",
+                        viewMode === 'list'
+                          ? 'bg-gradient-to-r from-brand to-purple-500 text-white shadow-lg'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                      )}
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Filters Pills */}
+              {activeFiltersCount > 0 && (
+                <div className="relative mt-4 pt-4 border-t border-border/20 flex flex-wrap gap-2">
+                  {filterSchool && (
+                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-brand/10 border-brand/30 text-brand">
+                      <GraduationCap className="w-3 h-3" />
+                      {filterSchool}
+                      <button onClick={() => { setFilterSchool(""); setSchoolQuery(""); }} className="hover:bg-brand/20 rounded-full p-0.5">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {filterCompany && (
+                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400">
+                      <Building2 className="w-3 h-3" />
+                      {filterCompany}
+                      <button onClick={() => setFilterCompany("")} className="hover:bg-purple-500/20 rounded-full p-0.5">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {filterGradYear && (
+                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-cyan-500/10 border-cyan-500/30 text-cyan-600 dark:text-cyan-400">
+                      <Calendar className="w-3 h-3" />
+                      Class of {filterGradYear}
+                      <button onClick={() => setFilterGradYear("")} className="hover:bg-cyan-500/20 rounded-full p-0.5">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {filterLocation && (
+                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-pink-500/10 border-pink-500/30 text-pink-600 dark:text-pink-400">
+                      <MapPin className="w-3 h-3" />
+                      {filterLocation}
+                      <button onClick={() => setFilterLocation("")} className="hover:bg-pink-500/20 rounded-full p-0.5">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </Card>
+
+            {/* Tabs - Glassmorphic */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-4 border-2 border-border/20 bg-gradient-to-r from-card/80 via-card/60 to-card/80 backdrop-blur-2xl p-1 h-auto">
+                <TabsTrigger
+                  value="connections"
+                  className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 rounded-lg py-3"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span className="hidden sm:inline">Connections</span>
+                  <Badge variant="secondary" className="ml-1 bg-background/50">
+                    {filteredConnections.length}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="pending"
+                  className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 rounded-lg py-3"
+                >
+                  <Clock className="w-4 h-4" />
+                  <span className="hidden sm:inline">Pending</span>
+                  <Badge variant="secondary" className="ml-1 bg-background/50">
+                    {pendingRequests.filter(req => req.type === 'received').length}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="sent"
+                  className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 rounded-lg py-3"
                 >
                   <UserPlus className="w-4 h-4" />
-                  Discover Developers
-                </Button>
-              </Card>
-            )}
-          </TabsContent>
+                  <span className="hidden sm:inline">Sent</span>
+                  <Badge variant="secondary" className="ml-1 bg-background/50">
+                    {pendingRequests.filter(req => req.type === 'sent').length}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="activity"
+                  className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 rounded-lg py-3"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="hidden sm:inline">Activity</span>
+                </TabsTrigger>
+              </TabsList>
 
-          {/* Pending Requests Tab */}
-          <TabsContent value="pending" className="space-y-6">
-            {pendingRequests.filter(req => req.type === 'received').length > 0 ? (
-              <>
-                {/* Select All Header */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Button
-                      onClick={handleSelectAll}
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedRequests.size === pendingRequests.filter(req => req.type === 'received').length && selectedRequests.size > 0}
-                        onChange={handleSelectAll}
-                        className="w-4 h-4"
-                      />
-                      Select All
-                    </Button>
-                    {selectedRequests.size > 0 && (
-                      <span className="text-sm text-muted-foreground">
-                        {selectedRequests.size} of {pendingRequests.filter(req => req.type === 'received').length} selected
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid gap-6">
-                  {pendingRequests
-                    .filter(req => req.type === 'received')
-                    .map((request, index) => (
-                      <PendingRequestCard
-                        key={request.id}
-                        request={request}
-                        onAccept={handleAcceptRequest}
-                        onDecline={handleDeclineRequest}
-                        onCancel={handleCancelRequest}
-                        onSelect={handleSelectRequest}
-                        isSelected={selectedRequests.has(request.id)}
-                        actionLoading={actionLoading}
-                        theme={theme}
-                        index={index}
-                      />
-                    ))}
-                </div>
-              </>
-            ) : (
-              <Card className={cn(
-                "p-12 text-center border-2 backdrop-blur-xl",
-                theme === 'light' 
-                  ? "bg-white/80 border-black/5" 
-                  : "bg-zinc-950/80 border-white/5"
-              )}>
-                <div className={cn(
-                  "w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center",
-                  theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
-                )}>
-                  <Clock className={cn(
-                    "w-10 h-10",
-                    theme === 'light' ? "text-zinc-400" : "text-zinc-600"
-                  )} />
-                </div>
-                <h3 className={cn(
-                  "text-xl font-semibold mb-3",
-                  theme === 'light' ? "text-zinc-900" : "text-white"
-                )}>
-                  No pending requests
-                </h3>
-                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                  You don't have any pending connection requests at the moment.
-                </p>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Sent Requests Tab */}
-          <TabsContent value="sent" className="space-y-6">
-            {pendingRequests.filter(req => req.type === 'sent').length > 0 ? (
-              <>
-                {/* Select All Header */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Button
-                      onClick={handleSelectAll}
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedRequests.size === pendingRequests.filter(req => req.type === 'sent').length && selectedRequests.size > 0}
-                        onChange={handleSelectAll}
-                        className="w-4 h-4"
-                      />
-                      Select All
-                    </Button>
-                    {selectedRequests.size > 0 && (
-                      <span className="text-sm text-muted-foreground">
-                        {selectedRequests.size} of {pendingRequests.filter(req => req.type === 'sent').length} selected
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className={cn(
-                  "grid gap-6",
-                  viewMode === 'grid' 
-                    ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
-                    : "grid-cols-1"
-                )}>
-                  {pendingRequests
-                    .filter(req => req.type === 'sent')
-                    .map((request, index) => (
-                      <SentRequestCard
-                        key={request.id}
-                        request={request}
-                        onCancel={handleCancelRequest}
-                        onSelect={handleSelectRequest}
-                        isSelected={selectedRequests.has(request.id)}
+              {/* Connections Tab */}
+              <TabsContent value="connections" className="space-y-6 mt-6">
+                {filteredConnections.length > 0 ? (
+                  <div className={cn(
+                    "grid gap-6",
+                    viewMode === 'grid'
+                      ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                      : "grid-cols-1"
+                  )}>
+                    {filteredConnections.map((connection, index) => (
+                      <ConnectionCard
+                        key={connection.user.user_id}
+                        connection={connection}
+                        onUnfriend={handleUnfriend}
                         actionLoading={actionLoading}
                         viewMode={viewMode}
-                        theme={theme}
                         index={index}
                       />
                     ))}
-                </div>
-              </>
-            ) : (
-              <Card className={cn(
-                "p-12 text-center border-2 backdrop-blur-xl",
-                theme === 'light' 
-                  ? "bg-white/80 border-black/5" 
-                  : "bg-zinc-950/80 border-white/5"
-              )}>
-                <div className={cn(
-                  "w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center",
-                  theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
-                )}>
-                  <UserPlus className={cn(
-                    "w-10 h-10",
-                    theme === 'light' ? "text-zinc-400" : "text-zinc-600"
-                  )} />
-                </div>
-                <h3 className={cn(
-                  "text-xl font-semibold mb-3",
-                  theme === 'light' ? "text-zinc-900" : "text-white"
-                )}>
-                  No sent requests
-                </h3>
-                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                  You haven't sent any connection requests yet.
-                </p>
-                <Button
-                  onClick={() => router.push('/discover')}
-                  className="gap-2"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Find People to Connect With
-                </Button>
-              </Card>
-            )}
-          </TabsContent>
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={Users}
+                    title={activeFiltersCount > 0 ? "No connections match your filters" : "No connections yet"}
+                    description={activeFiltersCount > 0
+                      ? "Try adjusting your filters to see more results"
+                      : "Start building your network by discovering and connecting with other developers"
+                    }
+                    action={activeFiltersCount > 0 ? (
+                      <Button onClick={clearAllFilters} className="gap-2">
+                        <X className="w-4 h-4" />
+                        Clear Filters
+                      </Button>
+                    ) : (
+                      <Button onClick={() => router.push('/discover')} className="gap-2 bg-gradient-to-r from-brand to-purple-500 hover:opacity-90">
+                        <UserPlus className="w-4 h-4" />
+                        Discover Developers
+                      </Button>
+                    )}
+                  />
+                )}
+              </TabsContent>
 
-          {/* Activity Tab */}
-          <TabsContent value="activity" className="space-y-6">
-            <ActivityFeed />
-          </TabsContent>
-        </Tabs>
+              {/* Pending Requests Tab */}
+              <TabsContent value="pending" className="space-y-6 mt-6">
+                {pendingRequests.filter(req => req.type === 'received').length > 0 ? (
+                  <div className="grid gap-6">
+                    {pendingRequests
+                      .filter(req => req.type === 'received')
+                      .map((request, index) => (
+                        <PendingRequestCard
+                          key={request.id}
+                          request={request}
+                          onAccept={handleAcceptRequest}
+                          onDecline={handleDeclineRequest}
+                          onCancel={handleCancelRequest}
+                          actionLoading={actionLoading}
+                          index={index}
+                        />
+                      ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={Clock}
+                    title="No pending requests"
+                    description="You don't have any pending connection requests at the moment"
+                  />
+                )}
+              </TabsContent>
+
+              {/* Sent Requests Tab */}
+              <TabsContent value="sent" className="space-y-6 mt-6">
+                {pendingRequests.filter(req => req.type === 'sent').length > 0 ? (
+                  <div className={cn(
+                    "grid gap-6",
+                    viewMode === 'grid'
+                      ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                      : "grid-cols-1"
+                  )}>
+                    {pendingRequests
+                      .filter(req => req.type === 'sent')
+                      .map((request, index) => (
+                        <SentRequestCard
+                          key={request.id}
+                          request={request}
+                          onCancel={handleCancelRequest}
+                          onSelect={() => {}}
+                          isSelected={false}
+                          actionLoading={actionLoading}
+                          viewMode={viewMode}
+                          theme="dark"
+                          index={index}
+                        />
+                      ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={UserPlus}
+                    title="No sent requests"
+                    description="You haven't sent any connection requests yet"
+                    action={
+                      <Button onClick={() => router.push('/discover')} className="gap-2 bg-gradient-to-r from-brand to-purple-500 hover:opacity-90">
+                        <UserPlus className="w-4 h-4" />
+                        Find People to Connect With
+                      </Button>
+                    }
+                  />
+                )}
+              </TabsContent>
+
+              {/* Activity Tab */}
+              <TabsContent value="activity" className="space-y-6 mt-6">
+                <ActivityFeed />
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
       </main>
     </div>
   );
 }
 
-// Connection Card Component
-function ConnectionCard({ 
-  connection, 
-  onUnfriend, 
-  actionLoading, 
-  viewMode, 
-  theme, 
-  index 
+// iOS 26-Style Connection Card
+function ConnectionCard({
+  connection,
+  onUnfriend,
+  actionLoading,
+  viewMode,
+  index
 }: {
   connection: ConnectionData;
   onUnfriend: (userId: string) => void;
   actionLoading: string | null;
   viewMode: 'grid' | 'list';
-  theme: string | undefined;
   index: number;
 }) {
   const [showActions, setShowActions] = useState(false);
 
-  return (
-    <Card className={cn(
-      "p-6 border-2 backdrop-blur-xl transition-all duration-300 hover:shadow-lg animate-in fade-in-0 slide-in-from-bottom-4",
-      theme === 'light' 
-        ? "bg-white/80 border-black/5 hover:border-blue-500/20" 
-        : "bg-zinc-950/80 border-white/5 hover:border-blue-500/20",
-      viewMode === 'list' && "flex items-center gap-4"
-    )} style={{ animationDelay: `${index * 50}ms` }}>
-      <div className={cn("flex items-start gap-4", viewMode === 'list' && "flex-1")}>
-        {/* Avatar */}
-        <div className="relative flex-shrink-0">
-          <div className={cn(
-            "w-12 h-12 rounded-xl flex items-center justify-center text-lg font-semibold shadow-lg",
-            "bg-gradient-to-br from-brand to-orange-300 text-white shadow-brand/20"
-          )}>
-            {connection.user.avatar_url ? (
-              <img
-                src={connection.user.avatar_url}
-                alt={connection.user.full_name || connection.user.username || 'User'}
-                className="w-full h-full object-cover rounded-xl"
-                onError={(e) => {
-                  console.log('Connection avatar image failed to load:', connection.user.avatar_url);
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            ) : (
-              (connection.user.full_name || connection.user.username || 'U').charAt(0).toUpperCase()
-            )}
-          </div>
-          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
-        </div>
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
 
-        {/* User Info */}
-        <div className={cn("flex-1 min-w-0", viewMode === 'list' && "flex items-center justify-between")}>
-          <div className="min-w-0">
-            <h3 className={cn(
-              "font-semibold text-lg truncate",
-              theme === 'light' ? "text-zinc-900" : "text-white"
-            )}>
+  return (
+    <Link href={`/profile/${connection.user.username}`}>
+      <Card className={cn(
+        "group relative p-5 border-2 border-border/20 bg-gradient-to-br from-card/70 via-card/50 to-transparent backdrop-blur-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 animate-in fade-in-0 slide-in-from-bottom-4 hover:scale-[1.02] cursor-pointer",
+        viewMode === 'list' && "flex items-center gap-4"
+      )} style={{ animationDelay: `${index * 50}ms` }}>
+        {/* Hover gradient effect */}
+        <div className="absolute inset-0 bg-gradient-to-br from-brand/10 via-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl" />
+
+        <div className={cn("relative flex items-start gap-4", viewMode === 'list' && "flex-1")}>
+          {/* Avatar with glassmorphic border */}
+          <div className="relative flex-shrink-0">
+            <div className="absolute inset-0 bg-gradient-to-br from-brand via-purple-500 to-cyan-500 rounded-2xl blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
+            <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl">
+              {connection.user.avatar_url ? (
+                <Image
+                  src={connection.user.avatar_url}
+                  alt={connection.user.full_name || 'User'}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-brand to-purple-500 flex items-center justify-center text-white font-bold text-lg">
+                  {getInitials(connection.user.full_name || connection.user.username || 'U')}
+                </div>
+              )}
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-background shadow-lg" />
+          </div>
+
+          {/* User Info */}
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-lg truncate group-hover:text-brand transition-colors">
               {connection.user.full_name || connection.user.username || 'Anonymous'}
             </h3>
-            <p className={cn(
-              "text-sm truncate",
-              theme === 'light' ? "text-zinc-600" : "text-zinc-400"
-            )}>
+            <p className="text-sm text-muted-foreground truncate">
               @{connection.user.username || 'user'}
             </p>
-            {connection.user.job_title && (
-              <p className={cn(
-                "text-xs mt-1",
-                theme === 'light' ? "text-zinc-500" : "text-zinc-500"
-              )}>
-                {connection.user.job_title}
-              </p>
-            )}
-          </div>
 
-          {/* Stats */}
-          <div className={cn(
-            "flex items-center gap-4 mt-3",
-            viewMode === 'list' && "mt-0"
-          )}>
-            <div className="text-center">
-              <div className={cn(
-                "text-lg font-semibold",
-                theme === 'light' ? "text-zinc-900" : "text-white"
-              )}>
-                {connection.mutual_connections}
-              </div>
-              <div className={cn(
-                "text-xs",
-                theme === 'light' ? "text-zinc-500" : "text-zinc-500"
-              )}>
-                Mutual
-              </div>
+            {/* Metadata Pills */}
+            <div className="flex flex-wrap gap-2 mt-3">
+              {connection.user.university && (
+                <Badge variant="secondary" className="text-xs bg-brand/10 text-brand border-brand/30">
+                  <GraduationCap className="w-3 h-3 mr-1" />
+                  {connection.user.university}
+                  {connection.user.graduation_year && ` '${connection.user.graduation_year.slice(-2)}`}
+                </Badge>
+              )}
+              {connection.user.company && (
+                <Badge variant="secondary" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                  <Building2 className="w-3 h-3 mr-1" />
+                  {connection.user.company}
+                </Badge>
+              )}
+              {connection.user.location && (
+                <Badge variant="secondary" className="text-xs bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30">
+                  <MapPin className="w-3 h-3 mr-1" />
+                  {connection.user.location}
+                </Badge>
+              )}
             </div>
-            <div className="text-center">
-              <div className={cn(
-                "text-lg font-semibold",
-                theme === 'light' ? "text-zinc-900" : "text-white"
-              )}>
-                {connection.user.total_solved || 0}
-              </div>
-              <div className={cn(
-                "text-xs",
-                theme === 'light' ? "text-zinc-500" : "text-zinc-500"
-              )}>
-                Solved
-              </div>
+
+            {/* Stats */}
+            <div className="flex items-center gap-4 mt-3 text-sm">
+              {connection.mutual_connections > 0 && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Users className="w-4 h-4" />
+                  <span>{connection.mutual_connections} mutual</span>
+                </div>
+              )}
+              {connection.user.total_solved && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Trophy className="w-4 h-4" />
+                  <span>{connection.user.total_solved} solved</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
-
-        {/* Actions */}
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowActions(!showActions)}
-            className="p-2"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </Button>
-
-          {showActions && (
-            <div className={cn(
-              "absolute right-0 top-8 w-48 p-2 rounded-lg border-2 backdrop-blur-xl shadow-lg z-10",
-              theme === 'light' 
-                ? "bg-white/90 border-black/5" 
-                : "bg-zinc-900/90 border-white/5"
-            )}>
-              <button
-                onClick={() => {
-                  onUnfriend(connection.user.user_id);
-                  setShowActions(false);
-                }}
-                disabled={actionLoading === connection.user.user_id}
-                className={cn(
-                  "w-full p-2 text-left text-sm rounded-md transition-colors",
-                  theme === 'light' 
-                    ? "text-red-600 hover:bg-red-50" 
-                    : "text-red-400 hover:bg-red-500/10"
-                )}
-              >
-                {actionLoading === connection.user.user_id ? 'Removing...' : 'Remove Connection'}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </Card>
+      </Card>
+    </Link>
   );
 }
 
-// Pending Request Card Component
-function PendingRequestCard({ 
-  request, 
-  onAccept, 
-  onDecline, 
-  onCancel, 
-  onSelect,
-  isSelected,
-  actionLoading, 
-  theme, 
-  index 
+// iOS 26-Style Pending Request Card
+function PendingRequestCard({
+  request,
+  onAccept,
+  onDecline,
+  onCancel,
+  actionLoading,
+  index
 }: {
   request: PendingRequest;
   onAccept: (requestId: string, userId: string) => void;
   onDecline: (requestId: string, userId: string) => void;
   onCancel: (requestId: string) => void;
-  onSelect?: (requestId: string) => void;
-  isSelected?: boolean;
   actionLoading: string | null;
-  theme: string | undefined;
   index: number;
 }) {
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   return (
-    <Card className={cn(
-      "p-6 border-2 backdrop-blur-xl transition-all duration-300 hover:shadow-lg animate-in fade-in-0 slide-in-from-bottom-4",
-      theme === 'light' 
-        ? "bg-white/80 border-black/5 hover:border-blue-500/20" 
-        : "bg-zinc-950/80 border-white/5 hover:border-blue-500/20",
-      isSelected && "ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-500/10"
-    )} style={{ animationDelay: `${index * 50}ms` }}>
-      <div className="flex items-center gap-4">
-        {/* Selection Checkbox */}
-        {onSelect && (
-          <input
-            type="checkbox"
-            checked={isSelected || false}
-            onChange={() => onSelect(request.id)}
-            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-          />
-        )}
+    <Card className="group relative p-5 border-2 border-border/20 bg-gradient-to-br from-card/70 via-card/50 to-transparent backdrop-blur-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 animate-in fade-in-0 slide-in-from-bottom-4" style={{ animationDelay: `${index * 50}ms` }}>
+      <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+      <div className="relative flex items-center gap-4">
         {/* Avatar */}
         <div className="relative flex-shrink-0">
-          <div className={cn(
-            "w-12 h-12 rounded-xl flex items-center justify-center text-lg font-semibold shadow-lg",
-            "bg-gradient-to-br from-brand to-orange-300 text-white shadow-brand/20"
-          )}>
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 rounded-2xl blur-md opacity-50" />
+          <div className="relative w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl">
             {request.user.avatar_url ? (
-              <img
+              <Image
                 src={request.user.avatar_url}
-                alt={request.user.full_name || request.user.username || 'User'}
-                className="w-full h-full object-cover rounded-xl"
-                onError={(e) => {
-                  console.log('Pending request avatar image failed to load:', request.user.avatar_url);
-                  e.currentTarget.style.display = 'none';
-                }}
+                alt={request.user.full_name || 'User'}
+                fill
+                className="object-cover"
               />
             ) : (
-              (request.user.full_name || request.user.username || 'U').charAt(0).toUpperCase()
+              <div className="w-full h-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white font-bold text-base">
+                {getInitials(request.user.full_name || request.user.username || 'U')}
+              </div>
             )}
           </div>
-          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-background"></div>
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-amber-500 rounded-full border-2 border-background shadow-lg animate-pulse" />
         </div>
 
         {/* User Info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className={cn(
-              "font-semibold text-lg truncate",
-              theme === 'light' ? "text-zinc-900" : "text-white"
-            )}>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-base truncate">
               {request.user.full_name || request.user.username || 'Anonymous'}
             </h3>
-            <Badge variant="secondary" className="text-xs">
-              {request.type === 'received' ? 'Received' : 'Sent'}
-            </Badge>
           </div>
-          <p className={cn(
-            "text-sm truncate",
-            theme === 'light' ? "text-zinc-600" : "text-zinc-400"
-          )}>
+          <p className="text-sm text-muted-foreground truncate">
             @{request.user.username || 'user'}
           </p>
           {request.message && (
-            <p className={cn(
-              "text-sm mt-2 italic",
-              theme === 'light' ? "text-zinc-500" : "text-zinc-500"
-            )}>
+            <p className="text-sm mt-2 italic text-muted-foreground line-clamp-2">
               "{request.message}"
             </p>
           )}
@@ -1082,19 +955,19 @@ function PendingRequestCard({
             <>
               <Button
                 size="sm"
-                onClick={() => onAccept(request.id, request.user.user_id)}
+                onClick={(e) => { e.stopPropagation(); onAccept(request.id, request.user.user_id); }}
                 disabled={actionLoading === request.id}
-                className="gap-2 bg-green-500 hover:bg-green-600 text-white"
+                className="gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg"
               >
                 <Check className="w-4 h-4" />
-                {actionLoading === request.id ? 'Accepting...' : 'Accept'}
+                Accept
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onDecline(request.id, request.user.user_id)}
+                onClick={(e) => { e.stopPropagation(); onDecline(request.id, request.user.user_id); }}
                 disabled={actionLoading === request.id}
-                className="gap-2 text-red-600 hover:bg-red-50"
+                className="gap-2 border-red-500/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
               >
                 <X className="w-4 h-4" />
                 Decline
@@ -1104,15 +977,41 @@ function PendingRequestCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => onCancel(request.id)}
+              onClick={(e) => { e.stopPropagation(); onCancel(request.id); }}
               disabled={actionLoading === request.id}
-              className="gap-2 text-zinc-600 hover:bg-zinc-100"
             >
               <X className="w-4 h-4" />
-              {actionLoading === request.id ? 'Canceling...' : 'Cancel'}
+              Cancel
             </Button>
           )}
         </div>
+      </div>
+    </Card>
+  );
+}
+
+// Empty State Component
+function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action
+}: {
+  icon: any;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <Card className="relative p-12 text-center border-2 border-border/20 bg-gradient-to-br from-card/70 via-card/50 to-transparent backdrop-blur-xl overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-muted/10 to-transparent" />
+      <div className="relative">
+        <div className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-muted/30 to-muted/10 backdrop-blur-sm">
+          <Icon className="w-10 h-10 text-muted-foreground/50" />
+        </div>
+        <h3 className="text-xl font-semibold mb-3">{title}</h3>
+        <p className="text-muted-foreground mb-6 max-w-md mx-auto">{description}</p>
+        {action}
       </div>
     </Card>
   );

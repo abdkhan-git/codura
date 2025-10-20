@@ -16,12 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Settings, Search, CheckCircle2 } from "lucide-react";
+import { Settings, CheckCircle2 } from "lucide-react";
 import { UserProfile } from "@/types/database";
 import Image from "next/image";
 import { AvatarCropDialog } from "@/components/avatar-crop-dialog";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { CompanyAutocomplete } from "@/components/ui/company-autocomplete";
+import { LocationAutocomplete } from "@/components/ui/location-autocomplete";
 
 const profileSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(30).optional().or(z.literal("")),
@@ -29,6 +30,7 @@ const profileSchema = z.object({
   bio: z.string().max(500).optional().or(z.literal("")),
   university: z.string().max(100).optional().or(z.literal("")),
   graduation_year: z.string().max(4).optional().or(z.literal("")),
+  company: z.string().max(100).optional().or(z.literal("")),
   location: z.string().max(100).optional().or(z.literal("")),
   job_title: z.string().max(100).optional().or(z.literal("")),
   website: z.string().url("Must be a valid URL").optional().or(z.literal("")),
@@ -69,6 +71,12 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
   const [selectedUniversity, setSelectedUniversity] = useState<School | null>(null);
   const universityAbortRef = useRef<AbortController | null>(null);
 
+  // Company state
+  const [company, setCompany] = useState(profile?.company || "");
+
+  // Location state
+  const [location, setLocation] = useState(profile?.location || "");
+
   const {
     register,
     handleSubmit,
@@ -82,6 +90,7 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
       bio: profile?.bio || "",
       university: profile?.university || "",
       graduation_year: profile?.graduation_year || "",
+      company: profile?.company || "",
       location: profile?.location || "",
       job_title: profile?.job_title || "",
       website: profile?.website || "",
@@ -143,6 +152,7 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
         bio: profile.bio || "",
         university: profile.university || "",
         graduation_year: profile.graduation_year || "",
+        company: profile.company || "",
         location: profile.location || "",
         job_title: profile.job_title || "",
         website: profile.website || "",
@@ -150,6 +160,8 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
         linkedin_username: profile.linkedin_username || "",
       });
       setUniversityQuery(profile.university || "");
+      setCompany(profile.company || "");
+      setLocation(profile.location || "");
     }
   }, [open, profile, reset]);
 
@@ -253,6 +265,8 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
         body: JSON.stringify({
           ...data,
           university: selectedUniversity ? selectedUniversity.name : universityQuery,
+          company: company,
+          location: location,
           avatar_url: avatarUrl,
         }),
       });
@@ -413,9 +427,8 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
                     placeholder="Search for your university..."
                     value={universityQuery}
                     onChange={handleUniversityInputChange}
-                    className="bg-zinc-950 border-zinc-800 pr-8"
+                    className="bg-zinc-950 border-zinc-800"
                   />
-                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
                   
                   {/* University Dropdown */}
                   {showUniversityDropdown && (
@@ -486,17 +499,30 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  placeholder="San Francisco, CA"
-                  {...register("location")}
+                <Label htmlFor="company">Company</Label>
+                <CompanyAutocomplete
+                  value={company}
+                  onValueChange={setCompany}
+                  placeholder="Search for your company..."
                   className="bg-zinc-950 border-zinc-800"
                 />
-                {errors.location && (
-                  <p className="text-sm text-red-500">{errors.location.message}</p>
+                {errors.company && (
+                  <p className="text-sm text-red-500">{errors.company.message}</p>
                 )}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <LocationAutocomplete
+                value={location}
+                onValueChange={setLocation}
+                placeholder="Search worldwide locations..."
+                className="bg-zinc-950 border-zinc-800"
+              />
+              {errors.location && (
+                <p className="text-sm text-red-500">{errors.location.message}</p>
+              )}
             </div>
           </div>
 
