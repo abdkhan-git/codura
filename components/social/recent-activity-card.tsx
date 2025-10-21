@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
-  MessageCircle,
+  MessageSquare,
   Heart,
   Clock,
   Reply,
@@ -69,7 +69,7 @@ export function RecentActivityCard({ userId, username, className }: RecentActivi
 
   const getActivityIcon = (type: string) => {
     switch (type) {
-      case 'post': return <MessageCircle className="w-4 h-4" />;
+      case 'post': return <MessageSquare className="w-4 h-4" />;
       case 'like': return <Heart className="w-4 h-4" />;
       case 'comment': return <Reply className="w-4 h-4" />;
       case 'repost': return <Repeat className="w-4 h-4" />;

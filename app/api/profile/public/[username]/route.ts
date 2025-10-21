@@ -24,6 +24,46 @@ export async function GET(
     const userId = userData.user_id;
     const isPublic = userData.is_public ?? true; // Default to public if not set
 
+    // Get current authenticated user (if any)
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+    // Check connection status with current user
+    let connectionStatus: 'none' | 'pending_sent' | 'pending_received' | 'connected' = 'none';
+    if (currentUser && currentUser.id !== userId) {
+      console.log(`Checking connection status between ${currentUser.id} and ${userId}`);
+      
+      // Check for connection in either direction
+      const { data: connections, error: connectionError } = await supabase
+        .from('connections')
+        .select('from_user_id, to_user_id, status')
+        .or(`and(from_user_id.eq.${currentUser.id},to_user_id.eq.${userId}),and(from_user_id.eq.${userId},to_user_id.eq.${currentUser.id})`);
+
+      if (connectionError) {
+        console.error('Error fetching connection status:', connectionError);
+      } else {
+        console.log('Connection query result:', connections);
+      }
+
+      // Should only be one connection between two users
+      const connection = connections?.[0];
+
+      if (connection) {
+        console.log('Found connection:', connection);
+        if (connection.status === 'accepted') {
+          connectionStatus = 'connected';
+        } else if (connection.status === 'pending') {
+          // Check who sent the request
+          if (connection.from_user_id === currentUser.id) {
+            connectionStatus = 'pending_sent';
+          } else {
+            connectionStatus = 'pending_received';
+          }
+        }
+      } else {
+        console.log('No connection found between users');
+      }
+    }
+
     // Fetch user stats
     const { data: stats, error: statsError } = await supabase
       .from('user_stats')
@@ -165,23 +205,32 @@ export async function GET(
     };
 
     // For private profiles, return limited data but with indicators
+    // If connected, treat profile as public for data access
+    const isConnected = connectionStatus === 'connected';
+    const shouldShowFullData = isPublic || isConnected;
+
     return NextResponse.json({
+      user: {
+        id: userId, // Add user.id for ConnectionStatusButton
+      },
       profile: {
         ...userData,
         is_public: isPublic,
+        connection_status: connectionStatus,
       },
       stats: statsData,
       // Submissions: return all for contribution graph, but frontend will handle display
       submissions: submissions || [],
-      // Achievements: full for public, top 3 for private
-      achievements: achievementsToReturn,
+      // Achievements: full for public/connected, top 3 for private
+      achievements: shouldShowFullData ? formattedAchievements : achievementsToReturn,
       achievementSummary: {
         ...achievementSummary,
         // Total count is always visible
         total_achievements: formattedAchievements.length,
       },
       publicLists: publicListsWithCounts,
-      isPrivate: !isPublic, // Helper flag for frontend
+      isPrivate: !shouldShowFullData, // Helper flag for frontend - false if connected
+      connectionStatus, // Include at top level for easy access
     });
   } catch (error) {
     console.error('Error in public profile GET:', error);

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { Send, MessageCircle, Loader2, Code, Bug, BookOpen, Zap } from 'lucide-react'
+import { Send, MessageSquare, Loader2, Code, Bug, BookOpen, Zap } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'ai'
@@ -374,7 +374,7 @@ function LockedState() {
   return (
     <div className="h-full flex flex-col items-center justify-center bg-zinc-950 border-l border-zinc-800 p-8">
       <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mb-4">
-        <MessageCircle className="w-8 h-8 text-zinc-600" />
+        <MessageSquare className="w-8 h-8 text-zinc-600" />
       </div>
       <h3 className="text-lg font-semibold text-zinc-300 mb-2">Submit Your Code First</h3>
       <p className="text-sm text-zinc-500 text-center max-w-xs">
@@ -401,7 +401,7 @@ function EmptyState() {
   return (
     <div className="text-center py-12 px-4">
       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center mx-auto mb-4">
-        <MessageCircle className="w-6 h-6 text-blue-400" />
+        <MessageSquare className="w-6 h-6 text-blue-400" />
       </div>
       <p className="text-zinc-300 text-sm font-medium mb-2">Waiting for analysis...</p>
       <p className="text-xs text-zinc-500">The AI is reviewing your submission</p>

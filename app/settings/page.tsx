@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { X, Bell, Mail, Smartphone, Users, MessageCircle, BookOpen, Trophy, Zap, Clock, Save, Check } from "lucide-react";
+import { X, Bell, Mail, Smartphone, Users, MessageSquare, BookOpen, Trophy, Zap, Clock, Save, Check } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import dynamic from 'next/dynamic';
 import { toast } from "sonner";
@@ -812,14 +812,14 @@ export default function SettingsPage() {
                 >
                   <CardHeader>
                     <CardTitle className="text-xl flex items-center gap-3">
-                      <MessageCircle className="w-5 h-5 text-brand" />
+                      <MessageSquare className="w-5 h-5 text-brand" />
                       Activity Notifications
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <MessageCircle className="w-5 h-5 text-muted-foreground" />
+                        <MessageSquare className="w-5 h-5 text-muted-foreground" />
                         <div>
                           <Label className="text-sm font-medium">Activity Reactions</Label>
                           <p className="text-xs text-muted-foreground">When someone reacts to your activities</p>
@@ -833,7 +833,7 @@ export default function SettingsPage() {
 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <MessageCircle className="w-5 h-5 text-muted-foreground" />
+                        <MessageSquare className="w-5 h-5 text-muted-foreground" />
                         <div>
                           <Label className="text-sm font-medium">Activity Comments</Label>
                           <p className="text-xs text-muted-foreground">When someone comments on your activities</p>

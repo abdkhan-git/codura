@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/tabs";
 import {
   ArrowLeft,
-  MessageCircle,
+  MessageSquare,
   Heart,
   Repeat,
   Calendar,
@@ -73,9 +73,9 @@ export default function PostsActivityPage() {
   // Activity type filters - Social Feed only
   const activityFilters = [
     { value: 'all', label: 'All Activity', icon: Calendar },
-    { value: 'posts', label: 'Posts', icon: MessageCircle },
+    { value: 'posts', label: 'Posts', icon: MessageSquare },
     { value: 'likes', label: 'Likes', icon: Heart },
-    { value: 'comments', label: 'Comments', icon: MessageCircle },
+    { value: 'comments', label: 'Comments', icon: MessageSquare },
     { value: 'reposts', label: 'Reposts', icon: Repeat },
   ];
 
@@ -164,11 +164,11 @@ export default function PostsActivityPage() {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'post':
-        return MessageCircle;
+        return MessageSquare;
       case 'like':
         return Heart;
       case 'comment':
-        return MessageCircle;
+        return MessageSquare;
       case 'repost':
         return Repeat;
       default:
@@ -249,7 +249,7 @@ export default function PostsActivityPage() {
                 "bg-gradient-to-br from-red-500/10 to-orange-500/10",
                 "border-2 border-red-500/20"
               )}>
-                <MessageCircle className="w-10 h-10 text-red-500" />
+                <MessageSquare className="w-10 h-10 text-red-500" />
               </div>
               <h3 className="text-xl font-bold mb-2">User Not Found</h3>
               <p className="text-muted-foreground mb-6">

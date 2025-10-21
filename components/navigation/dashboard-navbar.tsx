@@ -16,7 +16,7 @@ import {
   ChevronDown,
   Calendar,
   Search,
-  MessageCircle,
+  MessageSquare,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -214,6 +214,28 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               </DropdownMenuItem>
 
               <DropdownMenuItem asChild className="relative z-10">
+                <Link
+                  href="/messages"
+                  className="flex w-full items-center gap-3 px-3 py-2 cursor-pointer rounded-lg group"
+                >
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:scale-110",
+                    currentTheme === 'light'
+                      ? "bg-gradient-to-br from-blue-500 to-purple-500 shadow-lg shadow-blue-500/25"
+                      : "bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg shadow-blue-500/25"
+                  )}>
+                    <MessageSquare className="w-4 h-4 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="text-sm font-medium">Messages</p>
+                    <p className={cn("text-xs", currentTheme === 'light' ? "text-zinc-500" : "text-zinc-400")}>
+                      Chat with connections
+                    </p>
+                  </div>
+                </Link>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem asChild className="relative z-10">
                 <Link href="/network/feed" className="flex items-center gap-3 px-3 py-2 cursor-pointer rounded-lg group">
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:scale-110",
@@ -221,7 +243,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                       ? "bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/25"
                       : "bg-gradient-to-br from-blue-600 to-cyan-600 shadow-lg shadow-blue-500/25"
                   )}>
-                    <MessageCircle className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    <MessageSquare className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">Social Feed</p>
@@ -348,7 +370,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                     : "text-zinc-300 hover:text-white hover:from-zinc-800 hover:to-zinc-900"
                 )}
               >
-                <MessageCircle className="w-4 h-4" />
+                <MessageSquare className="w-4 h-4" />
                 <span className="relative z-10">Community</span>
                 <ChevronDown className="w-3.5 h-3.5 opacity-50" />
                 {/* Underglow effect */}
@@ -404,7 +426,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                       ? "bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25"
                       : "bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/25"
                   )}>
-                    <MessageCircle className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    <MessageSquare className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">Discuss</p>
@@ -499,7 +521,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               <div className="space-y-1 relative z-10">
                 <DropdownMenuItem asChild>
                   <Link
-                    href={`/profile/${user?.username || ''}`}
+                    href={user?.username ? `/profile/${user.username}` : '/settings'}
                     className="flex items-center gap-3 px-3 py-2 cursor-pointer rounded-lg group"
                   >
                     <div className={cn(

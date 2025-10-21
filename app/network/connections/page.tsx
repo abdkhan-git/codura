@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { ActivityFeed } from "@/components/social/activity-feed";
 import type { UserSearchResult } from "@/types/database";
 import { SentRequestCard } from "@/components/social/sent-request-card";
+import { MessageUserButton } from "@/components/messaging/message-user-button";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -797,18 +798,18 @@ function ConnectionCard({
   };
 
   return (
-    <Link href={`/profile/${connection.user.username}`}>
-      <Card className={cn(
-        "group relative p-5 border-2 border-border/20 bg-gradient-to-br from-card/70 via-card/50 to-transparent backdrop-blur-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 animate-in fade-in-0 slide-in-from-bottom-4 hover:scale-[1.02] cursor-pointer",
-        viewMode === 'list' && "flex items-center gap-4"
-      )} style={{ animationDelay: `${index * 50}ms` }}>
-        {/* Hover gradient effect */}
-        <div className="absolute inset-0 bg-gradient-to-br from-brand/10 via-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-        <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl" />
+    <Card className={cn(
+      "group relative p-5 border-2 border-border/20 bg-gradient-to-br from-card/70 via-card/50 to-transparent backdrop-blur-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 animate-in fade-in-0 slide-in-from-bottom-4",
+      viewMode === 'list' && "flex items-center gap-4"
+    )} style={{ animationDelay: `${index * 50}ms` }}>
+      {/* Hover gradient effect */}
+      <div className="absolute inset-0 bg-gradient-to-br from-brand/10 via-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl" />
 
-        <div className={cn("relative flex items-start gap-4", viewMode === 'list' && "flex-1")}>
+      <div className={cn("relative flex items-start gap-4", viewMode === 'list' && "flex-1")}>
+        <Link href={`/profile/${connection.user.username}`} className="contents">
           {/* Avatar with glassmorphic border */}
-          <div className="relative flex-shrink-0">
+          <div className="relative flex-shrink-0 cursor-pointer hover:scale-105 transition-transform">
             <div className="absolute inset-0 bg-gradient-to-br from-brand via-purple-500 to-cyan-500 rounded-2xl blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
             <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl">
               {connection.user.avatar_url ? (
@@ -874,10 +875,21 @@ function ConnectionCard({
                 </div>
               )}
             </div>
+
+            {/* Message Button */}
+            <div className="mt-3">
+              <MessageUserButton
+                userId={connection.user.user_id}
+                userName={connection.user.full_name || connection.user.username || undefined}
+                size="sm"
+                variant="outline"
+                className="w-full"
+              />
+            </div>
           </div>
-        </div>
-      </Card>
-    </Link>
+        </Link>
+      </div>
+    </Card>
   );
 }
 

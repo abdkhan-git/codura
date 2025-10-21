@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import { 
   Heart, 
-  MessageCircle, 
+  MessageSquare, 
   Share2, 
   MoreHorizontal,
   Send,
@@ -400,7 +400,7 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
                         size="sm"
                         className="gap-2"
                       >
-                        <MessageCircle className="w-4 h-4" />
+                        <MessageSquare className="w-4 h-4" />
                         {activity.comment_count}
                       </Button>
 

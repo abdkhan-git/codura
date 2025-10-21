@@ -34,7 +34,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  MessageCircle,
   Heart,
   Share2,
   MoreHorizontal,
@@ -500,7 +499,7 @@ export default function SocialFeedPage() {
                   ? "from-blue-500 to-cyan-500 shadow-blue-500/25 bg-white/20" 
                   : "from-blue-600 to-cyan-600 shadow-blue-500/25 bg-white/5"
               )}>
-                <MessageCircle className="w-6 h-6 text-white" />
+                <MessageSquare className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
@@ -721,7 +720,7 @@ export default function SocialFeedPage() {
                   "bg-gradient-to-br from-brand/10 to-purple-500/10",
                   "border-2 border-brand/20"
                 )}>
-                  <MessageCircle className={cn(
+                  <MessageSquare className={cn(
                     "w-12 h-12",
                     "text-brand"
                   )} />
@@ -1132,7 +1131,7 @@ function PostCard({
                   size="sm"
                   className="gap-2"
                 >
-                  <MessageCircle className="w-4 h-4" />
+                  <MessageSquare className="w-4 h-4" />
                   {post.comment_count}
                 </Button>
               </TooltipTrigger>

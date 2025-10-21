@@ -26,6 +26,8 @@ import {
   Users
 } from "lucide-react";
 import { EditProfileDialog } from "@/components/edit-profile-dialog";
+import { MessageUserButton } from "@/components/messaging/message-user-button";
+import { ConnectionStatusButton } from "@/components/connections/connection-status-button";
 import { UserProfile, UserStats, Submission } from "@/types/database";
 import RecentSubmissions from "@/components/RecentSubmissions";
 import ActivityCalendar from "react-activity-calendar";
@@ -73,6 +75,7 @@ interface ProfileData {
   achievementSummary: AchievementSummary;
   publicLists?: any[];
   isPrivate?: boolean;
+  connectionStatus?: 'none' | 'pending_sent' | 'pending_received' | 'connected';
 }
 
 const generateContributionData = (submissions: Submission[]) => {
@@ -360,6 +363,24 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
                   )}
                 </div>
                 <div className="flex gap-2">
+                  {!isOwnProfile && profileData.user?.id && (
+                    <>
+                      <ConnectionStatusButton
+                        userId={profileData.user.id}
+                        connectionStatus={profileData.connectionStatus || 'none'}
+                        onStatusChange={fetchProfile}
+                        size="sm"
+                      />
+                      {profileData.connectionStatus === 'connected' && (
+                        <MessageUserButton
+                          userId={profileData.user.id}
+                          userName={profile?.full_name || profile?.username || undefined}
+                          size="sm"
+                          variant="outline"
+                        />
+                      )}
+                    </>
+                  )}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button size="sm" variant="outline" className="gap-2 cursor-pointer" onClick={handleCopyProfileLink}>

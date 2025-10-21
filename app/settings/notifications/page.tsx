@@ -15,7 +15,7 @@ import {
   Mail, 
   Smartphone, 
   Users, 
-  MessageCircle, 
+  MessageSquare, 
   BookOpen, 
   Trophy, 
   Zap,
@@ -265,14 +265,14 @@ export default function NotificationSettingsPage() {
               : "bg-zinc-950/80 border-white/5"
           )}>
             <div className="flex items-center gap-3 mb-6">
-              <MessageCircle className="w-5 h-5 text-brand" />
+              <MessageSquare className="w-5 h-5 text-brand" />
               <h2 className="text-xl font-semibold text-foreground">Activity Notifications</h2>
             </div>
             
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <MessageCircle className="w-5 h-5 text-muted-foreground" />
+                  <MessageSquare className="w-5 h-5 text-muted-foreground" />
                   <div>
                     <Label className="text-sm font-medium">Activity Reactions</Label>
                     <p className="text-xs text-muted-foreground">When someone reacts to your activities</p>
@@ -286,7 +286,7 @@ export default function NotificationSettingsPage() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <MessageCircle className="w-5 h-5 text-muted-foreground" />
+                  <MessageSquare className="w-5 h-5 text-muted-foreground" />
                   <div>
                     <Label className="text-sm font-medium">Activity Comments</Label>
                     <p className="text-xs text-muted-foreground">When someone comments on your activities</p>
