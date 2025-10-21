@@ -23,93 +23,53 @@ export async function POST(
     }
 
     // Check if user is a member
-    const { data: membership } = await supabase
+    const { data: member, error: memberError } = await supabase
       .from('study_pod_members')
-      .select('role')
+      .select('*, study_pods!inner(created_by)')
       .eq('pod_id', podId)
       .eq('user_id', user.id)
-      .eq('status', 'active')
       .single();
 
-    if (!membership) {
+    if (memberError || !member) {
+      return NextResponse.json({ error: 'Not a member of this pod' }, { status: 404 });
+    }
+
+    // Check if user is the owner
+    if (member.role === 'owner') {
       return NextResponse.json(
-        { error: 'You are not a member of this study pod' },
+        { error: 'Pod owner cannot leave. Transfer ownership or delete the pod instead.' },
         { status: 400 }
       );
     }
 
-    // Check if user is the owner
-    const { data: pod } = await supabase
-      .from('study_pods')
-      .select('created_by, name, current_member_count')
-      .eq('id', podId)
-      .single();
-
-    if (pod?.created_by === user.id) {
-      // Owner leaving - check if there are other members
-      if (pod.current_member_count > 1) {
-        // Transfer ownership to oldest moderator or member
-        const { data: nextOwner } = await supabase
-          .from('study_pod_members')
-          .select('user_id, role')
-          .eq('pod_id', podId)
-          .eq('status', 'active')
-          .neq('user_id', user.id)
-          .order('role', { ascending: true }) // Prefer moderators
-          .order('joined_at', { ascending: true })
-          .limit(1)
-          .single();
-
-        if (nextOwner) {
-          // Promote next member to owner
-          await supabase
-            .from('study_pod_members')
-            .update({ role: 'owner', updated_at: new Date().toISOString() })
-            .eq('pod_id', podId)
-            .eq('user_id', nextOwner.user_id);
-
-          // Notify new owner
-          await supabase.from('notifications').insert({
-            user_id: nextOwner.user_id,
-            actor_id: user.id,
-            type: 'system_announcement',
-            notification_type: 'system_announcement',
-            title: 'You are now pod owner',
-            message: `You have been promoted to owner of ${pod.name}`,
-            link: `/study-pods/${podId}`,
-            metadata: { pod_id: podId },
-          });
-        }
-      } else {
-        // Last member leaving - archive the pod
-        await supabase
-          .from('study_pods')
-          .update({
-            status: 'archived',
-            archived_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', podId);
-      }
-    }
-
     // Update member status to 'left'
-    const { error: leaveError } = await supabase
+    const { error: updateError } = await supabase
       .from('study_pod_members')
-      .update({
-        status: 'left',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('pod_id', podId)
-      .eq('user_id', user.id);
+      .update({ status: 'left' })
+      .eq('id', member.id);
 
-    if (leaveError) {
-      console.error('Error leaving study pod:', leaveError);
+    if (updateError) {
+      console.error('Error leaving pod:', updateError);
       return NextResponse.json(
-        { error: 'Failed to leave study pod' },
+        { error: 'Failed to leave pod', details: updateError.message },
         { status: 500 }
       );
     }
+
+    // Get current member count
+    const { data: activeMembers } = await supabase
+      .from('study_pod_members')
+      .select('id')
+      .eq('pod_id', podId)
+      .eq('status', 'active');
+
+    const newCount = activeMembers?.length || 0;
+
+    // Update pod member count
+    await supabase
+      .from('study_pods')
+      .update({ current_member_count: newCount })
+      .eq('id', podId);
 
     // Create activity
     await supabase.from('study_pod_activities').insert({
@@ -117,17 +77,17 @@ export async function POST(
       user_id: user.id,
       activity_type: 'member_left',
       title: 'Member left',
-      description: 'Left the study pod',
+      description: 'A member left the pod',
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Successfully left the study pod',
+      message: 'Successfully left the pod',
     });
   } catch (error) {
-    console.error('Unexpected error leaving study pod:', error);
+    console.error('Unexpected error leaving pod:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

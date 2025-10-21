@@ -382,7 +382,7 @@ export function CreatePostModal({ open, onOpenChange, user, onPostCreated }: Cre
               {showEmojiPicker && (
                 <div className="p-3 border-2 rounded-lg bg-background">
                   <div className="grid grid-cols-8 gap-2">
-                    {['😀', '😂', '😍', '🥳', '👍', '❤️', '🔥', '💯', '🎉', '🚀', '💪', '⭐', '🎯', '💡', '🌟', '🎊', '✨', '🏆', '📚', '💻', '🤝', '👏', '🙌', '💪'].map((emoji) => (
+                    {['😀', '😂', '😍', '🥳', '👍', '❤️', '🔥', '💯', '🎉', '🚀', '💪', '⭐', '🎯', '💡', '🌟', '🎊', '✨', '🏆', '📚', '💻', '🤝', '👏', '🙌', '🎓'].map((emoji) => (
                       <button
                         key={emoji}
                         onClick={() => addEmoji(emoji)}

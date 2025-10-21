@@ -51,6 +51,34 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
   const buttonRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
 
+  // Load showButton state from localStorage on mount
+  useEffect(() => {
+    const savedState = localStorage.getItem("floatingMessengerVisible");
+    if (savedState !== null) {
+      setShowButton(JSON.parse(savedState));
+    }
+  }, []);
+
+  // Listen for toggle-messenger event to show/hide the button
+  useEffect(() => {
+    const handleToggleMessenger = () => {
+      setShowButton((prev) => {
+        const newState = !prev;
+        localStorage.setItem("floatingMessengerVisible", JSON.stringify(newState));
+        if (newState) {
+          setIsOpen(true);
+        }
+        return newState;
+      });
+    };
+
+    window.addEventListener("toggle-messenger" as any, handleToggleMessenger);
+
+    return () => {
+      window.removeEventListener("toggle-messenger" as any, handleToggleMessenger);
+    };
+  }, []);
+
   // Load conversations on mount
   useEffect(() => {
     if (isOpen) {
@@ -344,6 +372,7 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
             onClick={(e) => {
               e.stopPropagation();
               setShowButton(false);
+              localStorage.setItem("floatingMessengerVisible", "false");
             }}
             className={cn(
               "absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full z-10",
@@ -351,7 +380,7 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
               "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
               "shadow-lg"
             )}
-            title="Hide messenger"
+            title="Hide messenger (can restore from navbar)"
           >
             <X className="w-3 h-3" />
           </Button>

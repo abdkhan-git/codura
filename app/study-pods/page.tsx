@@ -112,10 +112,9 @@ export default function StudyPodsPage() {
 
   const handleJoinPod = async (podId: string) => {
     try {
-      const response = await fetch("/api/study-pods/join", {
+      const response = await fetch(`/api/study-pods/${podId}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pod_id: podId }),
       });
 
       const data = await response.json();
@@ -125,13 +124,15 @@ export default function StudyPodsPage() {
         return;
       }
 
-      if (data.status === "pending") {
-        toast.success(data.message);
+      if (data.requires_approval) {
+        toast.success(data.message || "Join request sent for approval");
       } else {
-        toast.success("Successfully joined the study pod!");
-        fetchPods();
-        fetchMyPods();
+        toast.success(data.message || "Successfully joined the study pod!");
       }
+
+      // Refresh pods list
+      fetchPods();
+      fetchMyPods();
     } catch (error) {
       console.error("Error joining pod:", error);
       toast.error("Failed to join pod");

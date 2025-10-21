@@ -49,29 +49,42 @@ export async function GET(
       );
     }
 
-    // Get all active members with user details
-    const { data: members } = await supabase
+    // Get all active members
+    const { data: memberRecords, error: membersError } = await supabase
       .from('study_pod_members')
-      .select(`
-        *,
-        users!inner (
-          user_id,
-          username,
-          full_name,
-          avatar_url,
-          bio,
-          university,
-          job_title
-        ),
-        user_stats (
-          total_solved,
-          current_streak,
-          contest_rating
-        )
-      `)
+      .select('*')
       .eq('pod_id', podId)
       .eq('status', 'active')
       .order('joined_at', { ascending: true });
+
+    if (membersError) {
+      console.error('Error fetching members:', membersError);
+    }
+
+    // Get user details for all members
+    const memberUserIds = memberRecords?.map(m => m.user_id) || [];
+    let members: any[] = [];
+
+    if (memberUserIds.length > 0) {
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('user_id, username, full_name, avatar_url, bio, university, job_title')
+        .in('user_id', memberUserIds);
+
+      const { data: statsData } = await supabase
+        .from('user_stats')
+        .select('user_id, total_solved, current_streak, contest_rating')
+        .in('user_id', memberUserIds);
+
+      // Merge the data
+      members = memberRecords?.map(member => ({
+        ...member,
+        users: usersData?.find(u => u.user_id === member.user_id) || null,
+        user_stats: statsData?.find(s => s.user_id === member.user_id) || null,
+      })) || [];
+    }
+
+    console.log('Pod members query result:', { podId, membersCount: members?.length });
 
     // Get creator details
     const { data: creator } = await supabase
@@ -134,6 +147,7 @@ export async function GET(
       user_role: membership?.role || null,
       user_membership: membership || null,
       join_status: joinStatus,
+      current_member_count: members?.length || 0,
     };
 
     return NextResponse.json({

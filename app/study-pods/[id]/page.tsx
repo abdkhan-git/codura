@@ -12,18 +12,14 @@ import { cn } from "@/lib/utils";
 import {
   Users,
   Calendar,
-  Target,
   TrendingUp,
-  Settings,
-  UserPlus,
   CheckCircle2,
   Clock,
-  MessageSquare,
-  ArrowLeft,
-  Crown,
-  Shield,
   Loader2,
   LogOut,
+  ChevronLeft,
+  Star,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -101,10 +97,9 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
   const handleJoin = async () => {
     setActionLoading(true);
     try {
-      const response = await fetch("/api/study-pods/join", {
+      const response = await fetch(`/api/study-pods/${podId}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pod_id: podId }),
       });
 
       const data = await response.json();
@@ -114,7 +109,12 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
         return;
       }
 
-      toast.success(data.message);
+      if (data.requires_approval) {
+        toast.success(data.message || "Join request sent for approval");
+      } else {
+        toast.success(data.message || "Successfully joined the study pod!");
+      }
+
       fetchPodDetails();
     } catch (error) {
       console.error("Error joining pod:", error);
@@ -168,9 +168,9 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
   const getRoleIcon = (role: string) => {
     switch (role) {
       case "owner":
-        return <Crown className="w-4 h-4 text-yellow-400" />;
+        return <Star className="w-4 h-4 text-yellow-400" />;
       case "moderator":
-        return <Shield className="w-4 h-4 text-blue-400" />;
+        return <Star className="w-4 h-4 text-blue-400" />;
       default:
         return null;
     }
@@ -194,7 +194,7 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
           href="/study-pods"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ChevronLeft className="w-4 h-4" />
           Back to Study Pods
         </Link>
 
@@ -211,7 +211,7 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 </Badge>
                 <Badge variant="outline">{pod.skill_level}</Badge>
                 <Badge variant="outline">
-                  {pod.current_member_count}/{pod.max_members} members
+                  {pod.members?.length || 0}/{pod.max_members} members
                 </Badge>
                 {pod.total_sessions > 0 && (
                   <Badge variant="outline">{pod.total_sessions} sessions</Badge>
@@ -254,7 +254,7 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                   {actionLoading ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
-                    <UserPlus className="w-4 h-4 mr-2" />
+                    <Plus className="w-4 h-4 mr-2" />
                   )}
                   {pod.join_status?.requires_approval ? "Request to Join" : "Join Pod"}
                 </Button>

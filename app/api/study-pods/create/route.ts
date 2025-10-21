@@ -10,17 +10,22 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   try {
+    console.log('=== Study Pod Creation Started ===');
     const supabase = await createClient();
 
     // Get authenticated user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
+      console.log('Auth error:', userError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    console.log('User authenticated:', user.id);
+
     // Parse request body
     const body: CreatePodRequest = await request.json();
+    console.log('Request body:', JSON.stringify(body, null, 2));
 
     // Validate required fields
     if (!body.name || body.name.trim().length < 3) {
@@ -54,6 +59,14 @@ export async function POST(request: Request) {
     }
 
     // Create the study pod
+    console.log('Creating study pod with data:', {
+      created_by: user.id,
+      name: body.name.trim(),
+      subject: body.subject.trim(),
+      skill_level: body.skill_level,
+      max_members: maxMembers,
+    });
+
     const { data: pod, error: podError } = await supabase
       .from('study_pods')
       .insert({
@@ -79,10 +92,12 @@ export async function POST(request: Request) {
     if (podError) {
       console.error('Error creating study pod:', podError);
       return NextResponse.json(
-        { error: 'Failed to create study pod' },
+        { error: 'Failed to create study pod', details: podError.message, code: podError.code },
         { status: 500 }
       );
     }
+
+    console.log('Study pod created successfully:', pod.id);
 
     // Add creator as first member with owner role
     const { error: memberError } = await supabase
@@ -99,7 +114,7 @@ export async function POST(request: Request) {
       // Rollback: delete the pod
       await supabase.from('study_pods').delete().eq('id', pod.id);
       return NextResponse.json(
-        { error: 'Failed to initialize study pod' },
+        { error: 'Failed to initialize study pod', details: memberError.message, code: memberError.code },
         { status: 500 }
       );
     }
@@ -121,8 +136,13 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Unexpected error creating study pod:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

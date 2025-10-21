@@ -442,6 +442,24 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
 
         {/* Right Side - Notifications & User Menu */}
         <div className="flex items-center gap-3">
+          {/* Messenger Toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("toggle-messenger"));
+            }}
+            className={cn(
+              "h-9 w-9 p-0 rounded-lg transition-all duration-300 hover:scale-110",
+              currentTheme === 'light'
+                ? "hover:bg-zinc-100"
+                : "hover:bg-zinc-800"
+            )}
+            title="Toggle Messenger"
+          >
+            <MessageSquare className="w-4 h-4" />
+          </Button>
+
           {/* Notifications */}
           <NotificationsDropdown />
 

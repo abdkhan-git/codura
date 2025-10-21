@@ -47,42 +47,52 @@ export async function GET(request: Request) {
         .in('id', podIds);
 
       // Get members for each pod
-      const { data: allMembers } = await supabase
+      const { data: memberRecords } = await supabase
         .from('study_pod_members')
-        .select(`
-          pod_id,
-          user_id,
-          role,
-          users!inner (
-            user_id,
-            username,
-            full_name,
-            avatar_url
-          )
-        `)
+        .select('pod_id, user_id, role')
         .in('pod_id', podIds)
         .eq('status', 'active')
         .order('joined_at', { ascending: true });
 
+      // Get user details
+      const memberUserIds = [...new Set(memberRecords?.map(m => m.user_id) || [])];
+      let usersData: any[] = [];
+
+      if (memberUserIds.length > 0) {
+        const { data: users } = await supabase
+          .from('users')
+          .select('user_id, username, full_name, avatar_url')
+          .in('user_id', memberUserIds);
+
+        usersData = users || [];
+      }
+
+      // Merge member and user data
+      const allMembers = memberRecords?.map(member => ({
+        ...member,
+        users: usersData.find(u => u.user_id === member.user_id) || null,
+      })) || [];
+
       // Merge data
       enrichedPods = pods?.map((pod: any) => {
         const fullPod = fullPods?.find((p: any) => p.id === pod.pod_id);
-        const members = allMembers
-          ?.filter((m: any) => m.pod_id === pod.pod_id)
-          .map((m: any) => ({
-            user_id: m.users.user_id,
-            username: m.users.username,
-            full_name: m.users.full_name,
-            avatar_url: m.users.avatar_url,
-            role: m.role,
-          }));
+        const podMembers = allMembers.filter((m: any) => m.pod_id === pod.pod_id);
+        const members = podMembers.map((m: any) => ({
+          user_id: m.users?.user_id || m.user_id,
+          username: m.users?.username,
+          full_name: m.users?.full_name,
+          avatar_url: m.users?.avatar_url,
+          role: m.role,
+        }));
 
         return {
           ...fullPod,
           user_role: pod.user_role,
           is_owner: pod.is_owner,
+          is_member: true, // User is always a member in "My Pods"
           members: members || [],
           members_preview: members?.slice(0, 3) || [],
+          current_member_count: podMembers.length,
         };
       }) || [];
     }

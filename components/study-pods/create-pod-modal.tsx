@@ -250,7 +250,7 @@ export function CreatePodModal({ open, onClose, onSuccess }: CreatePodModalProps
                   min={2}
                   max={20}
                   value={formData.max_members}
-                  onChange={(e) => setFormData({ ...formData, max_members: parseInt(e.target.value) })}
+                  onChange={(e) => setFormData({ ...formData, max_members: parseInt(e.target.value) || 2 })}
                   className="mt-1.5"
                 />
               </div>
@@ -262,7 +262,7 @@ export function CreatePodModal({ open, onClose, onSuccess }: CreatePodModalProps
                   type="number"
                   min={0}
                   value={formData.target_problems_count}
-                  onChange={(e) => setFormData({ ...formData, target_problems_count: parseInt(e.target.value) })}
+                  onChange={(e) => setFormData({ ...formData, target_problems_count: parseInt(e.target.value) || 0 })}
                   className="mt-1.5"
                 />
               </div>

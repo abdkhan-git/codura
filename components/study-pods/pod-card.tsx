@@ -10,14 +10,13 @@ import {
   Users,
   Clock,
   Calendar,
-  Lock,
   CheckCircle2,
   Loader2,
-  UserPlus,
+  Settings,
+  X,
+  Plus,
 } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
-import type { StudyPod } from "@/types/study-pods";
 
 interface PodCardProps {
   pod: any; // Will be StudyPodWithMembers in production
@@ -60,21 +59,26 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
   const isFull = pod.current_member_count >= pod.max_members;
   const spotsFilled = `${pod.current_member_count}/${pod.max_members}`;
 
+  // Check if user is owner or moderator (use user_role from API if available, fallback to searching members)
+  const userRole = pod.user_role || pod.members?.find((m: any) => m.user_id === pod.current_user_id)?.role;
+  const isOwner = userRole === 'owner';
+  const isModerator = userRole === 'moderator';
+
   return (
     <Link href={`/study-pods/${pod.id}`}>
       <Card
         className={cn(
           "group relative p-6 border-2 backdrop-blur-xl transition-all duration-300",
-          "bg-zinc-950/80 border-white/5 hover:border-emerald-500/30",
-          "hover:scale-[1.02] hover:shadow-xl",
+          "bg-card/80 border-border hover:border-emerald-500/30",
+          "hover:scale-[1.02] hover:shadow-xl hover:shadow-emerald-500/10",
           className
         )}
       >
-        {/* Gradient overlay */}
+        {/* Gradient overlay - subtle */}
         <div
           className={cn(
-            "absolute inset-0 rounded-xl bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-300",
-            pod.color_scheme || "from-green-500/5 via-emerald-500/5 to-transparent"
+            "absolute inset-0 rounded-xl bg-gradient-to-br opacity-0 group-hover:opacity-5 transition-opacity duration-300 pointer-events-none",
+            pod.color_scheme || "from-green-500 via-emerald-500 to-transparent"
           )}
         />
 
@@ -82,7 +86,7 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
           {/* Header */}
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-semibold text-foreground mb-1 line-clamp-1 group-hover:text-emerald-400 transition-colors">
+              <h3 className="text-lg font-semibold text-foreground mb-1 line-clamp-1 transition-colors">
                 {pod.name}
               </h3>
               <p className="text-sm text-muted-foreground line-clamp-2">
@@ -91,7 +95,7 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
             </div>
 
             {!pod.is_public && (
-              <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <X className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             )}
           </div>
 
@@ -177,7 +181,17 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
           )}
 
           {/* Action Button */}
-          {pod.is_member ? (
+          {isOwner ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10"
+              onClick={(e) => e.preventDefault()}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Manage Pod
+            </Button>
+          ) : pod.is_member ? (
             <Button
               variant="outline"
               size="sm"
@@ -211,7 +225,7 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
                 </>
               ) : (
                 <>
-                  <UserPlus className="w-4 h-4 mr-2" />
+                  <Plus className="w-4 h-4 mr-2" />
                   {pod.requires_approval ? "Request to Join" : "Join Pod"}
                 </>
               )}
