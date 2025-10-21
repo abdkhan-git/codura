@@ -48,6 +48,7 @@ import {
   User,
   Clock,
   RefreshCw,
+  MessageSquare,
   Settings,
   Eye,
   Reply,
