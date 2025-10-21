@@ -33,7 +33,7 @@ export async function startConversation(
       if (existingConv) {
         // Open existing conversation in floating messenger
         window.dispatchEvent(
-          new CustomEvent("messenger:open", {
+          new CustomEvent("open-conversation", {
             detail: { conversationId: existingConv.id },
           })
         );
@@ -60,7 +60,7 @@ export async function startConversation(
 
     // Open conversation in floating messenger
     window.dispatchEvent(
-      new CustomEvent("messenger:open", {
+      new CustomEvent("open-conversation", {
         detail: { conversationId: conversation.id },
       })
     );
@@ -109,7 +109,7 @@ export async function createGroupChat(
 
     // Open conversation in floating messenger
     window.dispatchEvent(
-      new CustomEvent("messenger:open", {
+      new CustomEvent("open-conversation", {
         detail: { conversationId: conversation.id },
       })
     );
@@ -137,7 +137,7 @@ export function navigateToMessages() {
  */
 export function openMessenger(conversationId?: string) {
   window.dispatchEvent(
-    new CustomEvent("messenger:open", {
+    new CustomEvent("open-conversation", {
       detail: conversationId ? { conversationId } : undefined,
     })
   );

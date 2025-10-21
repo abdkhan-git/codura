@@ -101,7 +101,8 @@ export async function middleware(req: NextRequest) {
           "/leaderboards",
           "/discuss",
           "/discover",
-          "/network"
+          "/network",
+          "/messages"
         ];
         const isAllowedAppPage = allowedAppPages.some(page => pathname.startsWith(page));
 

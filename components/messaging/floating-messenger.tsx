@@ -15,6 +15,8 @@ import {
   Search,
   Plus,
   Users,
+  GripVertical,
+  Minimize2,
 } from "lucide-react";
 import { ConversationListItemComponent } from "./conversation-list-item";
 import { MessageBubble } from "./message-bubble";
@@ -41,6 +43,14 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
   const [showNewMessageDialog, setShowNewMessageDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Dragging state for floating button
+  const [buttonPosition, setButtonPosition] = useState({ x: 0, y: 0 });
+  const [isButtonDragging, setIsButtonDragging] = useState(false);
+  const [buttonDragOffset, setButtonDragOffset] = useState({ x: 0, y: 0 });
+  const [showButton, setShowButton] = useState(true);
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const widgetRef = useRef<HTMLDivElement>(null);
+
   // Load conversations on mount
   useEffect(() => {
     if (isOpen) {
@@ -65,6 +75,66 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
     const total = conversations.reduce((sum, conv) => sum + conv.unread_count, 0);
     setUnreadCount(total);
   }, [conversations]);
+
+  // Dragging handlers for floating button
+  const dragStartPos = useRef({ x: 0, y: 0 });
+
+  const handleButtonMouseDown = (e: React.MouseEvent) => {
+    if (!buttonRef.current) return;
+
+    // Record start position to detect if this is a drag or click
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    setButtonDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+    setIsButtonDragging(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isButtonDragging) return;
+
+      const newX = e.clientX - buttonDragOffset.x;
+      const newY = e.clientY - buttonDragOffset.y;
+
+      // Constrain to viewport
+      const buttonSize = 56; // 14 * 4 (w-14 h-14)
+      const maxX = window.innerWidth - buttonSize;
+      const maxY = window.innerHeight - buttonSize;
+
+      setButtonPosition({
+        x: Math.max(0, Math.min(newX, maxX)),
+        y: Math.max(0, Math.min(newY, maxY)),
+      });
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      setIsButtonDragging(false);
+
+      // Check if this was a click (no movement) or a drag
+      const deltaX = Math.abs(e.clientX - dragStartPos.current.x);
+      const deltaY = Math.abs(e.clientY - dragStartPos.current.y);
+      const wasClick = deltaX < 5 && deltaY < 5;
+
+      if (wasClick) {
+        // This was a click, open the widget
+        setIsOpen(true);
+      }
+    };
+
+    if (isButtonDragging) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isButtonDragging, buttonDragOffset]);
 
   // Listen for open-conversation events to open conversations from anywhere
   useEffect(() => {
@@ -250,66 +320,117 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
 
   return (
     <>
-      {/* Floating Button */}
-      {!isOpen && (
-        <Button
-          onClick={() => setIsOpen(true)}
+      {/* Floating Button - Draggable */}
+      {!isOpen && showButton && (
+        <div
+          ref={buttonRef}
           className={cn(
-            "fixed bottom-6 right-6 h-14 w-14 rounded-full z-50",
-            "bg-gradient-to-br from-brand to-purple-600",
-            "hover:from-brand/90 hover:to-purple-600/90",
-            "shadow-2xl shadow-brand/50",
-            "transition-transform hover:scale-110"
+            "fixed z-50 group",
+            isButtonDragging ? "cursor-grabbing" : "cursor-grab"
           )}
+          style={{
+            left: buttonPosition.x > 0 ? `${buttonPosition.x}px` : undefined,
+            top: buttonPosition.y > 0 ? `${buttonPosition.y}px` : undefined,
+            right: buttonPosition.x === 0 && buttonPosition.y === 0 ? "24px" : undefined,
+            bottom: buttonPosition.x === 0 && buttonPosition.y === 0 ? "24px" : undefined,
+            transition: isButtonDragging ? "none" : "all 0.3s",
+          }}
+          onMouseDown={handleButtonMouseDown}
         >
-          <MessageSquare className="w-6 h-6" />
-          {unreadCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 h-6 w-6 flex items-center justify-center p-0 rounded-full"
-            >
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </Badge>
-          )}
-        </Button>
+          {/* Close button for floating button */}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowButton(false);
+            }}
+            className={cn(
+              "absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full z-10",
+              "bg-red-500/90 hover:bg-red-600 text-white",
+              "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+              "shadow-lg"
+            )}
+            title="Hide messenger"
+          >
+            <X className="w-3 h-3" />
+          </Button>
+
+          <div
+            className={cn(
+              "h-14 w-14 rounded-full",
+              "bg-gradient-to-br from-brand via-purple-500 to-cyan-500",
+              "shadow-2xl shadow-brand/50",
+              "relative overflow-hidden flex items-center justify-center"
+            )}
+          >
+            {/* Animated glow effect */}
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+            <MessageSquare className="w-6 h-6 relative z-10" />
+
+            {unreadCount > 0 && (
+              <Badge className="absolute -top-1 -right-1 h-6 w-6 flex items-center justify-center p-0 rounded-full bg-red-500 text-white text-xs font-bold border-2 border-background shadow-lg z-20 animate-pulse pointer-events-none">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </Badge>
+            )}
+          </div>
+
+          {/* Drag hint */}
+          <div className={cn(
+            "absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap",
+            "text-xs text-muted-foreground bg-background/90 backdrop-blur-sm px-2 py-1 rounded-md",
+            "opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none",
+            "shadow-lg border border-white/10"
+          )}>
+            Drag to move
+          </div>
+        </div>
       )}
 
       {/* Messenger Window */}
       {isOpen && (
         <div
+          ref={widgetRef}
           className={cn(
             "fixed bottom-6 right-6 z-50",
-            "bg-zinc-950 border-2 border-white/10 rounded-2xl shadow-2xl",
-            "backdrop-blur-xl overflow-hidden transition-all duration-300",
+            "bg-gradient-to-br from-card/95 via-card/85 to-card/75 border-2 border-white/10 rounded-2xl shadow-2xl",
+            "backdrop-blur-2xl overflow-hidden transition-all duration-300",
             isMinimized ? "w-80 h-16" : "w-96 h-[600px]",
             "flex flex-col"
           )}
         >
+          {/* Glassmorphic overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none rounded-2xl" />
+
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-white/10 bg-gradient-to-r from-brand/10 to-purple-600/10">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-brand" />
-              <h3 className="font-semibold">
+          <div className="relative flex items-center justify-between p-4 border-b border-white/10 bg-gradient-to-r from-brand/10 via-purple-600/10 to-transparent backdrop-blur-sm">
+            <div className="flex items-center gap-2 relative z-10">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand via-purple-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-brand/25">
+                <MessageSquare className="w-4 h-4 text-white" />
+              </div>
+              <h3 className="font-bold bg-gradient-to-r from-foreground to-foreground/60 bg-clip-text text-transparent">
                 {activeConversation ? "Chat" : "Messages"}
               </h3>
               {unreadCount > 0 && (
-                <Badge variant="secondary" className="h-5 px-2">
+                <Badge className="h-5 px-2 bg-gradient-to-br from-brand to-purple-500 text-white text-[10px] font-bold shadow-lg shadow-brand/50">
                   {unreadCount}
                 </Badge>
               )}
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 relative z-10">
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setIsMinimized(!isMinimized)}
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 hover:bg-white/10 transition-all duration-300 hover:scale-110"
+                title={isMinimized ? "Expand" : "Minimize"}
               >
                 {isMinimized ? (
                   <ChevronUp className="w-4 h-4" />
                 ) : (
-                  <ChevronDown className="w-4 h-4" />
+                  <Minimize2 className="w-4 h-4" />
                 )}
               </Button>
               <Button
@@ -318,8 +439,10 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
                 onClick={() => {
                   setIsOpen(false);
                   setActiveConversation(null);
+                  setIsMinimized(false);
                 }}
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 hover:bg-red-500/20 hover:text-red-400 transition-all duration-300 hover:scale-110"
+                title="Close"
               >
                 <X className="w-4 h-4" />
               </Button>
