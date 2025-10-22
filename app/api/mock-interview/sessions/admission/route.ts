@@ -51,11 +51,12 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
           role: "host",
+          hostReady: !!session.metadata?.host_ready,
           pendingRequests: users || [],
         });
       }
 
-      return NextResponse.json({ role: "host", pendingRequests: [] });
+      return NextResponse.json({ role: "host", hostReady: !!session.metadata?.host_ready, pendingRequests: [] });
     }
 
     // If requester is NOT host: return viewer status for this user
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest) {
       viewerStatus = "pending";
     }
 
-    return NextResponse.json({ role: "viewer", viewerStatus });
+    return NextResponse.json({ role: "viewer", hostReady: !!session.metadata?.host_ready, viewerStatus });
   } catch (error) {
     console.error("Error in GET /api/mock-interview/sessions/admission:", error);
     return NextResponse.json(
@@ -158,13 +159,6 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
-
-      // Add to session attendance
-      await supabase.from("session_attendance").insert({
-        session_id: session.id,
-        user_id: participantId,
-        joined_at: new Date().toISOString(),
-      });
 
       return NextResponse.json({
         success: true,

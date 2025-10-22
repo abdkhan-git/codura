@@ -130,7 +130,8 @@ export function WaitingRoom({
 
         // Host path ignored here; this polling is for joiners only
         const status = data?.viewerStatus as ("pending" | "approved" | "none" | undefined);
-        if (status === "approved") {
+        const hostReady = !!data?.hostReady;
+        if (status === "approved" && hostReady) {
           stopApprovalPolling();
           setJoinStatus("approved");
           setStatusMessage("Host admitted you. Joining the interview...");
@@ -139,9 +140,9 @@ export function WaitingRoom({
           return;
         }
 
-        if (status === "pending") {
+        if (status === "pending" || (status === "approved" && !hostReady)) {
           setJoinStatus("pending");
-          setStatusMessage("Waiting for host approval...");
+          setStatusMessage(hostReady ? "Host is preparing the session..." : "Waiting for host approval...");
           return;
         }
 

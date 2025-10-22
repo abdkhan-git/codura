@@ -56,22 +56,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Create a conversation for this session if it doesn't exist
-    // We'll use the session_id as a unique identifier for the conversation
+    // We'll use the session_id in metadata as the unique identifier
     const conversationName = `Mock Interview - ${sessionId}`;
 
-    let { data: conversation, error: convError } = await supabase
+    let { data: conversation } = await supabase
       .from("conversations")
       .select("*")
-      .eq("conversation_type", "mock_interview")
       .contains("metadata", { session_id: sessionId })
       .maybeSingle();
 
     if (!conversation) {
-      // Create conversation
+      // Create conversation (avoid referencing non-existent columns)
       const { data: newConv, error: createError } = await supabase
         .from("conversations")
         .insert({
-          conversation_type: "mock_interview",
           name: conversationName,
           metadata: { session_id: sessionId },
         })
@@ -88,11 +86,15 @@ export async function POST(request: NextRequest) {
 
       conversation = newConv;
 
-      // Add user as participant
-      await supabase.from("conversation_participants").insert({
-        conversation_id: conversation.id,
-        user_id: user.id,
-      });
+      // Best-effort: add user as participant if the table exists
+      try {
+        await supabase.from("conversation_participants").insert({
+          conversation_id: conversation.id,
+          user_id: user.id,
+        });
+      } catch (e) {
+        console.warn("conversation_participants insert skipped:", e);
+      }
     }
 
     // Send message
@@ -174,7 +176,6 @@ export async function GET(request: NextRequest) {
     const { data: conversation } = await supabase
       .from("conversations")
       .select("*")
-      .eq("conversation_type", "mock_interview")
       .contains("metadata", { session_id: sessionId })
       .maybeSingle();
 

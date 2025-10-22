@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { createClient } from "@/utils/supabase/client";
 
 interface Message {
   id: string;
@@ -48,12 +49,14 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const supabase = createClient();
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Lightweight polling for messages (every 2s).
+  // Realtime chat over Supabase channel, plus lightweight polling fallback.
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -89,12 +92,45 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
       }
     };
 
+    // Subscribe to realtime channel for this session
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    const channel = supabase.channel(`mock-interview:${sessionId}`)
+      .on('broadcast', { event: 'chat' }, ({ payload }) => {
+        try {
+          const msg = payload as any;
+          const isSelf = msg.sender_id === user.user_id;
+          const m: Message = {
+            id: msg.id || `rt-${Date.now()}`,
+            content: msg.content || '',
+            sender: isSelf ? 'self' : 'partner',
+            senderName: msg.sender_name || (isSelf ? 'You' : 'Partner'),
+            timestamp: new Date(msg.created_at || Date.now()),
+            type: (msg.type as Message['type']) || 'text',
+            fileUrl: msg.file_url,
+            fileName: msg.file_name,
+            fileSize: msg.file_size,
+          };
+          setMessages(prev => [...prev, m]);
+        } catch {}
+      })
+      .subscribe(async (status: string) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.send({ type: 'broadcast', event: 'chat-presence', payload: { t: Date.now() } });
+        }
+      });
+    channelRef.current = channel;
+
+    // Initial fetch and polling fallback
     fetchMessages();
-    timer = setInterval(fetchMessages, 2000);
+    timer = setInterval(fetchMessages, 5000);
 
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
   }, [sessionId, user.user_id]);
 
@@ -109,50 +145,35 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
       toast.info("File sending is not yet implemented. Please send text.");
       return;
     }
-
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const isLink = urlRegex.test(inputValue);
     const content = inputValue.trim();
-    const messageType = isLink ? "link" : "text";
+    const messageType = isLink ? 'link' : 'text';
 
+    // Broadcast over realtime channel so both sides receive immediately
     try {
-      const res = await fetch('/api/mock-interview/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, content, messageType }),
+      if (!channelRef.current) throw new Error('Chat channel not ready');
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'chat',
+        payload: {
+          id: `local-${Date.now()}`,
+          content,
+          type: messageType,
+          sender_id: user.user_id,
+          sender_name: user.name,
+          created_at: new Date().toISOString(),
+        },
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || 'Failed to send message');
-      }
-      const data = await res.json();
-      const m = data.message;
-      if (m) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: m.id,
-            content: m.content || content,
-            sender: 'self',
-            senderName: user.name,
-            timestamp: new Date(m.created_at || Date.now()),
-            type: messageType as Message['type'],
-          },
-        ]);
-      } else {
-        // fallback: optimistic add
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `tmp-${Date.now()}`,
-            content,
-            sender: 'self',
-            senderName: user.name,
-            timestamp: new Date(),
-            type: messageType as Message['type'],
-          },
-        ]);
-      }
+      // Optimistic add
+      setMessages(prev => [...prev, {
+        id: `local-${Date.now()}`,
+        content,
+        sender: 'self',
+        senderName: user.name,
+        timestamp: new Date(),
+        type: messageType as Message['type'],
+      }]);
       setInputValue('');
     } catch (e: any) {
       toast.error(e?.message || 'Failed to send message');

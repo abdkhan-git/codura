@@ -318,6 +318,25 @@ export function VideoCallInterface({
         setConnectionStatus("connecting");
       }
 
+      // Host marks ready; participant finalizes attendance
+      try {
+        if (isHost) {
+          await fetch('/api/mock-interview/sessions', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId, action: 'host_ready' }),
+          });
+        } else {
+          await fetch('/api/mock-interview/sessions/attend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId }),
+          });
+        }
+      } catch (e) {
+        console.error('Failed to mark readiness/attendance:', e);
+      }
+
       toast.success("Camera and microphone connected");
     } catch (error: any) {
       console.error("Error initializing call:", error);
@@ -399,9 +418,16 @@ export function VideoCallInterface({
     pc.oniceconnectionstatechange = () => {
       const state = pc.iceConnectionState;
       console.log("ICE state:", state);
-      if ((state === "disconnected" || state === "failed") && !isHost) {
+      if (state === "disconnected" || state === "failed") {
         setConnectionStatus("disconnected");
-        toast.error("You were disconnected. Re-enter the session ID to rejoin.");
+        toast.error("You were disconnected.");
+        if (isHost) {
+          fetch('/api/mock-interview/sessions', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId, action: 'end' }),
+          }).catch(() => {});
+        }
         cleanup();
         onLeave();
       }

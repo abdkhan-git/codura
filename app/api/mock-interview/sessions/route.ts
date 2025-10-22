@@ -319,7 +319,21 @@ export async function PATCH(request: NextRequest) {
 
     let updateData: any = {};
 
-    if (action === "end") {
+    if (action === "host_ready") {
+      const newMeta = { ...(session.metadata || {}), host_ready: true };
+      const { data: updated, error: metaErr } = await supabase
+        .from("study_pod_sessions")
+        .update({ metadata: newMeta })
+        .eq("id", session.id)
+        .select()
+        .single();
+
+      if (metaErr) {
+        console.error("Error setting host_ready:", metaErr);
+        return NextResponse.json({ error: "Failed to update host status" }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, session: updated });
+    } else if (action === "end") {
       updateData = {
         ended_at: new Date().toISOString(),
         status: "completed",
