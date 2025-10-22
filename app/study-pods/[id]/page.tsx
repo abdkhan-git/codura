@@ -23,6 +23,8 @@ import {
   UserPlus,
   Shield,
   Settings,
+  ListPlus,
+  Target,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -30,6 +32,8 @@ import { MemberCard } from "@/components/study-pods/member-card";
 import { InviteMembersModal } from "@/components/study-pods/invite-members-modal";
 import { JoinRequestsSection } from "@/components/study-pods/join-requests-section";
 import { EditPodModal } from "@/components/study-pods/edit-pod-modal";
+import { PodProblemsList } from "@/components/study-pods/pod-problems-list";
+import { AssignProblemsModal } from "@/components/study-pods/assign-problems-modal";
 
 export default function StudyPodDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -40,6 +44,7 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
   const [podId, setPodId] = useState<string>("");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAssignProblemsModal, setShowAssignProblemsModal] = useState(false);
 
   useEffect(() => {
     fetchUser();
@@ -291,6 +296,10 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
               <Users className="w-4 h-4 mr-2" />
               Members
             </TabsTrigger>
+            <TabsTrigger value="problems">
+              <Target className="w-4 h-4 mr-2" />
+              Problems
+            </TabsTrigger>
             {(pod.user_role === 'owner' || pod.user_role === 'moderator') && pod.requires_approval && (
               <TabsTrigger value="requests">
                 <Shield className="w-4 h-4 mr-2" />
@@ -320,6 +329,26 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 />
               ))}
             </div>
+          </TabsContent>
+
+          {/* Problems */}
+          <TabsContent value="problems" className="space-y-4">
+            {(pod.user_role === 'owner' || pod.user_role === 'moderator') && (
+              <div className="flex justify-end mb-4">
+                <Button
+                  onClick={() => setShowAssignProblemsModal(true)}
+                  className="bg-gradient-to-r from-green-500 to-emerald-500"
+                >
+                  <ListPlus className="w-4 h-4 mr-2" />
+                  Assign Problems
+                </Button>
+              </div>
+            )}
+            <PodProblemsList
+              podId={podId}
+              currentUserRole={pod.user_role}
+              totalMembers={pod.members?.length || 0}
+            />
           </TabsContent>
 
           {/* Join Requests (only for owner/moderator on approval-required pods) */}
@@ -435,6 +464,17 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
         pod={pod}
         userRole={pod?.user_role}
         onSuccess={fetchPodDetails}
+      />
+
+      {/* Assign Problems Modal */}
+      <AssignProblemsModal
+        isOpen={showAssignProblemsModal}
+        onClose={() => setShowAssignProblemsModal(false)}
+        podId={podId}
+        onSuccess={() => {
+          // Trigger a re-render of the problems list by switching tabs and back
+          setShowAssignProblemsModal(false);
+        }}
       />
     </div>
   );
