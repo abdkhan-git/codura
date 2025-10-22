@@ -51,6 +51,7 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
   const channelRef = useRef<any>(null);
+  const [realtimeReady, setRealtimeReady] = useState(false);
 
   useEffect(() => {
     scrollToBottom();
@@ -85,7 +86,18 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
         const data = await res.json();
         const apiMessages = Array.isArray(data.messages) ? data.messages : [];
         if (!cancelled) {
-          setMessages(apiMessages.map(mapApiMessage));
+          // Merge fetched messages into current list instead of replacing
+          setMessages((prev) => {
+            const existing = new Map(prev.map((m) => [m.id, m] as const));
+            for (const raw of apiMessages.map(mapApiMessage)) {
+              if (existing.has(raw.id)) {
+                existing.set(raw.id, { ...existing.get(raw.id)!, ...raw });
+              } else {
+                existing.set(raw.id, raw);
+              }
+            }
+            return Array.from(existing.values()).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+          });
         }
       } catch (err) {
         // silently ignore
@@ -113,12 +125,23 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
             fileName: msg.file_name,
             fileSize: msg.file_size,
           };
-          setMessages(prev => [...prev, m]);
+          setMessages(prev => {
+            if (prev.some(x => x.id === m.id)) return prev; // dedupe
+            const next = [...prev, m];
+            next.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+            return next;
+          });
         } catch {}
       })
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
+          setRealtimeReady(true);
           await channel.send({ type: 'broadcast', event: 'chat-presence', payload: { t: Date.now() } });
+          // Stop polling once realtime is ready
+          if (timer) {
+            clearInterval(timer);
+            timer = null;
+          }
         }
       });
     channelRef.current = channel;
@@ -131,6 +154,7 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
       cancelled = true;
       if (timer) clearInterval(timer);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
+      setRealtimeReady(false);
     };
   }, [sessionId, user.user_id]);
 
@@ -153,11 +177,12 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
     // Broadcast over realtime channel so both sides receive immediately
     try {
       if (!channelRef.current) throw new Error('Chat channel not ready');
+      const tempId = `local-${Date.now()}`;
       await channelRef.current.send({
         type: 'broadcast',
         event: 'chat',
         payload: {
-          id: `local-${Date.now()}`,
+          id: tempId,
           content,
           type: messageType,
           sender_id: user.user_id,
@@ -167,7 +192,7 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
       });
       // Optimistic add
       setMessages(prev => [...prev, {
-        id: `local-${Date.now()}`,
+        id: tempId,
         content,
         sender: 'self',
         senderName: user.name,
@@ -175,6 +200,20 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
         type: messageType as Message['type'],
       }]);
       setInputValue('');
+
+      // Persist to DB in background (best-effort)
+      try {
+        const res = await fetch('/api/mock-interview/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, content, messageType }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.message?.id) {
+          const dbId = data.message.id;
+          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: dbId } : m));
+        }
+      } catch {}
     } catch (e: any) {
       toast.error(e?.message || 'Failed to send message');
     }
