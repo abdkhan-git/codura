@@ -123,27 +123,14 @@ export function WaitingRoom({
     stopApprovalPolling();
     approvalPollRef.current = setInterval(async () => {
       try {
-        const response = await fetch(`/api/mock-interview/sessions?sessionId=${encodeURIComponent(sessionCode)}`);
+        const response = await fetch(`/api/mock-interview/sessions/admission?sessionId=${encodeURIComponent(sessionCode)}`);
         if (!response.ok) return;
 
         const data = await response.json();
-        const sessionData = data.session;
-        if (!sessionData) return;
 
-        const participants = sessionData.participants || [];
-        const metadata = sessionData.metadata || {};
-        const pending = metadata.pending_requests || [];
-        const approved = metadata.approved_participants || [];
-
-        const currentUserId = user.user_id;
-        if (!currentUserId) return;
-
-        const isParticipant = participants.some(
-          (participant: any) => participant.user?.user_id === currentUserId
-        );
-        const isApproved = Array.isArray(approved) && approved.includes(currentUserId);
-
-        if (isParticipant || isApproved) {
+        // Host path ignored here; this polling is for joiners only
+        const status = data?.viewerStatus as ("pending" | "approved" | "none" | undefined);
+        if (status === "approved") {
           stopApprovalPolling();
           setJoinStatus("approved");
           setStatusMessage("Host admitted you. Joining the interview...");
@@ -152,8 +139,14 @@ export function WaitingRoom({
           return;
         }
 
-        const stillPending = Array.isArray(pending) && pending.includes(currentUserId);
-        if (!stillPending) {
+        if (status === "pending") {
+          setJoinStatus("pending");
+          setStatusMessage("Waiting for host approval...");
+          return;
+        }
+
+        // If server says none (not pending, not approved), treat as denied only after we previously requested join
+        if (status === "none") {
           stopApprovalPolling();
           setJoinStatus("denied");
           setStatusMessage("Host denied your request to join.");
@@ -478,6 +471,13 @@ export function WaitingRoom({
       onDevicesReady();
     }
   };
+
+  // Fallback: if we somehow became approved but didn't transition yet
+  useEffect(() => {
+    if (sessionRole === "join" && joinStatus === "approved" && pendingSessionCode) {
+      onJoinSession(pendingSessionCode);
+    }
+  }, [sessionRole, joinStatus, pendingSessionCode, onJoinSession]);
 
   const isReady = videoTest === "success" || audioTest === "success";
   const hostButtonLabel =

@@ -22,6 +22,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { sessionId, sessionType = "mock_interview" } = body;
 
+    // Enforce unique session codes across all mock interviews
+    const { data: existing } = await supabase
+      .from('study_pod_sessions')
+      .select('id, host_user_id')
+      .contains('metadata', { session_id: sessionId })
+      .maybeSingle();
+
+    if (existing) {
+      return NextResponse.json(
+        { error: 'Session ID already in use. Please generate a new one.' },
+        { status: 409 }
+      );
+    }
+
     // Try to associate with any pod the user belongs to (if schema requires pod_id NOT NULL)
     let hostPodId: string | null = null;
     try {
@@ -196,6 +210,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Find session by custom session_id in metadata
+    // Note: RLS restricts visibility to mock_interview via policy; we avoid
+    // adding extra filters to reduce chances of 404 due to schema differences.
     const { data: session, error: sessionError } = await supabase
       .from("study_pod_sessions")
       .select(
@@ -210,7 +226,6 @@ export async function GET(request: NextRequest) {
       `
       )
       .contains("metadata", { session_id: sessionId })
-      .eq("session_type", "mock_interview")
       .single();
 
     if (sessionError || !session) {

@@ -39,27 +39,46 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
-    // Verify user is host
-    if (session.host_user_id !== user.id) {
-      return NextResponse.json({ error: "Only host can view admission requests" }, { status: 403 });
+    // If requester is host: return pending users list
+    if (session.host_user_id === user.id) {
+      const pendingRequests = session.metadata?.pending_requests || [];
+
+      if (pendingRequests.length > 0) {
+        const { data: users } = await supabase
+          .from("users")
+          .select("user_id, full_name, username, avatar_url")
+          .in("user_id", pendingRequests);
+
+        return NextResponse.json({
+          role: "host",
+          pendingRequests: users || [],
+        });
+      }
+
+      return NextResponse.json({ role: "host", pendingRequests: [] });
     }
 
-    // Get pending requests (stored in metadata)
-    const pendingRequests = session.metadata?.pending_requests || [];
+    // If requester is NOT host: return viewer status for this user
+    const metadata = session.metadata || {};
+    const pending = metadata.pending_requests || [];
+    const approved = metadata.approved_participants || [];
 
-    // Get user details for each pending request
-    if (pendingRequests.length > 0) {
-      const { data: users } = await supabase
-        .from("users")
-        .select("user_id, full_name, username, avatar_url")
-        .in("user_id", pendingRequests);
+    // Check attendance (self row visible due to RLS self-select)
+    const { data: attendance } = await supabase
+      .from("session_attendance")
+      .select("id")
+      .eq("session_id", session.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-      return NextResponse.json({
-        pendingRequests: users || [],
-      });
+    let viewerStatus: "pending" | "approved" | "none" = "none";
+    if (attendance || (Array.isArray(approved) && approved.includes(user.id))) {
+      viewerStatus = "approved";
+    } else if (Array.isArray(pending) && pending.includes(user.id)) {
+      viewerStatus = "pending";
     }
 
-    return NextResponse.json({ pendingRequests: [] });
+    return NextResponse.json({ role: "viewer", viewerStatus });
   } catch (error) {
     console.error("Error in GET /api/mock-interview/sessions/admission:", error);
     return NextResponse.json(

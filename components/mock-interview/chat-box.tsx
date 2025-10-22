@@ -53,19 +53,50 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
     scrollToBottom();
   }, [messages]);
 
-  // Simulated real-time messaging
-  // In production, use WebSocket or Supabase Realtime
+  // Lightweight polling for messages (every 2s).
   useEffect(() => {
-    // Placeholder for real-time message listener
-    // const subscription = supabase
-    //   .channel(`session:${sessionId}`)
-    //   .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'session_messages' }, handleNewMessage)
-    //   .subscribe();
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const mapApiMessage = (m: any): Message => {
+      const isSelf = m.sender_id === user.user_id;
+      const meta = m.metadata || {};
+      const type = (meta.message_type as Message["type"]) || "text";
+      return {
+        id: m.id,
+        content: m.content || "",
+        sender: isSelf ? "self" : "partner",
+        senderName: m.sender?.full_name || m.sender?.username || (isSelf ? "You" : "Partner"),
+        timestamp: new Date(m.created_at || Date.now()),
+        type,
+        fileUrl: meta.file_url || undefined,
+        fileName: meta.file_name || undefined,
+        fileSize: meta.file_size || undefined,
+      };
+    };
+
+    const fetchMessages = async () => {
+      try {
+        const res = await fetch(`/api/mock-interview/messages?sessionId=${encodeURIComponent(sessionId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const apiMessages = Array.isArray(data.messages) ? data.messages : [];
+        if (!cancelled) {
+          setMessages(apiMessages.map(mapApiMessage));
+        }
+      } catch (err) {
+        // silently ignore
+      }
+    };
+
+    fetchMessages();
+    timer = setInterval(fetchMessages, 2000);
 
     return () => {
-      // subscription.unsubscribe();
+      cancelled = true;
+      if (timer) clearInterval(timer);
     };
-  }, [sessionId]);
+  }, [sessionId, user.user_id]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -74,52 +105,58 @@ export function ChatBox({ sessionId, user, onClose }: ChatBoxProps) {
   const handleSendMessage = async () => {
     if (!inputValue.trim() && !selectedFile) return;
 
-    let newMessage: Message;
-
     if (selectedFile) {
-      // Handle file upload
-      newMessage = {
-        id: `msg-${Date.now()}`,
-        content: selectedFile.name,
-        sender: "self",
-        senderName: user.name,
-        timestamp: new Date(),
-        type: selectedFile.type.startsWith("image/") ? "image" : "file",
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size,
-        fileUrl: URL.createObjectURL(selectedFile), // In production, upload to storage first
-      };
-
-      // In production, upload file to Supabase Storage
-      // const { data, error } = await supabase.storage
-      //   .from('session-files')
-      //   .upload(`${sessionId}/${selectedFile.name}`, selectedFile);
-
-      setSelectedFile(null);
-      toast.success("File sent!");
-    } else {
-      // Handle text message
-      const urlRegex = /(https?:\/\/[^\s]+)/g;
-      const isLink = urlRegex.test(inputValue);
-
-      newMessage = {
-        id: `msg-${Date.now()}`,
-        content: inputValue,
-        sender: "self",
-        senderName: user.name,
-        timestamp: new Date(),
-        type: isLink ? "link" : "text",
-      };
+      toast.info("File sending is not yet implemented. Please send text.");
+      return;
     }
 
-    setMessages((prev) => [...prev, newMessage]);
-    setInputValue("");
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const isLink = urlRegex.test(inputValue);
+    const content = inputValue.trim();
+    const messageType = isLink ? "link" : "text";
 
-    // In production, save to database
-    // await fetch('/api/mock-interview/messages', {
-    //   method: 'POST',
-    //   body: JSON.stringify({ sessionId, message: newMessage }),
-    // });
+    try {
+      const res = await fetch('/api/mock-interview/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, content, messageType }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Failed to send message');
+      }
+      const data = await res.json();
+      const m = data.message;
+      if (m) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: m.id,
+            content: m.content || content,
+            sender: 'self',
+            senderName: user.name,
+            timestamp: new Date(m.created_at || Date.now()),
+            type: messageType as Message['type'],
+          },
+        ]);
+      } else {
+        // fallback: optimistic add
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `tmp-${Date.now()}`,
+            content,
+            sender: 'self',
+            senderName: user.name,
+            timestamp: new Date(),
+            type: messageType as Message['type'],
+          },
+        ]);
+      }
+      setInputValue('');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to send message');
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

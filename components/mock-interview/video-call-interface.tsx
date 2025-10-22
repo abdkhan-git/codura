@@ -381,9 +381,29 @@ export function VideoCallInterface({
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "connected") {
         setConnectionStatus("connected");
-      } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+      } else if (
+        pc.connectionState === "disconnected" ||
+        pc.connectionState === "failed" ||
+        pc.connectionState === "closed"
+      ) {
         setConnectionStatus("disconnected");
         toast.error("Connection lost");
+        if (!isHost) {
+          cleanup();
+          onLeave();
+        }
+      }
+    };
+
+    // Extra safety: watch ICE connection state as well
+    pc.oniceconnectionstatechange = () => {
+      const state = pc.iceConnectionState;
+      console.log("ICE state:", state);
+      if ((state === "disconnected" || state === "failed") && !isHost) {
+        setConnectionStatus("disconnected");
+        toast.error("You were disconnected. Re-enter the session ID to rejoin.");
+        cleanup();
+        onLeave();
       }
     };
   };
