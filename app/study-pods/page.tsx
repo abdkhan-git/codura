@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { PodCard } from "@/components/study-pods/pod-card";
 import { CreatePodModal } from "@/components/study-pods/create-pod-modal";
+import { MyInvitations } from "@/components/study-pods/my-invitations";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -263,6 +264,7 @@ export default function StudyPodsPage() {
             <TabsTrigger value="my-pods">
               My Pods {myPods.length > 0 && `(${myPods.length})`}
             </TabsTrigger>
+            <TabsTrigger value="invitations">Invitations</TabsTrigger>
           </TabsList>
 
           {/* Tabs Content */}
@@ -349,6 +351,10 @@ export default function StudyPodsPage() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="invitations" className="mt-0">
+          <MyInvitations />
         </TabsContent>
         </Tabs>
       </main>

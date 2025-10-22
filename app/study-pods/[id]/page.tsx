@@ -20,9 +20,16 @@ import {
   ChevronLeft,
   Star,
   Plus,
+  UserPlus,
+  Shield,
+  Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { MemberCard } from "@/components/study-pods/member-card";
+import { InviteMembersModal } from "@/components/study-pods/invite-members-modal";
+import { JoinRequestsSection } from "@/components/study-pods/join-requests-section";
+import { EditPodModal } from "@/components/study-pods/edit-pod-modal";
 
 export default function StudyPodDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -31,6 +38,8 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
   const [pod, setPod] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [podId, setPodId] = useState<string>("");
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     fetchUser();
@@ -165,17 +174,6 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
     return null;
   }
 
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case "owner":
-        return <Star className="w-4 h-4 text-yellow-400" />;
-      case "moderator":
-        return <Star className="w-4 h-4 text-blue-400" />;
-      default:
-        return null;
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       {user && <DashboardNavbar user={user} />}
@@ -222,6 +220,27 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
             <div className="flex flex-col gap-2">
               {pod.is_member ? (
                 <>
+                  <div className="flex gap-2">
+                    {(pod.user_role === 'owner' || pod.user_role === 'moderator') && (
+                      <>
+                        <Button
+                          onClick={() => setShowEditModal(true)}
+                          variant="outline"
+                          className="border-emerald-500/20 hover:bg-emerald-500/10"
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          Edit Pod
+                        </Button>
+                        <Button
+                          onClick={() => setShowInviteModal(true)}
+                          className="bg-gradient-to-r from-green-500 to-emerald-500"
+                        >
+                          <UserPlus className="w-4 h-4 mr-2" />
+                          Invite
+                        </Button>
+                      </>
+                    )}
+                  </div>
                   <Button
                     variant="outline"
                     className="border-emerald-500/20"
@@ -230,20 +249,22 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                     <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-400" />
                     Joined
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleLeave}
-                    disabled={actionLoading}
-                    className="text-destructive hover:bg-destructive/10"
-                  >
-                    {actionLoading ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <LogOut className="w-4 h-4 mr-2" />
-                    )}
-                    Leave Pod
-                  </Button>
+                  {pod.user_role !== 'owner' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleLeave}
+                      disabled={actionLoading}
+                      className="text-destructive hover:bg-destructive/10"
+                    >
+                      {actionLoading ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <LogOut className="w-4 h-4 mr-2" />
+                      )}
+                      Leave Pod
+                    </Button>
+                  )}
                 </>
               ) : (
                 <Button
@@ -270,6 +291,12 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
               <Users className="w-4 h-4 mr-2" />
               Members
             </TabsTrigger>
+            {(pod.user_role === 'owner' || pod.user_role === 'moderator') && pod.requires_approval && (
+              <TabsTrigger value="requests">
+                <Shield className="w-4 h-4 mr-2" />
+                Join Requests
+              </TabsTrigger>
+            )}
             <TabsTrigger value="activity">
               <TrendingUp className="w-4 h-4 mr-2" />
               Activity
@@ -283,47 +310,24 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
           {/* Members */}
           <TabsContent value="members" className="space-y-4">
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-              {pod.members.map((member: any, index: number) => (
-                <Card
-                  key={member.user_id}
-                  className="p-4 border-2 border-white/5 bg-zinc-950/80 backdrop-blur-xl hover:border-emerald-500/20 transition-all duration-300"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <div className="flex items-center gap-4">
-                    <Avatar className="w-12 h-12">
-                      <AvatarImage src={member.users.avatar_url || ""} />
-                      <AvatarFallback className="bg-gradient-to-br from-brand to-purple-600">
-                        {member.users.full_name?.charAt(0) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold truncate">
-                          {member.users.full_name}
-                        </h4>
-                        {getRoleIcon(member.role)}
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate">
-                        @{member.users.username}
-                      </p>
-                      {member.user_stats && (
-                        <p className="text-xs text-emerald-400">
-                          {member.user_stats.total_solved} problems solved
-                        </p>
-                      )}
-                    </div>
-
-                    <Link href={`/profile/${member.users.username}`}>
-                      <Button variant="ghost" size="sm">
-                        View
-                      </Button>
-                    </Link>
-                  </div>
-                </Card>
+              {pod.members.map((member: any) => (
+                <MemberCard
+                  key={member.id}
+                  member={member}
+                  podId={podId}
+                  currentUserRole={pod.user_role}
+                  onMemberUpdate={fetchPodDetails}
+                />
               ))}
             </div>
           </TabsContent>
+
+          {/* Join Requests (only for owner/moderator on approval-required pods) */}
+          {(pod.user_role === 'owner' || pod.user_role === 'moderator') && pod.requires_approval && (
+            <TabsContent value="requests" className="space-y-4">
+              <JoinRequestsSection podId={podId} />
+            </TabsContent>
+          )}
 
           {/* Activity */}
           <TabsContent value="activity" className="space-y-4">
@@ -415,6 +419,23 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Invite Members Modal */}
+      <InviteMembersModal
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        podId={podId}
+        onSuccess={fetchPodDetails}
+      />
+
+      {/* Edit Pod Modal */}
+      <EditPodModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        pod={pod}
+        userRole={pod?.user_role}
+        onSuccess={fetchPodDetails}
+      />
     </div>
   );
 }
