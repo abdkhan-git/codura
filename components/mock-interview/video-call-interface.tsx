@@ -144,11 +144,9 @@ export function VideoCallInterface({
           }
           setConnectionStatus("connecting");
           if (isHost) {
-            await sendSignalingMessage({
-              type: "user-joined",
-              data: { name: user.name },
-              to: message.from,
-            });
+            // Acknowledge presence; send direct and broadcast to maximize delivery
+            await sendSignalingMessage({ type: "user-joined", data: { name: user.name }, to: message.from });
+            await sendSignalingMessage({ type: "user-joined", data: { name: user.name } });
           }
           if (!isHost && !offerSentRef.current) {
             await createAndSendOffer(message.from);
@@ -316,6 +314,14 @@ export function VideoCallInterface({
         toast.error("Failed to connect to the interview room. Please refresh.");
       } else {
         setConnectionStatus("connecting");
+        // Proactively create an offer on the joiner side after connecting
+        if (!isHost && !offerSentRef.current) {
+          setTimeout(() => {
+            if (!offerSentRef.current) {
+              createAndSendOffer();
+            }
+          }, 500);
+        }
       }
 
       // Host marks ready; participant finalizes attendance
