@@ -7,6 +7,15 @@ import { Play, CloudUploadIcon, RotateCcw, Loader2 } from 'lucide-react'
 import Editor, { useMonaco } from '@monaco-editor/react'
 import { LANGUAGES } from '@/utils/languages'
 
+const JUDGE_URL = (process.env.NEXT_PUBLIC_JUDGE_URL ?? 'http://localhost:8080').trim();
+const JUDGE_RUN_PATH = (process.env.NEXT_PUBLIC_JUDGE_RUN_PATH ?? '').trim();
+const JUDGE_SUBMIT_PATH = (process.env.NEXT_PUBLIC_JUDGE_SUBMIT_PATH ?? '').trim();
+const joinUrl = (base, path) => {
+  const b = (base || '').replace(/\/+$/, '');
+  const p = (path || '').replace(/^\/+/, '');
+  return `${b}/${p}`;
+};
+
 interface CodeSnippet {
   code: string
   lang: string 
@@ -92,14 +101,19 @@ export function CodeEditor({ problem, onSubmit, onRun, onAiChat }: CodeEditorPro
 
   const handleSubmit = async () => {
     if (!usersCode.trim()) return
-  
+
     setIsSubmitting(true)
     try {
+      console.debug('[judge] base:', JUDGE_URL, 'submit:', joinUrl(JUDGE_URL, JUDGE_SUBMIT_PATH || '/submit'));
+      // Call onSubmit first to generate actual submission results
+      if (onSubmit) {
+        await onSubmit(usersCode, userLang.id)
+      }
+      // Then call onAiChat to unlock the AI panel
       if (onAiChat) {
         await onAiChat(usersCode, userLang.id)
-      } else if (onSubmit) {
-        await onSubmit(usersCode, userLang.id)
-      } else {
+      }
+      if (!onSubmit && !onAiChat) {
         alert('No submit handlers provided. Wire up onAiChat or onSubmit.')
       }
     } catch (error) {
@@ -114,6 +128,7 @@ export function CodeEditor({ problem, onSubmit, onRun, onAiChat }: CodeEditorPro
     
     setIsRunning(true)
     try {
+      console.debug('[judge] base:', JUDGE_URL, 'run:', joinUrl(JUDGE_URL, JUDGE_RUN_PATH || '/run'));
       if (onRun) {
         await onRun(usersCode, userLang.id)
       }
@@ -225,7 +240,7 @@ function EditorToolbar({
   isSubmitting,
   onRun,
   onSubmit,
-  onReset
+  onReset,
 }: EditorToolbarProps) {
   return (
     <div className="flex justify-between border-b">

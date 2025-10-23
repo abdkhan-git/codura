@@ -13,8 +13,8 @@ interface Submission {
   status: string;
   language: string;
   submitted_at: string;
-  runtime?: number;
-  memory?: number;
+  runtime?: number | null;
+  memory?: number | null;
 }
 
 interface RecentSubmissionsProps {

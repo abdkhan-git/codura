@@ -11,7 +11,7 @@ import Image from "next/image";
 import CoduraLogo from "@/components/logos/codura-logo.svg";
 import { cn } from "@/lib/utils";
 import {
-  ArrowLeft,
+  ChevronLeft,
   X,
   Check,
 } from "lucide-react";
@@ -218,7 +218,7 @@ export default function StudyPlanDetailPage() {
         {/* Header */}
         <div className="mb-8">
           <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-brand transition-colors mb-4">
-            <ArrowLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4" />
             <span className="text-sm">Back to Dashboard</span>
           </Link>
 

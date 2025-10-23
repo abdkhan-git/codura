@@ -52,6 +52,46 @@ const tabScrollStyles = `
   }
 `
 
+// Judge configuration
+const JUDGE_URL = (process.env.NEXT_PUBLIC_JUDGE_URL ?? 'http://localhost:8080').trim();
+const JUDGE_RUN_PATH = (process.env.NEXT_PUBLIC_JUDGE_RUN_PATH ?? '').trim();
+const JUDGE_SUBMIT_PATH = (process.env.NEXT_PUBLIC_JUDGE_SUBMIT_PATH ?? '').trim();
+const joinUrl = (base: string, path: string) => {
+  const b = (base || '').replace(/\/+$/, '');
+  const p = (path || '').replace(/^\/+/, '');
+  return `${b}/${p}`;
+};
+
+// Try multiple judge endpoint variants to be compatible with different deployments
+const postToFirstAvailable = async (paths: string[], body: any) => {
+  const errors: Array<{ url: string; status: number; text?: string }> = [];
+  for (const path of paths) {
+    const url = joinUrl(JUDGE_URL, path);
+    console.debug('[judge] trying:', url);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) return res;
+      const text = await res.text().catch(() => '');
+      errors.push({ url, status: res.status, text });
+      // If it's a 404, try the next variant; if it's something else, continue but log
+      if (res.status !== 404) {
+        console.warn('[judge] non-404 error at', url, res.status, text);
+      } else {
+        console.debug('[judge] 404 at', url);
+      }
+    } catch (e) {
+      errors.push({ url, status: -1, text: (e as Error)?.message });
+    }
+  }
+  // Nothing worked — surface the most relevant info
+  const summary = errors.map(e => `${e.url} -> ${e.status}${e.text ? ' ' + e.text : ''}`).join(' | ');
+  throw new Error(`All judge endpoints failed: ${summary}`);
+};
+
 // ============================================
 // INTERFACES
 // ============================================
@@ -91,6 +131,8 @@ interface SubmissionResult {
   passedTests?: number
   memory?: string
   runtime?: string
+  timestamp?: Date
+  language?: string
 }
 
 // ============================================
@@ -107,7 +149,9 @@ export default function ProblemPage() {
   const [testcases, setTestcases] = useState<TestCase[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [submissionResult, setSubmissionResult] = useState<SubmissionResult | undefined>()
+  const [submissionResult, setSubmissionResult] = useState<SubmissionResult[]>([])
+  const [latestRunResult, setLatestRunResult] = useState<SubmissionResult | undefined>()
+  const [activeDescriptionTab, setActiveDescriptionTab] = useState<string>("description")
   // Mock submission for AIChatbot (temporary for testing)
   const [aiSubmission, setAiSubmission] = useState<{
     code: string
@@ -169,48 +213,70 @@ export default function ProblemPage() {
         stdin: "test",
       }
 
-      const response = await fetch('http://localhost:8080/api/problems/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      })
-
-      if (!response.ok) {
-        throw new Error('Submission failed')
-      }
-
-      const data = await response.json()
+      const submitPaths = [
+        ...(JUDGE_SUBMIT_PATH ? [JUDGE_SUBMIT_PATH] : []),
+        '/api/problems/submit',
+        '/submit',
+        '/problems/submit',
+        '/v1/submit',
+      ];
+      const response = await postToFirstAvailable(submitPaths, body);
+      const data = await response.json();
       
-      // Update submission result with API response
-      setSubmissionResult({
-        status: data.submissionResult?.status?.description || 'Unknown',
-        description: data.submissionResult?.status?.description || '',
-        totalTests: data.totalTests,
-        passedTests: data.passedTests,
-        memory: data.memory,
-        runtime: data.runtime,
-        testResults: data.testResults,
-      })
+      // Map Judge0-style response into our UI shape
+      const jr = data?.submissionResult || data; // support either shape
+      const statusDesc = jr?.status?.description || 'Unknown';
+      const stdout = (jr?.stdout || '').toString().trim();
+      const stderr = (jr?.stderr || '').toString().trim();
+      const time = jr?.time != null ? `${jr.time}s` : undefined;
+      const memory = jr?.memory != null ? `${jr.memory} KB` : undefined;
       
-      // Mock submission for AIChatbot only (not judge)
-      type AiSubmission = {
-        code: string
-        language: string
-        timestamp: Date
-        testsPassed: number
-        totalTests: number
-      } | null
+      // Compare against first test case if available
+      const expected = (testcases && testcases[0]?.expectedOutput)
+        ? String(testcases[0].expectedOutput).trim()
+        : undefined;
+      const passed = expected != null ? (stdout === expected) : undefined;
 
-      const [aiSubmission, setAiSubmission] = useState<AiSubmission>(null)
+      const newSubmission: SubmissionResult = {
+        status: statusDesc,
+        description: stderr ? `stderr: ${stderr}` : statusDesc,
+        totalTests: expected != null ? 1 : undefined,
+        passedTests: expected != null ? (passed ? 1 : 0) : undefined,
+        memory,
+        runtime: time,
+        timestamp: new Date(),
+        language: String(languageId),
+        testResults: expected != null ? [{
+          testCaseIndex: 0,
+          passed: !!passed,
+          input: testcases[0]?.input || '',
+          expectedOutput: expected || '',
+          actualOutput: stdout || undefined,
+          error: stderr || undefined,
+        }] : undefined,
+      };
+
+      setSubmissionResult(prev => [newSubmission, ...prev]);
+
+      // Switch to submissions tab after submit
+      setActiveDescriptionTab("submissions");
+
+      // Also update AI submission (unlocks AI panel after Submit)
+      setAiSubmission({
+        code,
+        language: String(languageId),
+        timestamp: new Date(),
+        testsPassed: data.passedTests ?? 0,
+        totalTests: data.totalTests ?? 0,
+      });
       console.log('Submission successful:', data)
     } catch (error) {
       console.error('Submission error:', error)
-      setSubmissionResult({
+      setSubmissionResult(prev => [{
         status: 'Error',
-        description: 'Failed to submit code. Please try again.'
-      })
+        description: 'Failed to submit code. Please try again.',
+        timestamp: new Date(),
+      }, ...prev]);
       throw error
     }
   }
@@ -222,41 +288,69 @@ export default function ProblemPage() {
     try {
       // Use first test case input for quick run
       const testInput = testcases[0]?.input || ""
-      
+
       const body = {
         language_id: languageId,
         source_code: code,
         stdin: testInput,
       }
 
-      const response = await fetch('http://localhost:8080/api/problems/run', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      })
+      const runPaths = [
+        ...(JUDGE_RUN_PATH ? [JUDGE_RUN_PATH] : []),
+        ...(JUDGE_SUBMIT_PATH ? [JUDGE_SUBMIT_PATH] : []),
+        '/api/problems/submit',
+        '/submit',
+        '/problems/submit',
+        '/v1/submit',
+      ];
+      const response = await postToFirstAvailable(runPaths, body);
+      const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error('Run failed')
-      }
+      // Map Judge0-style response into our UI shape (same as submit)
+      const jr = data?.submissionResult || data; // support either shape
+      const statusDesc = jr?.status?.description || 'Unknown';
+      const stdout = (jr?.stdout || '').toString().trim();
+      const stderr = (jr?.stderr || '').toString().trim();
+      const time = jr?.time != null ? `${jr.time}s` : undefined;
+      const memory = jr?.memory != null ? `${jr.memory} KB` : undefined;
 
-      const data = await response.json()
-      
-      // Update result with run output
-      setSubmissionResult({
-        status: data.status || 'Completed',
-        description: 'Code executed successfully',
-        testResults: data.testResults,
-      })
+      // Compare against first test case if available
+      const expected = (testcases && testcases[0]?.expectedOutput)
+        ? String(testcases[0].expectedOutput).trim()
+        : undefined;
+      const passed = expected != null ? (stdout === expected) : undefined;
+
+      const runResult: SubmissionResult = {
+        status: statusDesc,
+        description: stderr ? `stderr: ${stderr}` : statusDesc,
+        totalTests: expected != null ? 1 : undefined,
+        passedTests: expected != null ? (passed ? 1 : 0) : undefined,
+        memory,
+        runtime: time,
+        timestamp: new Date(),
+        language: String(languageId),
+        testResults: expected != null ? [{
+          testCaseIndex: 0,
+          passed: !!passed,
+          input: testcases[0]?.input || '',
+          expectedOutput: expected || '',
+          actualOutput: stdout || undefined,
+          error: stderr || undefined,
+        }] : undefined,
+      };
+
+      // For Run, just update the latest run result (don't add to submission history)
+      setLatestRunResult(runResult);
 
       console.log('Run successful:', data)
     } catch (error) {
       console.error('Run error:', error)
-      setSubmissionResult({
+      const errorResult: SubmissionResult = {
         status: 'Error',
-        description: 'Failed to run code. Please try again.'
-      })
+        description: 'Failed to run code. Please try again.',
+        timestamp: new Date(),
+      };
+      setLatestRunResult(errorResult);
       throw error
     }
   }
@@ -313,7 +407,13 @@ export default function ProblemPage() {
         
         {/* LEFT PANEL - Problem Description */}
         <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>
-          <ProblemDescription problem={problem} loading={loading} />
+          <ProblemDescription
+            problem={problem}
+            loading={loading}
+            submissionResult={submissionResult}
+            activeTab={activeDescriptionTab}
+            onTabChange={setActiveDescriptionTab}
+          />
         </ResizablePanel>
 
         <ResizableHandle withHandle />
@@ -345,9 +445,9 @@ export default function ProblemPage() {
 
             {/* Test Cases & Results */}
             <ResizablePanel defaultSize={35} minSize={20}>
-              <TestCases 
+              <TestCases
                 testcases={testcases}
-                submissionResult={submissionResult}
+                submissionResult={latestRunResult}
               />
             </ResizablePanel>
             

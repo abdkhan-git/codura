@@ -48,7 +48,7 @@ export function TestCases({ testcases = [], submissionResult }: TestCasesProps) 
         </TabsContent>
 
         {/* Results Tab */}
-        <TabsContent value="result" className="p-4 flex-1 overflow-auto m-0">
+        <TabsContent value="results" className="p-4 flex-1 overflow-auto m-0">
           <ResultsDisplay submissionResult={submissionResult} />
         </TabsContent>
       </Tabs>
@@ -72,7 +72,7 @@ function TestCasesTabs() {
           Testcases
         </TabsTrigger>
         <TabsTrigger 
-          value="result" 
+          value="results" 
           className="px-4 flex-shrink-0 cursor-pointer !text-zinc-500 data-[state=active]:!text-white"
         >
           <ListChecks className="text-green-600 mr-2 w-4 h-4" />

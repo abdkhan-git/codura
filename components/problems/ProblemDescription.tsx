@@ -4,7 +4,8 @@ import React, { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { ChevronDown, ChevronUp, Tag } from 'lucide-react'
+import { ChevronDown, ChevronUp, Tag, ChevronLeft } from 'lucide-react'
+import Link from 'next/link'
 
 interface ProblemData {
   id: number
@@ -22,14 +23,37 @@ interface ProblemData {
   acceptance_rate: number
 }
 
+interface MiniTestResult {
+  testCaseIndex: number
+  passed: boolean
+  input?: string
+  expectedOutput?: string
+  actualOutput?: string
+  error?: string
+}
+interface MiniSubmissionResult {
+  status?: string
+  description?: string
+  totalTests?: number
+  passedTests?: number
+  memory?: string
+  runtime?: string
+  timestamp?: Date
+  language?: string
+  testResults?: MiniTestResult[]
+}
 interface ProblemDescriptionProps {
   problem: ProblemData | null
   loading?: boolean
+  submissionResult?: MiniSubmissionResult[]
+  activeTab?: string
+  onTabChange?: (tab: string) => void
 }
 
-export function ProblemDescription({ problem, loading }: ProblemDescriptionProps) {
+export function ProblemDescription({ problem, loading, submissionResult, activeTab, onTabChange }: ProblemDescriptionProps) {
   const [showTags, setShowTags] = useState(false)
   const [showAcceptanceRate, setShowAcceptanceRate] = useState(false)
+  const [internalActiveTab, setInternalActiveTab] = useState("description")
 
   if (loading) {
     return (
@@ -47,9 +71,16 @@ export function ProblemDescription({ problem, loading }: ProblemDescriptionProps
     )
   }
 
+  const currentTab = activeTab ?? internalActiveTab
+
+  const handleTabChange = (newTab: string) => {
+    setInternalActiveTab(newTab)
+    onTabChange?.(newTab)
+  }
+
   return (
     <div className="h-full flex flex-col">
-      <Tabs defaultValue="description" className="flex-1 flex flex-col">
+      <Tabs value={currentTab} onValueChange={handleTabChange} className="flex-1 flex flex-col">
         {/* Tab Navigation */}
         <TabNavigation />
 
@@ -82,7 +113,7 @@ export function ProblemDescription({ problem, loading }: ProblemDescriptionProps
 
           {/* Submissions Tab */}
           <TabsContent value="submissions" className="p-4 mt-0">
-            <SubmissionsContent />
+            <SubmissionsContent submissionResult={submissionResult} />
           </TabsContent>
         </ScrollArea>
       </Tabs>
@@ -189,6 +220,15 @@ function ProblemHeader({ problem, showAcceptanceRate, setShowAcceptanceRate }: P
 
   return (
     <div>
+      <div className="flex items-center gap-2 mb-3">
+        <Link
+          href="/problems"
+          className="flex items-center gap-1 text-green-500 hover:text-green-400 transition-colors text-sm font-medium"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          <span>Problem List</span>
+        </Link>
+      </div>
       <h1 className="text-2xl font-bold mb-2">
         {problem.leetcode_id}. {problem.title}
       </h1>
@@ -345,18 +385,128 @@ function CommunityContent() {
   )
 }
 
-function SubmissionsContent() {
+function SubmissionsContent({ submissionResult }: { submissionResult?: MiniSubmissionResult[] }) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
+
+  if (!submissionResult || submissionResult.length === 0) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold">My Submissions</h2>
+        <div className="bg-muted/50 border border-border rounded-lg p-6 text-center">
+          <p className="text-sm text-muted-foreground mb-2">
+            No submissions yet
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Your submission history will appear here after you submit solutions.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">My Submissions</h2>
-      <div className="bg-muted/50 border border-border rounded-lg p-6 text-center">
-        <p className="text-sm text-muted-foreground mb-2">
-          No submissions yet
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Your submission history will appear here after you submit solutions.
-        </p>
+
+      {/* Submission list */}
+      <div className="space-y-2">
+        {submissionResult.map((submission, idx) => {
+          const isSuccess = submission.status === 'Accepted'
+            || (submission.passedTests != null
+                && submission.totalTests != null
+                && submission.passedTests === submission.totalTests)
+          const isExpanded = expandedIndex === idx
+
+          return (
+            <div key={idx} className="border rounded-lg overflow-hidden">
+              {/* Submission Row - Clickable */}
+              <div
+                className={`p-3 cursor-pointer hover:bg-muted/30 transition-colors ${
+                  isSuccess ? 'bg-green-950/20 border-green-900/30' : 'bg-red-950/20 border-red-900/30'
+                }`}
+                onClick={() => setExpandedIndex(isExpanded ? null : idx)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`text-sm font-semibold ${
+                      isSuccess ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {submission.status || 'Submitted'}
+                    </div>
+                    {(submission.passedTests != null && submission.totalTests != null) && (
+                      <div className="text-xs text-muted-foreground">
+                        {submission.passedTests}/{submission.totalTests} passed
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {submission.timestamp && (
+                      <span>{formatTimestamp(submission.timestamp)}</span>
+                    )}
+                    {submission.runtime && <span>{submission.runtime}</span>}
+                    {submission.memory && <span>{submission.memory}</span>}
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Expanded Details */}
+              {isExpanded && (
+                <div className="p-4 bg-muted/20 border-t space-y-3">
+                  {submission.description && (
+                    <div className="text-sm">
+                      <span className="text-zinc-400">Status: </span>
+                      <span>{submission.description}</span>
+                    </div>
+                  )}
+
+                  {/* Test results */}
+                  {submission.testResults && submission.testResults.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">Test Cases</h4>
+                      {submission.testResults.map((tr, trIdx) => (
+                        <div
+                          key={trIdx}
+                          className={`p-3 rounded border ${
+                            tr.passed ? 'bg-green-950/20 border-green-900/50' : 'bg-red-950/20 border-red-900/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="text-xs font-semibold">Case {tr.testCaseIndex + 1}</div>
+                            <div className="text-xs">{tr.passed ? '✓ Passed' : '✗ Failed'}</div>
+                          </div>
+                          <div className="text-xs space-y-1">
+                            {tr.input && (<div><span className="text-zinc-400">Input: </span><span className="font-mono">{tr.input}</span></div>)}
+                            {tr.expectedOutput && (<div><span className="text-zinc-400">Expected: </span><span className="font-mono">{tr.expectedOutput}</span></div>)}
+                            {tr.actualOutput && (<div><span className="text-zinc-400">Got: </span><span className="font-mono">{tr.actualOutput}</span></div>)}
+                            {tr.error && (<div className="mt-1 text-red-400">Error: {tr.error}</div>)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
+}
+
+// Helper function to format timestamp
+function formatTimestamp(date: Date): string {
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (seconds < 60) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days < 7) return `${days}d ago`
+  return date.toLocaleDateString()
 }
