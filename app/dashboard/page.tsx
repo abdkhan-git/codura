@@ -382,6 +382,13 @@ export default function DashboardPage() {
 
         // Single unified API call instead of 6 separate calls!
         const response = await fetch('/api/dashboard');
+
+        // Handle 401 - redirect to login
+        if (response.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || 'Failed to fetch dashboard data');
