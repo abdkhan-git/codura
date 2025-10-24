@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, Loader2, Mail, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 
 interface Invitation {
   id: string;
@@ -25,6 +27,7 @@ interface Invitation {
 }
 
 export function MyInvitations() {
+  const { theme } = useTheme();
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -92,8 +95,11 @@ export function MyInvitations() {
     return (
       <div className="text-center py-12">
         <Mail className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
-        <h3 className="text-xl font-semibold mb-2">No Invitations</h3>
-        <p className="text-muted-foreground">
+        <h3 className={cn(
+          "text-xl font-semibold mb-2",
+          theme === 'light' ? "text-gray-900" : "text-white"
+        )}>No Invitations</h3>
+        <p className={theme === 'light' ? "text-gray-600" : "text-muted-foreground"}>
           You don't have any pending pod invitations
         </p>
       </div>
@@ -104,7 +110,10 @@ export function MyInvitations() {
     <div className="space-y-4">
       <div className="flex items-center gap-2 mb-6">
         <Mail className="w-6 h-6 text-emerald-500" />
-        <h2 className="text-2xl font-bold">My Invitations</h2>
+        <h2 className={cn(
+          "text-2xl font-bold",
+          theme === 'light' ? "text-gray-900" : "text-white"
+        )}>My Invitations</h2>
         <Badge variant="outline" className="ml-auto">
           {invitations.length} pending
         </Badge>
@@ -117,16 +126,24 @@ export function MyInvitations() {
           return (
             <Card
               key={invitation.id}
-              className={`p-5 border-2 ${
+              className={cn(
+                "p-5 border-2 backdrop-blur-xl",
                 expired
-                  ? 'border-white/5 bg-zinc-950/50 opacity-60'
-                  : 'border-emerald-500/20 bg-zinc-950/80'
-              } backdrop-blur-xl`}
+                  ? theme === 'light'
+                    ? 'border-gray-200 bg-gray-50 opacity-60'
+                    : 'border-white/5 bg-zinc-950/50 opacity-60'
+                  : theme === 'light'
+                    ? 'border-emerald-500/20 bg-white'
+                    : 'border-emerald-500/20 bg-zinc-950/80'
+              )}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-lg font-semibold">{invitation.pod.name}</h3>
+                    <h3 className={cn(
+                      "text-lg font-semibold",
+                      theme === 'light' ? "text-gray-900" : "text-white"
+                    )}>{invitation.pod.name}</h3>
                     {expired && (
                       <Badge variant="outline" className="text-xs text-red-400 border-red-400/20">
                         Expired
@@ -135,13 +152,21 @@ export function MyInvitations() {
                   </div>
 
                   {invitation.pod.description && (
-                    <p className="text-sm text-muted-foreground mb-3">
+                    <p className={cn(
+                      "text-sm mb-3",
+                      theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                    )}>
                       {invitation.pod.description}
                     </p>
                   )}
 
                   {invitation.message && (
-                    <div className="mb-3 p-3 rounded-lg bg-zinc-900/50 border border-white/5">
+                    <div className={cn(
+                      "mb-3 p-3 rounded-lg",
+                      theme === 'light'
+                        ? "bg-gray-100 border border-gray-200"
+                        : "bg-zinc-900/50 border border-white/5"
+                    )}>
                       <p className="text-sm italic">"{invitation.message}"</p>
                     </div>
                   )}
@@ -156,7 +181,10 @@ export function MyInvitations() {
                     </Badge>
                   </div>
 
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className={cn(
+                    "flex items-center gap-4 text-xs",
+                    theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                  )}>
                     <div className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       Invited {new Date(invitation.created_at).toLocaleDateString()}

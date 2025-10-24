@@ -6,6 +6,8 @@ import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -16,7 +18,6 @@ import {
 import { PodCard } from "@/components/study-pods/pod-card";
 import { CreatePodModal } from "@/components/study-pods/create-pod-modal";
 import { MyInvitations } from "@/components/study-pods/my-invitations";
-import { cn } from "@/lib/utils";
 import {
   Search,
   Plus,
@@ -31,6 +32,7 @@ import { STUDY_SUBJECTS } from "@/types/study-pods";
 import type { SkillLevel } from "@/types/study-pods";
 
 export default function StudyPodsPage() {
+  const { theme } = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -200,7 +202,12 @@ export default function StudyPodsPage() {
         </div>
 
         {/* Filters */}
-        <div className="mb-6 p-4 rounded-xl border-2 border-white/5 bg-zinc-950/50 backdrop-blur-xl">
+        <div className={cn(
+          "mb-6 p-4 rounded-xl border-2 backdrop-blur-xl",
+          theme === 'light'
+            ? "bg-white/80 border-gray-200"
+            : "border-white/5 bg-zinc-950/50"
+        )}>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-2">
               <div className="relative">
@@ -244,7 +251,10 @@ export default function StudyPodsPage() {
 
           {(searchQuery || selectedSubject || selectedSkillLevel) && (
             <div className="mt-3 flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Active filters:</span>
+              <span className={cn(
+                "text-sm",
+                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+              )}>Active filters:</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -259,7 +269,11 @@ export default function StudyPodsPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-zinc-900/50 border border-white/5">
+          <TabsList className={cn(
+            theme === 'light'
+              ? "bg-gray-100 border border-gray-200"
+              : "bg-zinc-900/50 border border-white/5"
+          )}>
             <TabsTrigger value="all">All Pods</TabsTrigger>
             <TabsTrigger value="my-pods">
               My Pods {myPods.length > 0 && `(${myPods.length})`}
@@ -274,7 +288,12 @@ export default function StudyPodsPage() {
               {[...Array(6)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-80 rounded-xl bg-zinc-950/50 border-2 border-white/5 animate-pulse"
+                  className={cn(
+                    "h-80 rounded-xl border-2 animate-pulse",
+                    theme === 'light'
+                      ? "bg-gray-100 border-gray-200"
+                      : "bg-zinc-950/50 border-white/5"
+                  )}
                 />
               ))}
             </div>
@@ -283,8 +302,14 @@ export default function StudyPodsPage() {
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center mx-auto mb-4">
                 <BookOpen className="w-8 h-8 text-emerald-400" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">No study pods found</h3>
-              <p className="text-muted-foreground mb-4">
+              <h3 className={cn(
+                "text-lg font-semibold mb-2",
+                theme === 'light' ? "text-gray-900" : "text-white"
+              )}>No study pods found</h3>
+              <p className={cn(
+                "mb-4",
+                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+              )}>
                 {searchQuery || selectedSubject || selectedSkillLevel
                   ? "Try adjusting your filters"
                   : "Be the first to create one!"}

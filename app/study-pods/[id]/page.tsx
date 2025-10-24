@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import {
   Users,
   Calendar,
@@ -37,6 +38,7 @@ import { PodProblemsList } from "@/components/study-pods/pod-problems-list";
 import { AssignProblemsModal } from "@/components/study-pods/assign-problems-modal";
 
 export default function StudyPodDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { theme } = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -203,11 +205,22 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
         </Link>
 
         {/* Header */}
-        <div className="mb-8 p-6 rounded-xl border-2 border-white/5 bg-zinc-950/80 backdrop-blur-xl">
+        <div className={cn(
+          "mb-8 p-6 rounded-xl border-2 backdrop-blur-xl",
+          theme === 'light'
+            ? "bg-white border-gray-200"
+            : "border-white/5 bg-zinc-950/80"
+        )}>
           <div className="flex items-start justify-between gap-6">
             <div className="flex-1">
-              <h1 className="text-3xl font-bold mb-2">{pod.name}</h1>
-              <p className="text-muted-foreground mb-4">{pod.description}</p>
+              <h1 className={cn(
+                "text-3xl font-bold mb-2",
+                theme === 'light' ? "text-gray-900" : "text-white"
+              )}>{pod.name}</h1>
+              <p className={cn(
+                "mb-4",
+                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+              )}>{pod.description}</p>
 
               <div className="flex flex-wrap gap-2">
                 <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
@@ -302,7 +315,11 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
 
         {/* Tabs */}
         <Tabs defaultValue="members" className="space-y-6">
-          <TabsList className="bg-zinc-900/50 border border-white/5">
+          <TabsList className={cn(
+            theme === 'light'
+              ? "bg-gray-100 border border-gray-200"
+              : "bg-zinc-900/50 border border-white/5"
+          )}>
             <TabsTrigger value="members">
               <Users className="w-4 h-4 mr-2" />
               Members
@@ -376,7 +393,12 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 {pod.recent_activities.map((activity: any) => (
                   <Card
                     key={activity.id}
-                    className="p-4 border-2 border-white/5 bg-zinc-950/80 backdrop-blur-xl"
+                    className={cn(
+                      "p-4 border-2 backdrop-blur-xl",
+                      theme === 'light'
+                        ? "bg-white border-gray-200"
+                        : "border-white/5 bg-zinc-950/80"
+                    )}
                   >
                     <div className="flex items-start gap-4">
                       {activity.users && (
@@ -389,13 +411,22 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                       )}
 
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium">{activity.title}</h4>
+                        <h4 className={cn(
+                          "font-medium",
+                          theme === 'light' ? "text-gray-900" : "text-white"
+                        )}>{activity.title}</h4>
                         {activity.description && (
-                          <p className="text-sm text-muted-foreground">
+                          <p className={cn(
+                            "text-sm",
+                            theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                          )}>
                             {activity.description}
                           </p>
                         )}
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className={cn(
+                          "text-xs mt-1",
+                          theme === 'light' ? "text-gray-500" : "text-muted-foreground"
+                        )}>
                           {new Date(activity.created_at).toLocaleDateString()}
                         </p>
                       </div>
@@ -404,7 +435,10 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 text-muted-foreground">
+              <div className={cn(
+                "text-center py-12",
+                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+              )}>
                 No activity yet
               </div>
             )}
@@ -417,17 +451,31 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 {pod.upcoming_sessions.map((session: any) => (
                   <Card
                     key={session.id}
-                    className="p-4 border-2 border-white/5 bg-zinc-950/80 backdrop-blur-xl"
+                    className={cn(
+                      "p-4 border-2 backdrop-blur-xl",
+                      theme === 'light'
+                        ? "bg-white border-gray-200"
+                        : "border-white/5 bg-zinc-950/80"
+                    )}
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <h4 className="font-semibold mb-1">{session.title}</h4>
+                        <h4 className={cn(
+                          "font-semibold mb-1",
+                          theme === 'light' ? "text-gray-900" : "text-white"
+                        )}>{session.title}</h4>
                         {session.description && (
-                          <p className="text-sm text-muted-foreground mb-2">
+                          <p className={cn(
+                            "text-sm mb-2",
+                            theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                          )}>
                             {session.description}
                           </p>
                         )}
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className={cn(
+                          "flex items-center gap-4 text-sm",
+                          theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                        )}>
                           <div className="flex items-center gap-1.5">
                             <Calendar className="w-4 h-4" />
                             {new Date(session.scheduled_at).toLocaleDateString()}
@@ -452,7 +500,10 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 text-muted-foreground">
+              <div className={cn(
+                "text-center py-12",
+                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+              )}>
                 No upcoming sessions
               </div>
             )}

@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -47,6 +49,7 @@ interface AssignProblemsModalProps {
 }
 
 export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: AssignProblemsModalProps) {
+  const { theme } = useTheme();
   const [problems, setProblems] = useState<Problem[]>([]);
   const [filteredProblems, setFilteredProblems] = useState<Problem[]>([]);
   const [selectedProblems, setSelectedProblems] = useState<string[]>([]);
@@ -213,28 +216,55 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh] bg-zinc-950 border-2 border-emerald-500/20 overflow-hidden">
-        {/* Background effects */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.08),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_100%_100%,rgba(6,182,212,0.08),transparent_50%)]" />
+      <DialogContent className={cn(
+        "sm:max-w-[900px] max-h-[90vh] border-2 overflow-hidden",
+        theme === 'light'
+          ? "bg-white border-emerald-500/20"
+          : "bg-zinc-950 border-emerald-500/20"
+      )}>
+        {/* Background effects - only for dark mode */}
+        {theme !== 'light' && (
+          <>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.08),transparent_50%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_100%_100%,rgba(6,182,212,0.08),transparent_50%)]" />
+          </>
+        )}
 
         <DialogHeader className="relative">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30">
+            <div className={cn(
+              "p-2.5 rounded-xl border",
+              theme === 'light'
+                ? "bg-gradient-to-br from-emerald-50 to-cyan-50 border-emerald-200"
+                : "bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border-emerald-500/30"
+            )}>
               <ListPlus className="w-6 h-6 text-emerald-400" />
             </div>
-            <DialogTitle className="text-2xl bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
+            <DialogTitle className={cn(
+              "text-2xl",
+              theme === 'light'
+                ? "text-gray-900"
+                : "bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent"
+            )}>
               Assign Problems to Pod
             </DialogTitle>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className={cn(
+            "text-sm",
+            theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+          )}>
             Select problems to build your pod's learning path
           </p>
         </DialogHeader>
 
         <div className="space-y-5 overflow-y-auto max-h-[65vh] pr-2 relative">
           {/* Filters */}
-          <div className="sticky top-0 bg-zinc-950/95 backdrop-blur-xl pb-4 z-20 border-b border-white/5">
+          <div className={cn(
+            "sticky top-0 backdrop-blur-xl pb-4 z-20 border-b",
+            theme === 'light'
+              ? "bg-white/95 border-gray-200"
+              : "bg-zinc-950/95 border-white/5"
+          )}>
             <div className="flex items-center gap-2 mb-3">
               <Filter className="w-4 h-4 text-emerald-400" />
               <span className="text-sm font-semibold text-emerald-400">Filters</span>
@@ -329,15 +359,32 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full blur-xl opacity-20 animate-pulse" />
                 <Loader2 className="w-10 h-10 animate-spin text-emerald-500 relative z-10" />
               </div>
-              <p className="mt-4 text-sm text-muted-foreground">Loading problems...</p>
+              <p className={cn(
+                "mt-4 text-sm",
+                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+              )}>Loading problems...</p>
             </div>
           ) : filteredProblems.length === 0 ? (
             <div className="text-center py-16">
-              <div className="inline-flex items-center justify-center w-16 h-16 mb-4 rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-white/5">
-                <Search className="w-8 h-8 text-muted-foreground" />
+              <div className={cn(
+                "inline-flex items-center justify-center w-16 h-16 mb-4 rounded-2xl border",
+                theme === 'light'
+                  ? "bg-gradient-to-br from-gray-100 to-gray-200 border-gray-200"
+                  : "bg-gradient-to-br from-zinc-800 to-zinc-900 border-white/5"
+              )}>
+                <Search className={cn(
+                  "w-8 h-8",
+                  theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                )} />
               </div>
-              <p className="text-lg font-semibold mb-2">No Problems Found</p>
-              <p className="text-sm text-muted-foreground">Try adjusting your filters</p>
+              <p className={cn(
+                "text-lg font-semibold mb-2",
+                theme === 'light' ? "text-gray-900" : "text-white"
+              )}>No Problems Found</p>
+              <p className={cn(
+                "text-sm",
+                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+              )}>Try adjusting your filters</p>
             </div>
           ) : (
             <div className="space-y-2.5">
@@ -358,11 +405,16 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
                     )}
                     <Card
                       onClick={() => toggleProblemSelection(problem.id)}
-                      className={`relative cursor-pointer transition-all duration-200 border overflow-hidden ${
+                      className={cn(
+                        "relative cursor-pointer transition-all duration-200 border overflow-hidden",
                         isSelected
-                          ? "border-2 border-emerald-500/50 bg-gradient-to-br from-emerald-950/40 to-zinc-950/80"
-                          : "border border-white/5 bg-zinc-900/30 hover:border-emerald-500/30 hover:bg-zinc-900/50"
-                      }`}
+                          ? theme === 'light'
+                            ? "border-2 border-emerald-500/50 bg-gradient-to-br from-emerald-50 to-white"
+                            : "border-2 border-emerald-500/50 bg-gradient-to-br from-emerald-950/40 to-zinc-950/80"
+                          : theme === 'light'
+                            ? "border border-gray-200 bg-white hover:border-emerald-500/30 hover:bg-gray-50"
+                            : "border border-white/5 bg-zinc-900/30 hover:border-emerald-500/30 hover:bg-zinc-900/50"
+                      )}
                     >
                       {/* Selection gradient overlay */}
                       {isSelected && (
@@ -372,11 +424,14 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
                       <div className="relative p-4">
                         <div className="flex items-center gap-4">
                           {/* Custom Checkbox */}
-                          <div className={`relative w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 ${
+                          <div className={cn(
+                            "relative w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200",
                             isSelected
                               ? "bg-gradient-to-br from-emerald-500 to-cyan-500 border-emerald-500"
-                              : "border-white/20 group-hover:border-emerald-500/50"
-                          }`}>
+                              : theme === 'light'
+                                ? "border-gray-300 group-hover:border-emerald-500/50"
+                                : "border-white/20 group-hover:border-emerald-500/50"
+                          )}>
                             {isSelected && (
                               <CheckCircle2 className="w-5 h-5 text-white animate-in zoom-in duration-200" />
                             )}
@@ -385,10 +440,18 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
                           {/* Problem Info */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs font-mono text-muted-foreground px-2 py-0.5 rounded bg-zinc-800/50 border border-white/5">
+                              <span className={cn(
+                                "text-xs font-mono px-2 py-0.5 rounded border",
+                                theme === 'light'
+                                  ? "text-gray-600 bg-gray-100 border-gray-200"
+                                  : "text-muted-foreground bg-zinc-800/50 border-white/5"
+                              )}>
                                 #{problem.leetcode_id}
                               </span>
-                              <h4 className="font-semibold truncate group-hover:text-emerald-400 transition-colors">
+                              <h4 className={cn(
+                                "font-semibold truncate group-hover:text-emerald-400 transition-colors",
+                                theme === 'light' ? "text-gray-900" : "text-white"
+                              )}>
                                 {problem.title}
                               </h4>
                             </div>
@@ -397,7 +460,12 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
                                 <span className="mr-1">{difficultyConfig.icon}</span>
                                 {problem.difficulty}
                               </Badge>
-                              <Badge variant="outline" className="text-xs bg-zinc-900/50 border-white/10">
+                              <Badge variant="outline" className={cn(
+                                "text-xs",
+                                theme === 'light'
+                                  ? "bg-gray-100 border-gray-200"
+                                  : "bg-zinc-900/50 border-white/10"
+                              )}>
                                 {problem.category}
                               </Badge>
                             </div>
@@ -416,7 +484,12 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
                 );
               })}
               {filteredProblems.length > 50 && (
-                <p className="text-xs text-center text-muted-foreground py-3 border-t border-white/5">
+                <p className={cn(
+                  "text-xs text-center py-3 border-t",
+                  theme === 'light'
+                    ? "text-gray-600 border-gray-200"
+                    : "text-muted-foreground border-white/5"
+                )}>
                   Showing first 50 results. Use filters to narrow down your search.
                 </p>
               )}
@@ -425,7 +498,10 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
 
           {/* Assignment details */}
           {selectedProblems.length > 0 && (
-            <div className="border-t border-white/10 pt-5 mt-5 space-y-4">
+            <div className={cn(
+              "border-t pt-5 mt-5 space-y-4",
+              theme === 'light' ? "border-gray-200" : "border-white/10"
+            )}>
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-sm font-semibold text-emerald-400">Assignment Details</h3>
@@ -442,7 +518,12 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
                     type="datetime-local"
                     value={deadline}
                     onChange={(e) => setDeadline(e.target.value)}
-                    className="bg-zinc-900/50 border-white/10 focus:border-emerald-500/50 transition-colors"
+                    className={cn(
+                      "transition-colors focus:border-emerald-500/50",
+                      theme === 'light'
+                        ? "bg-white border-gray-200"
+                        : "bg-zinc-900/50 border-white/10"
+                    )}
                   />
                 </div>
 
@@ -452,10 +533,19 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
                     Priority
                   </Label>
                   <Select value={priority} onValueChange={(v: any) => setPriority(v)}>
-                    <SelectTrigger className="bg-zinc-900/50 border-white/10 focus:border-emerald-500/50">
+                    <SelectTrigger className={cn(
+                      "focus:border-emerald-500/50",
+                      theme === 'light'
+                        ? "bg-white border-gray-200"
+                        : "bg-zinc-900/50 border-white/10"
+                    )}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-zinc-900 border-white/10">
+                    <SelectContent className={cn(
+                      theme === 'light'
+                        ? "bg-white border-gray-200"
+                        : "bg-zinc-900 border-white/10"
+                    )}>
                       <SelectItem value="low">Low</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
                       <SelectItem value="high">High</SelectItem>
@@ -474,10 +564,18 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
                   placeholder="Add instructions or context for this assignment..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="bg-zinc-900/50 border-white/10 focus:border-emerald-500/50 min-h-[90px] resize-none transition-colors"
+                  className={cn(
+                    "focus:border-emerald-500/50 min-h-[90px] resize-none transition-colors",
+                    theme === 'light'
+                      ? "bg-white border-gray-200"
+                      : "bg-zinc-900/50 border-white/10"
+                  )}
                   maxLength={500}
                 />
-                <p className="text-xs text-muted-foreground text-right">
+                <p className={cn(
+                  "text-xs text-right",
+                  theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                )}>
                   {notes.length}/500
                 </p>
               </div>
@@ -486,12 +584,19 @@ export function AssignProblemsModal({ isOpen, onClose, podId, onSuccess }: Assig
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-3 justify-end border-t border-white/10 pt-5 relative">
+        <div className={cn(
+          "flex gap-3 justify-end border-t pt-5 relative",
+          theme === 'light' ? "border-gray-200" : "border-white/10"
+        )}>
           <Button
             variant="outline"
             onClick={onClose}
             disabled={submitting}
-            className="border-white/10 hover:bg-zinc-800/50"
+            className={cn(
+              theme === 'light'
+                ? "border-gray-200 hover:bg-gray-50"
+                : "border-white/10 hover:bg-zinc-800/50"
+            )}
           >
             Cancel
           </Button>

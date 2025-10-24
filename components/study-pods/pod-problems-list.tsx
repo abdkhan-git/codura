@@ -9,6 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -89,6 +91,7 @@ interface PodProblemsListProps {
 }
 
 export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodProblemsListProps) {
+  const { theme } = useTheme();
   const [problems, setProblems] = useState<PodProblem[]>([]);
   const [loading, setLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -304,18 +307,40 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
 
   if (problems.length === 0) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900/50 to-zinc-950 p-12">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(16,185,129,0.05),transparent_50%)]" />
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-emerald-500/5 to-transparent rounded-full blur-3xl" />
+      <div className={cn(
+        "relative overflow-hidden rounded-2xl border p-12",
+        theme === 'light'
+          ? "bg-white border-gray-200"
+          : "border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900/50 to-zinc-950"
+      )}>
+        {theme !== 'light' && (
+          <>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(16,185,129,0.05),transparent_50%)]" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-emerald-500/5 to-transparent rounded-full blur-3xl" />
+          </>
+        )}
 
         <div className="relative text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 mb-6 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 border border-emerald-500/20">
+          <div className={cn(
+            "inline-flex items-center justify-center w-20 h-20 mb-6 rounded-2xl border",
+            theme === 'light'
+              ? "bg-gradient-to-br from-emerald-50 to-cyan-50 border-emerald-200"
+              : "bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 border-emerald-500/20"
+          )}>
             <Target className="w-10 h-10 text-emerald-400" />
           </div>
-          <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
+          <h3 className={cn(
+            "text-2xl font-bold mb-3",
+            theme === 'light'
+              ? "text-gray-900"
+              : "bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent"
+          )}>
             No Problems Assigned Yet
           </h3>
-          <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
+          <p className={cn(
+            "max-w-md mx-auto leading-relaxed",
+            theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+          )}>
             {canManage
               ? "Start building your study path by assigning LeetCode problems to track progress and collaborate with your pod members."
               : "Your pod hasn't assigned any problems yet. Check back soon!"}
@@ -324,7 +349,10 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
             <div className="mt-8 flex justify-center">
               <div className="relative group">
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-lg blur opacity-30 group-hover:opacity-60 transition duration-300" />
-                <div className="relative px-6 py-2.5 bg-zinc-950 rounded-lg text-sm text-emerald-400 border border-emerald-500/20">
+                <div className={cn(
+                  "relative px-6 py-2.5 rounded-lg text-sm text-emerald-400 border border-emerald-500/20",
+                  theme === 'light' ? "bg-white" : "bg-zinc-950"
+                )}>
                   Click "Assign Problems" above to get started
                 </div>
               </div>
@@ -347,50 +375,100 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
         {/* Premium Progress Card */}
         <div className="relative group">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-500" />
-          <Card className="relative border-2 border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900/80 to-zinc-950 backdrop-blur-xl overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(16,185,129,0.1),transparent_50%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_100%_100%,rgba(6,182,212,0.1),transparent_50%)]" />
+          <Card className={cn(
+            "relative border-2 backdrop-blur-xl overflow-hidden",
+            theme === 'light'
+              ? "bg-white border-gray-200"
+              : "border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900/80 to-zinc-950"
+          )}>
+            {theme !== 'light' && (
+              <>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(16,185,129,0.1),transparent_50%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_100%_100%,rgba(6,182,212,0.1),transparent_50%)]" />
+              </>
+            )}
 
             <div className="relative p-6">
               <div className="flex items-start justify-between mb-6">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30">
+                    <div className={cn(
+                      "p-2 rounded-lg border",
+                      theme === 'light'
+                        ? "bg-gradient-to-br from-emerald-50 to-cyan-50 border-emerald-200"
+                        : "bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border-emerald-500/30"
+                    )}>
                       <Trophy className="w-5 h-5 text-emerald-400" />
                     </div>
-                    <h3 className="text-xl font-bold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
+                    <h3 className={cn(
+                      "text-xl font-bold",
+                      theme === 'light'
+                        ? "text-gray-900"
+                        : "bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent"
+                    )}>
                       Your Progress
                     </h3>
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className={cn(
+                    "text-sm",
+                    theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                  )}>
                     Keep up the momentum! Track your problem-solving journey
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                  <div className={cn(
+                    "text-3xl font-bold",
+                    theme === 'light'
+                      ? "text-emerald-600"
+                      : "bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent"
+                  )}>
                     {completedCount}/{problems.length}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Problems Solved</p>
+                  <p className={cn(
+                    "text-xs mt-1",
+                    theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                  )}>Problems Solved</p>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Completion Rate</span>
-                  <span className="font-semibold text-emerald-400">{completionPercentage.toFixed(0)}%</span>
+                  <span className={cn(
+                    theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                  )}>Completion Rate</span>
+                  <span className={cn(
+                    "font-semibold",
+                    theme === 'light' ? "text-emerald-600" : "text-emerald-400"
+                  )}>{completionPercentage.toFixed(0)}%</span>
                 </div>
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-full blur-sm" />
+                  {theme !== 'light' && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-full blur-sm" />
+                  )}
                   <Progress
                     value={completionPercentage}
-                    className="h-3 bg-zinc-900/50 border border-white/10 relative"
+                    className={cn(
+                      "h-3 relative",
+                      theme === 'light'
+                        ? "bg-gray-200 border border-gray-300"
+                        : "bg-zinc-900/50 border border-white/10"
+                    )}
                   />
                 </div>
               </div>
 
               {completionPercentage === 100 && (
-                <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 border border-emerald-500/30">
-                  <div className="flex items-center gap-2 text-sm text-emerald-400">
+                <div className={cn(
+                  "mt-4 p-3 rounded-lg border",
+                  theme === 'light'
+                    ? "bg-gradient-to-r from-emerald-50 to-cyan-50 border-emerald-200"
+                    : "bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 border-emerald-500/30"
+                )}>
+                  <div className={cn(
+                    "flex items-center gap-2 text-sm",
+                    theme === 'light' ? "text-emerald-600" : "text-emerald-400"
+                  )}>
                     <Award className="w-4 h-4" />
                     <span className="font-semibold">Perfect Score! All problems completed 🎉</span>
                   </div>
@@ -427,13 +505,20 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
                     : "from-cyan-500/0 via-emerald-500/0 to-cyan-500/0 opacity-0"
                 } ${isHovered ? "opacity-40" : ""}`} />
 
-                <Card className={`relative border-2 transition-all duration-300 backdrop-blur-xl overflow-hidden ${
+                <Card className={cn(
+                  "relative border-2 transition-all duration-300 backdrop-blur-xl overflow-hidden",
                   problem.user_completed
-                    ? "border-emerald-500/30 bg-gradient-to-br from-emerald-950/40 via-zinc-950/80 to-zinc-950/80"
+                    ? theme === 'light'
+                      ? "border-emerald-500/30 bg-gradient-to-br from-emerald-50/40 via-white to-white"
+                      : "border-emerald-500/30 bg-gradient-to-br from-emerald-950/40 via-zinc-950/80 to-zinc-950/80"
                     : overdue
-                    ? "border-rose-500/30 bg-gradient-to-br from-rose-950/20 via-zinc-950/80 to-zinc-950/80"
-                    : "border-white/10 bg-gradient-to-br from-zinc-950/80 via-zinc-900/50 to-zinc-950/80 hover:border-emerald-500/20"
-                }`}>
+                    ? theme === 'light'
+                      ? "border-rose-500/30 bg-gradient-to-br from-rose-50/20 via-white to-white"
+                      : "border-rose-500/30 bg-gradient-to-br from-rose-950/20 via-zinc-950/80 to-zinc-950/80"
+                    : theme === 'light'
+                      ? "border-gray-200 bg-white hover:border-emerald-500/20"
+                      : "border-white/10 bg-gradient-to-br from-zinc-950/80 via-zinc-900/50 to-zinc-950/80 hover:border-emerald-500/20"
+                )}>
                   {/* Background pattern */}
                   <div className="absolute inset-0 opacity-30">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(255,255,255,0.03),transparent_50%)]" />
@@ -471,12 +556,20 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs font-mono text-muted-foreground px-2 py-0.5 rounded bg-zinc-800/50 border border-white/5">
+                              <span className={cn(
+                                "text-xs font-mono px-2 py-0.5 rounded border",
+                                theme === 'light'
+                                  ? "text-gray-600 bg-gray-100 border-gray-200"
+                                  : "text-muted-foreground bg-zinc-800/50 border-white/5"
+                              )}>
                                 #{problem.problem.leetcode_id}
                               </span>
                               <Link
                                 href={`/problems/${problem.problem.id}`}
-                                className="text-lg font-semibold hover:text-emerald-400 transition-colors group/link flex items-center gap-2"
+                                className={cn(
+                                  "text-lg font-semibold hover:text-emerald-400 transition-colors group/link flex items-center gap-2",
+                                  theme === 'light' ? "text-gray-900" : "text-white"
+                                )}
                               >
                                 {problem.problem.title}
                                 <ExternalLink className="w-4 h-4 opacity-0 group-hover/link:opacity-100 transition-opacity" />
@@ -489,7 +582,11 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
                                 <span className="mr-1.5">{difficultyConfig.icon}</span>
                                 {problem.problem.difficulty}
                               </Badge>
-                              <Badge variant="outline" className="bg-zinc-900/50 border-white/10">
+                              <Badge variant="outline" className={cn(
+                                theme === 'light'
+                                  ? "bg-gray-100 border-gray-200"
+                                  : "bg-zinc-900/50 border-white/10"
+                              )}>
                                 {problem.problem.category}
                               </Badge>
                               <Badge className={`${priorityConfig.bg} ${priorityConfig.text} border ${priorityConfig.border} flex items-center gap-1`}>
@@ -500,8 +597,16 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
 
                             {/* Notes */}
                             {problem.notes && (
-                              <div className="mb-3 p-3 rounded-lg bg-zinc-900/50 border border-white/5">
-                                <p className="text-sm text-muted-foreground italic leading-relaxed">
+                              <div className={cn(
+                                "mb-3 p-3 rounded-lg border",
+                                theme === 'light'
+                                  ? "bg-gray-50 border-gray-200"
+                                  : "bg-zinc-900/50 border-white/5"
+                              )}>
+                                <p className={cn(
+                                  "text-sm italic leading-relaxed",
+                                  theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                                )}>
                                   💡 {problem.notes}
                                 </p>
                               </div>
@@ -510,11 +615,14 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
                             {/* Stats Row */}
                             <div className="flex flex-wrap items-center gap-4 text-xs">
                               {problem.deadline && (
-                                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${
+                                <div className={cn(
+                                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border",
                                   overdue
-                                    ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
-                                    : "bg-zinc-900/50 text-muted-foreground border border-white/5"
-                                }`}>
+                                    ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                                    : theme === 'light'
+                                      ? "bg-gray-100 text-gray-600 border-gray-200"
+                                      : "bg-zinc-900/50 text-muted-foreground border-white/5"
+                                )}>
                                   <Calendar className="w-3.5 h-3.5" />
                                   <span className="font-medium">
                                     {overdue && "⚠️ "}
@@ -528,12 +636,17 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
                                 <span className="font-semibold text-emerald-400">
                                   {problem.completion_count}/{totalMembers}
                                 </span>
-                                <span className="text-muted-foreground">
+                                <span className={cn(
+                                  theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                                )}>
                                   ({completionRate.toFixed(0)}%)
                                 </span>
                               </div>
 
-                              <div className="flex items-center gap-1.5 text-muted-foreground">
+                              <div className={cn(
+                                "flex items-center gap-1.5",
+                                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                              )}>
                                 <Sparkles className="w-3.5 h-3.5" />
                                 <span>by @{problem.assigned_by_user.username}</span>
                               </div>
@@ -541,7 +654,10 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
 
                             {/* Completions List */}
                             {problem.completions.length > 0 && (
-                              <div className="mt-4 pt-4 border-t border-white/5">
+                              <div className={cn(
+                                "mt-4 pt-4 border-t",
+                                theme === 'light' ? "border-gray-200" : "border-white/5"
+                              )}>
                                 <div className="flex items-center gap-2 mb-3">
                                   <Award className="w-4 h-4 text-emerald-400" />
                                   <p className="text-xs font-semibold text-emerald-400">Completed by:</p>
@@ -550,10 +666,18 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
                                   {problem.completions.slice(0, 8).map((completion) => (
                                     <div
                                       key={completion.id}
-                                      className="group/completion flex items-center gap-2 bg-zinc-900/50 hover:bg-zinc-800/50 border border-white/5 hover:border-emerald-500/30 rounded-full px-3 py-1.5 transition-all cursor-pointer"
+                                      className={cn(
+                                        "group/completion flex items-center gap-2 border hover:border-emerald-500/30 rounded-full px-3 py-1.5 transition-all cursor-pointer",
+                                        theme === 'light'
+                                          ? "bg-gray-100 hover:bg-gray-200 border-gray-200"
+                                          : "bg-zinc-900/50 hover:bg-zinc-800/50 border-white/5"
+                                      )}
                                       title={completion.notes || undefined}
                                     >
-                                      <Avatar className="w-5 h-5 border border-white/10">
+                                      <Avatar className={cn(
+                                        "w-5 h-5 border",
+                                        theme === 'light' ? "border-gray-200" : "border-white/10"
+                                      )}>
                                         <AvatarImage src={completion.user?.avatar_url || ""} />
                                         <AvatarFallback className="text-xs bg-gradient-to-br from-brand to-orange-300">
                                           {completion.user?.full_name?.charAt(0) || "?"}
@@ -561,7 +685,10 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
                                       </Avatar>
                                       <span className="text-xs font-medium">{completion.user?.username}</span>
                                       {completion.time_taken_minutes && (
-                                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                        <div className={cn(
+                                          "flex items-center gap-1 text-xs",
+                                          theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                                        )}>
                                           <Clock className="w-3 h-3" />
                                           <span>{completion.time_taken_minutes}m</span>
                                         </div>
@@ -572,7 +699,10 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
                                     </div>
                                   ))}
                                   {problem.completions.length > 8 && (
-                                    <div className="flex items-center px-3 py-1.5 text-xs text-muted-foreground">
+                                    <div className={cn(
+                                      "flex items-center px-3 py-1.5 text-xs",
+                                      theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                                    )}>
                                       +{problem.completions.length - 8} more
                                     </div>
                                   )}

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import {
   Users,
   Clock,
@@ -13,10 +14,10 @@ import {
   CheckCircle2,
   Loader2,
   Settings,
-  Lock,
+  Lock as LockIcon,
   Plus,
-  Crown,
-  Shield,
+  Star as Crown,
+  Shield as ShieldIcon,
   Sparkles,
   TrendingUp,
   Target,
@@ -30,6 +31,7 @@ interface PodCardProps {
 }
 
 export function PodCard({ pod, onJoin, className }: PodCardProps) {
+  const { theme } = useTheme();
   const [joining, setJoining] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -113,10 +115,12 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
 
         <Card className={cn(
           "relative p-6 border-2 backdrop-blur-xl transition-all duration-300 overflow-hidden",
-          "bg-gradient-to-br from-zinc-950/80 via-zinc-900/50 to-zinc-950/80",
+          theme === 'light'
+            ? "bg-white/90 border-gray-200/50 hover:border-emerald-500/30"
+            : "bg-gradient-to-br from-zinc-950/80 via-zinc-900/50 to-zinc-950/80 border-white/10",
           isHovered
             ? "border-emerald-500/30 transform scale-[1.02]"
-            : "border-white/10",
+            : "",
           className
         )}>
           {/* Background patterns */}
@@ -127,8 +131,13 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
 
           {/* Private badge */}
           {!pod.is_public && (
-            <div className="absolute top-4 right-4 p-1.5 rounded-lg bg-zinc-900/80 border border-white/10 backdrop-blur-sm">
-              <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+            <div className={cn(
+              "absolute top-4 right-4 p-1.5 rounded-lg backdrop-blur-sm",
+              theme === 'light'
+                ? "bg-gray-100/80 border border-gray-200/50"
+                : "bg-zinc-900/80 border border-white/10"
+            )}>
+              <LockIcon className="w-3.5 h-3.5 text-muted-foreground" />
             </div>
           )}
 
@@ -137,10 +146,18 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
             <div className="space-y-2">
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xl font-bold line-clamp-1 transition-colors group-hover:text-emerald-400">
+                  <h3 className={cn(
+                    "text-xl font-bold line-clamp-1 transition-colors",
+                    theme === 'light'
+                      ? "text-gray-900 group-hover:text-emerald-600"
+                      : "group-hover:text-emerald-400"
+                  )}>
                     {pod.name}
                   </h3>
-                  <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed mt-1">
+                  <p className={cn(
+                    "text-sm line-clamp-2 leading-relaxed mt-1",
+                    theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                  )}>
                     {pod.description || "No description provided"}
                   </p>
                 </div>
@@ -169,7 +186,7 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
               )}
               {isModerator && (
                 <Badge className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-400 border border-blue-500/30">
-                  <Shield className="w-3 h-3 mr-1" />
+                  <ShieldIcon className="w-3 h-3 mr-1" />
                   Mod
                 </Badge>
               )}
@@ -181,13 +198,23 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
                 {pod.topics.slice(0, 3).map((topic: string, idx: number) => (
                   <span
                     key={idx}
-                    className="text-xs px-2.5 py-1 rounded-full bg-zinc-900/50 border border-white/5 text-muted-foreground hover:border-emerald-500/30 hover:text-emerald-400 transition-colors"
+                    className={cn(
+                      "text-xs px-2.5 py-1 rounded-full transition-colors hover:border-emerald-500/30 hover:text-emerald-400",
+                      theme === 'light'
+                        ? "bg-gray-100 border border-gray-200 text-gray-600"
+                        : "bg-zinc-900/50 border border-white/5 text-muted-foreground"
+                    )}
                   >
                     {topic}
                   </span>
                 ))}
                 {pod.topics.length > 3 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-zinc-900/50 border border-white/5 text-muted-foreground">
+                  <span className={cn(
+                    "text-xs px-2.5 py-1 rounded-full",
+                    theme === 'light'
+                      ? "bg-gray-100 border border-gray-200 text-gray-600"
+                      : "bg-zinc-900/50 border border-white/5 text-muted-foreground"
+                  )}>
                     +{pod.topics.length - 3} more
                   </span>
                 )}
@@ -196,20 +223,30 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
 
             {/* Stats */}
             <div className="flex flex-wrap items-center gap-4 text-sm">
-              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-zinc-900/50 border border-white/5">
+              <div className={cn(
+                "flex items-center gap-2 px-2.5 py-1.5 rounded-lg",
+                theme === 'light'
+                  ? "bg-gray-100 border border-gray-200"
+                  : "bg-zinc-900/50 border border-white/5"
+              )}>
                 <Users className="w-4 h-4 text-emerald-400" />
                 <span className={cn(
                   "font-medium",
-                  isFull ? "text-orange-400" : "text-foreground"
+                  isFull ? "text-orange-400" : theme === 'light' ? "text-gray-900" : "text-foreground"
                 )}>
                   {spotsFilled}
                 </span>
               </div>
 
               {pod.total_sessions > 0 && (
-                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-zinc-900/50 border border-white/5">
+                <div className={cn(
+                  "flex items-center gap-2 px-2.5 py-1.5 rounded-lg",
+                  theme === 'light'
+                    ? "bg-gray-100 border border-gray-200"
+                    : "bg-zinc-900/50 border border-white/5"
+                )}>
                   <Calendar className="w-4 h-4 text-cyan-400" />
-                  <span className="text-muted-foreground">{pod.total_sessions}</span>
+                  <span className={theme === 'light' ? "text-gray-600" : "text-muted-foreground"}>{pod.total_sessions}</span>
                 </div>
               )}
 
@@ -224,7 +261,7 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
             {/* Capacity progress bar */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Pod Capacity</span>
+                <span className={theme === 'light' ? "text-gray-600" : "text-muted-foreground"}>Pod Capacity</span>
                 <span className={cn(
                   "font-semibold",
                   fillPercentage >= 90 ? "text-orange-400" : "text-emerald-400"
@@ -232,7 +269,12 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
                   {fillPercentage.toFixed(0)}%
                 </span>
               </div>
-              <div className="relative h-2 bg-zinc-900/50 rounded-full overflow-hidden border border-white/5">
+              <div className={cn(
+                "relative h-2 rounded-full overflow-hidden",
+                theme === 'light'
+                  ? "bg-gray-200 border border-gray-300"
+                  : "bg-zinc-900/50 border border-white/5"
+              )}>
                 <div
                   className={cn(
                     "absolute inset-y-0 left-0 rounded-full transition-all duration-500",
@@ -247,12 +289,20 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
 
             {/* Members Preview */}
             {pod.members_preview && pod.members_preview.length > 0 && (
-              <div className="flex items-center gap-3 pt-2 border-t border-white/5">
+              <div className={cn(
+                "flex items-center gap-3 pt-2 border-t",
+                theme === 'light' ? "border-gray-200" : "border-white/5"
+              )}>
                 <div className="flex -space-x-2">
                   {pod.members_preview.slice(0, 4).map((member: any, idx: number) => (
                     <Avatar
                       key={idx}
-                      className="w-8 h-8 border-2 border-zinc-950 ring-1 ring-white/10"
+                      className={cn(
+                        "w-8 h-8 border-2 ring-1",
+                        theme === 'light'
+                          ? "border-white ring-gray-200"
+                          : "border-zinc-950 ring-white/10"
+                      )}
                     >
                       <AvatarImage src={member.avatar_url || ""} />
                       <AvatarFallback className="text-xs bg-gradient-to-br from-brand to-orange-300">
@@ -262,7 +312,10 @@ export function PodCard({ pod, onJoin, className }: PodCardProps) {
                   ))}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground">
+                  <p className={cn(
+                    "text-xs",
+                    theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                  )}>
                     {pod.current_member_count > 4 && `+${pod.current_member_count - 4} more `}
                     {pod.current_member_count === 1 ? "member" : "members"}
                   </p>
