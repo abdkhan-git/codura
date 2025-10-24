@@ -1,575 +1,915 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+// Removed useUser import - will fetch user data directly
+import DashboardNavbar from "@/components/navigation/dashboard-navbar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import {
-  MessageSquare,
-  Search,
-  Plus,
-  MoreVertical,
-  Info,
-  Star,
-  Archive,
-  Trash2,
-  Smile,
-  Paperclip,
-  Image as ImageIcon,
-  Send,
-  Check,
-  CheckCheck,
-} from "lucide-react";
-import { MessageBubble } from "@/components/messaging/message-bubble";
-import { ChatInput } from "@/components/messaging/chat-input";
-import { NewMessageDialog } from "@/components/messaging/new-message-dialog";
-import { useRealtimeMessaging } from "@/hooks/use-realtime-messaging";
-import type { ConversationListItem, ChatMessage } from "@/types/messaging";
+import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { createClient } from "@/utils/supabase/client";
-import DashboardNavbar from "@/components/navigation/dashboard-navbar";
+import { useRealtimeMessaging } from "@/hooks/use-realtime-messaging";
+import { useTypingIndicator } from "@/hooks/use-realtime-messaging";
+import { useMessaging } from "@/hooks/use-messaging";
+import { useMessageReadReceipts } from "@/hooks/use-message-read-receipts";
+import { ConversationMenuModal } from "@/components/messaging/conversation-menu-modal";
+import { MessageBubble } from "@/components/messaging/message-bubble";
+import { MessageSearch } from "@/components/messaging/message-search";
+import { FileUpload } from "@/components/messaging/file-upload";
+import { ReplyMessage } from "@/components/messaging/reply-message";
+import {
+  Send,
+  MoreVertical,
+  CheckCircle2,
+  Clock,
+  Users,
+  CheckSquare,
+  Search,
+} from "lucide-react";
+import type { ConversationListItem, ChatMessage } from "@/types/messaging";
+
+interface UserData {
+  name: string;
+  email: string;
+  avatar: string;
+  username?: string;
+}
 
 export default function MessagesPage() {
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
-  const [conversations, setConversations] = useState<ConversationListItem[]>([]);
-  const [activeConversation, setActiveConversation] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [messagesLoading, setMessagesLoading] = useState(false);
-  const [showNewMessageDialog, setShowNewMessageDialog] = useState(false);
+  const [user, setUser] = useState<UserData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredConversations, setFilteredConversations] = useState<ConversationListItem[]>([]);
-  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [activeConversation, setActiveConversation] = useState<string | null>(null);
+  const [newMessage, setNewMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [showConversationMenu, setShowConversationMenu] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [showMessageSearch, setShowMessageSearch] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch current user
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+  // Get current user ID from the user data
+  const [currentUserId, setCurrentUserId] = useState<string>('');
 
-        if (authUser) {
-          setCurrentUserId(authUser.id);
+  // Only call hooks when we have a valid currentUserId
+  const { isTyping } = useTypingIndicator(activeConversation, currentUserId);
 
-          const profileResponse = await fetch('/api/profile');
-          if (profileResponse.ok) {
-            const profileData = await profileResponse.json();
-            setUser({
-              name: profileData.profile?.full_name || authUser.email?.split('@')[0] || 'User',
-              email: authUser.email || '',
-              avatar: profileData.profile?.avatar_url || '',
-              username: profileData.profile?.username || '',
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const {
+    conversations,
+    messages,
+    isLoading: loading,
+    sendMessage,
+    markAsRead,
+    fetchConversations,
+    fetchMessages,
+  } = useMessaging({
+    conversationId: activeConversation || undefined,
+    currentUserId: currentUserId,
+  });
 
-    fetchUser();
-  }, []);
-
-  // Memoized load conversations function
-  const loadConversations = useCallback(async () => {
-    if (!currentUserId) return;
-
-    try {
-      const response = await fetch("/api/conversations");
-      if (response.ok) {
-        const data = await response.json();
-
-        const items: ConversationListItem[] = data.conversations.map((conv: any) => {
-          let otherUser = null;
-          if (conv.type === "direct" && conv.participants?.length >= 2) {
-            const otherParticipant = conv.participants.find((p: any) => p.id !== currentUserId);
-            if (otherParticipant) {
-              otherUser = {
-                user_id: otherParticipant.id,
-                full_name: otherParticipant.name || 'Unknown',
-                username: otherParticipant.username || '',
-                avatar_url: otherParticipant.avatar || null,
-                is_online: false
-              };
-            }
-          }
-
-          return {
-            conversation: conv,
-            other_user: otherUser,
-            unread_count: conv.unread_count || 0,
-            last_message: conv.last_message,
-            is_typing: false,
-          };
-        });
-
-        setConversations(items);
-      }
-    } catch (error) {
-      console.error("Error loading conversations:", error);
-    }
-  }, [currentUserId]);
-
-  // Load conversations when currentUserId is available
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
-
-  // Filter conversations based on search
-  useEffect(() => {
-    if (searchQuery.trim()) {
-      setFilteredConversations(
-        conversations.filter((conv) => {
-          const otherUser = conv.other_user;
-          const name = otherUser?.full_name || otherUser?.username || conv.conversation.name || '';
-          return name.toLowerCase().includes(searchQuery.toLowerCase());
-        })
-      );
-    } else {
-      setFilteredConversations(conversations);
-    }
-  }, [searchQuery, conversations]);
-
-  // Load messages when conversation changes
-  const loadMessages = useCallback(async (conversationId: string) => {
-    setMessagesLoading(true);
-    try {
-      const response = await fetch(`/api/conversations/${conversationId}/messages`);
-      if (response.ok) {
-        const data = await response.json();
-        const chatMessages: ChatMessage[] = (data.messages || []).map((msg: any) => ({
-          ...msg,
-          is_own_message: msg.sender_id === currentUserId,
-          show_sender: true,
-          show_timestamp: true,
-        }));
-        setMessages(chatMessages);
-      }
-    } catch (error) {
-      console.error("Error loading messages:", error);
-    } finally {
-      setMessagesLoading(false);
-    }
-  }, [currentUserId]);
-
-  useEffect(() => {
-    if (activeConversation) {
-      loadMessages(activeConversation);
-    }
-  }, [activeConversation, loadMessages]);
+  // Read receipts hook
+  const { setMessageRef } = useMessageReadReceipts({
+    messages: messages || [],
+    currentUserId: currentUserId || '',
+    conversationId: activeConversation || ''
+  });
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages && messages.length > 0) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
   }, [messages]);
 
-  // Listen for open-conversation events
-  useEffect(() => {
-    const handleOpenConversation = (event: CustomEvent) => {
-      if (event.detail?.conversationId) {
-        setActiveConversation(event.detail.conversationId);
-        loadConversations();
-      }
-    };
+  // Filter conversations based on search and archive status
+  const [filteredConversations, setFilteredConversations] = useState<ConversationListItem[]>([]);
 
-    const handleConversationsReload = () => {
-      loadConversations();
-      if (activeConversation) {
-        loadMessages(activeConversation);
-      }
-    };
-
-    window.addEventListener("open-conversation" as any, handleOpenConversation);
-    window.addEventListener("conversations:reload" as any, handleConversationsReload);
-
-    return () => {
-      window.removeEventListener("open-conversation" as any, handleOpenConversation);
-      window.removeEventListener("conversations:reload" as any, handleConversationsReload);
-    };
-  }, [activeConversation, loadConversations, loadMessages]);
-
-  // Real-time messaging
-  const handleNewMessage = useCallback((message: ChatMessage) => {
-    setMessages((prev) => {
-      if (prev.some((m) => m.id === message.id)) return prev;
-      return [...prev, message];
-    });
-  }, []);
-
-  const handleMessageUpdate = useCallback((message: ChatMessage) => {
-    setMessages((prev) => prev.map((m) => (m.id === message.id ? message : m)));
-  }, []);
-
-  const handleMessageDelete = useCallback((messageId: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== messageId));
-  }, []);
-
-  useRealtimeMessaging({
-    conversationId: activeConversation,
-    currentUserId: currentUserId || '',
-    onNewMessage: handleNewMessage,
-    onMessageUpdate: handleMessageUpdate,
-    onMessageDelete: handleMessageDelete,
-  });
-
-  const handleSendMessage = async (content: string, replyToId?: string) => {
-    if (!activeConversation || !content.trim()) return;
-
-    try {
-      const response = await fetch("/api/messages/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversation_id: activeConversation,
-          content: content.trim(),
-          reply_to_message_id: replyToId,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const newMessage: ChatMessage = {
-          ...data.message,
-          is_own_message: true,
-          show_sender: true,
-          show_timestamp: true,
+  // Transform conversations from useMessaging to ConversationListItem format
+  const transformedConversations: ConversationListItem[] = useMemo(() => {
+    return conversations?.map(conv => ({
+      conversation: {
+        id: conv.id,
+        type: conv.type,
+        name: conv.name,
+        description: null,
+        avatar_url: null,
+        created_by: (conv as any).created_by || '',
+        study_pod_id: null,
+        is_archived: conv.is_archived,
+        last_message_at: conv.last_message?.created_at || null,
+        last_message_preview: conv.last_message?.content || null,
+        metadata: {},
+        created_at: (conv as any).created_at || new Date().toISOString(),
+        updated_at: conv.updated_at || new Date().toISOString(),
+      },
+      other_user: conv.type === 'direct' && conv.participants?.length > 0 ? (() => {
+        const otherUser = conv.participants[0];
+        console.log('Debug - Conversation participants:', {
+          conversationId: conv.id,
+          participants: conv.participants,
+          currentUserId,
+          otherUser
+        });
+        return {
+          user_id: otherUser?.id,
+          username: otherUser?.username || '',
+          full_name: otherUser?.name,
+          avatar_url: otherUser?.avatar || undefined,
+          is_online: otherUser?.is_online || false,
+          last_seen: otherUser?.last_seen,
         };
-        setMessages((prev) => [...prev, newMessage]);
-        setReplyingTo(null);
-        loadConversations();
-      } else {
-        toast.error("Failed to send message");
+      })() : undefined,
+      participants: conv.participants || [],
+      unread_count: conv.unread_count,
+      last_message: conv.last_message ? {
+        content: conv.last_message.content,
+        sender_name: conv.last_message.sender_name,
+        is_own_message: (conv.last_message as any).sender_id === currentUserId,
+        created_at: conv.last_message.created_at,
+      } : undefined,
+      is_typing: false,
+      typing_users: [],
+    })) || [];
+  }, [conversations, currentUserId]);
+
+  // Fetch user data
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const response = await fetch('/api/profile');
+        if (response.ok) {
+          const data = await response.json();
+            setUser({
+            name: data.profile?.full_name || data.user?.email?.split('@')[0] || 'User',
+            email: data.user?.email || '',
+            avatar: data.profile?.avatar_url || data.profile?.full_name?.charAt(0).toUpperCase() || 'U',
+            username: data.profile?.username || '',
+          });
+          // Set the current user ID - using user ID from the response
+          setCurrentUserId(data.user?.id || data.profile?.user_id || '');
+        } else if (response.status === 401) {
+          // User is not authenticated, redirect to login
+          window.location.href = '/login';
+          return;
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+        // If there's an error, redirect to login
+        window.location.href = '/login';
       }
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast.error("Failed to send message");
+      }
+    fetchUser();
+  }, []);
+
+  useEffect(() => {
+    if (!transformedConversations) return;
+
+    let filtered = transformedConversations;
+
+    // Show/hide archived conversations based on toggle
+    if (!showArchived) {
+    filtered = filtered.filter(conv => !conv.conversation.is_archived);
+    } else {
+      filtered = filtered.filter(conv => conv.conversation.is_archived);
     }
-  };
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(conv => {
+        const searchLower = searchQuery.toLowerCase();
+        return (
+          conv.conversation.name?.toLowerCase().includes(searchLower) ||
+          conv.other_user?.full_name?.toLowerCase().includes(searchLower) ||
+          conv.other_user?.username?.toLowerCase().includes(searchLower) ||
+          conv.last_message?.content?.toLowerCase().includes(searchLower)
+        );
+      });
+    }
+
+    // Sort by last message time
+    filtered.sort((a, b) => {
+      const aTime = a.last_message?.created_at ? new Date(a.last_message.created_at).getTime() : 0;
+      const bTime = b.last_message?.created_at ? new Date(b.last_message.created_at).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    setFilteredConversations(filtered);
+  }, [searchQuery, transformedConversations, showArchived]);
 
   const handleConversationSelect = (conversationId: string) => {
     setActiveConversation(conversationId);
+    // markAsRead expects message IDs, not conversation ID
+    // markAsRead([]);
   };
 
-  const activeConversationData = conversations.find(
-    (conv) => conv.conversation.id === activeConversation
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !activeConversation || isSending) return;
+
+    setIsSending(true);
+    try {
+      await sendMessage(newMessage.trim());
+      setNewMessage("");
+      // Scroll to bottom after sending
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (error) {
+      console.error("Error sending message:", error);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleLeaveChat = async (conversationId: string) => {
+    try {
+      // Implementation for leaving chat
+      console.log("Leave chat:", conversationId);
+    } catch (error) {
+      console.error("Error leaving chat:", error);
+    }
+  };
+
+  const handleMuteToggle = async (conversationId: string, isMuted: boolean) => {
+    try {
+      // Implementation for mute toggle
+      console.log("Mute toggle:", conversationId, isMuted);
+    } catch (error) {
+      console.error("Error toggling mute:", error);
+    }
+  };
+
+  const handleRemoveMember = async (conversationId: string, userId: string) => {
+    try {
+      // Implementation for removing member
+      console.log("Remove member:", conversationId, userId);
+    } catch (error) {
+      console.error("Error removing member:", error);
+    }
+  };
+
+  const handleDeleteChat = async (conversationId: string) => {
+    try {
+      // Implementation for deleting chat
+      console.log("Delete chat:", conversationId);
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+    }
+  };
+
+  const handleUnarchiveChat = async (conversationId: string) => {
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}/unarchive`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        // Refresh conversations
+        fetchConversations();
+        toast.success("Conversation unarchived");
+      } else {
+        toast.error("Failed to unarchive conversation");
+      }
+    } catch (error) {
+      console.error("Error unarchiving conversation:", error);
+      toast.error("Error unarchiving conversation");
+    }
+  };
+
+  const handleArchiveChat = async (conversationId: string) => {
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}/archive`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        // Refresh conversations
+        fetchConversations();
+        toast.success("Conversation archived");
+      } else {
+        toast.error("Failed to archive conversation");
+      }
+    } catch (error) {
+      console.error("Error archiving conversation:", error);
+      toast.error("Error archiving conversation");
+    }
+  };
+
+  const handleUpdateAvatar = async (conversationId: string, avatarUrl: string) => {
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}/avatar`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ avatar_url: avatarUrl }),
+      });
+
+      if (response.ok) {
+        // Refresh conversations
+        fetchConversations();
+        toast.success("Avatar updated successfully");
+      } else {
+        toast.error("Failed to update avatar");
+      }
+    } catch (error) {
+      console.error("Error updating avatar:", error);
+      toast.error("Error updating avatar");
+    }
+  };
+
+  const handleFileUpload = async (attachment: any, messageType: string) => {
+    if (!activeConversation) return;
+
+    try {
+      setIsSending(true);
+      await sendMessage(attachment.url, messageType as any, [attachment] as any);
+      setShowFileUpload(false);
+      toast.success("File sent successfully");
+    } catch (error) {
+      console.error("Error sending file:", error);
+      toast.error("Failed to send file");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleReply = (message: ChatMessage) => {
+    setReplyTo(message);
+    setShowFileUpload(false);
+  };
+
+  const handleSendReply = async (content: string) => {
+    if (!activeConversation || !replyTo) return;
+
+    try {
+      setIsSending(true);
+      const replyContent = `Replying to ${replyTo.sender?.full_name || replyTo.sender?.username || 'Unknown'}: ${content}`;
+      await sendMessage(replyContent);
+      setReplyTo(null);
+      toast.success("Reply sent");
+    } catch (error) {
+      console.error("Error sending reply:", error);
+      toast.error("Failed to send reply");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleCancelReply = () => {
+    setReplyTo(null);
+  };
+
+  const handleEditMessage = async (message: ChatMessage) => {
+    try {
+      const response = await fetch(`/api/messages/${message.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: message.content }),
+      });
+
+      if (response.ok) {
+        // Refresh messages to show updated content
+        if (activeConversation) {
+          fetchMessages();
+        }
+        toast.success("Message updated");
+      } else {
+        toast.error("Failed to update message");
+      }
+    } catch (error) {
+      console.error("Error updating message:", error);
+      toast.error("Error updating message");
+    }
+  };
+
+  const handleReact = async (messageId: string, emoji: string) => {
+    try {
+      const response = await fetch(`/api/messages/${messageId}/reactions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ emoji }),
+      });
+
+      if (response.ok) {
+        // Refresh messages to show updated reactions
+        if (activeConversation) {
+          fetchMessages();
+        }
+      } else {
+        toast.error("Failed to add reaction");
+      }
+    } catch (error) {
+      console.error("Error adding reaction:", error);
+      toast.error("Error adding reaction");
+    }
+  };
+
+  const getMessageStatusIcon = (message: ChatMessage) => {
+    if (message.read_by?.includes((activeConversationData as any)?.participants?.[0]?.id)) {
+      return <CheckCircle2 className="w-3 h-3 text-blue-500" />;
+    } else if (message.read_by && message.read_by.length > 0) {
+      return <CheckCircle2 className="w-3 h-3 text-gray-400" />;
+      } else {
+      return <Clock className="w-3 h-3 text-gray-400" />;
+    }
+  };
+
+  const activeConversationData = filteredConversations.find(
+    conv => conv.conversation.id === activeConversation
   );
 
-  if (loading) {
+  if (loading || !currentUserId) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-brand via-purple-500 to-cyan-500 rounded-full blur-2xl opacity-20 animate-pulse" />
-          <div className="relative animate-spin rounded-full h-12 w-12 border-b-2 border-brand" />
+          <div className="absolute inset-0 bg-gradient-to-r from-violet-500 via-indigo-500 to-pink-500 rounded-full blur-2xl opacity-20 animate-pulse" />
+          <div className="relative animate-spin rounded-full h-12 w-12 border-b-2 border-violet-500" />
+          <div className="mt-4 text-center">
+            <p className="text-violet-400 text-sm">Loading messages...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col overflow-hidden">
-      {/* Animated background effects */}
+    <div className="min-h-screen bg-background flex flex-col overflow-hidden">
+      {/* Subtle ambient background like Connection Suggestions */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-brand/10 via-purple-500/10 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDuration: '8s' }} />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-cyan-500/10 via-blue-500/10 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDuration: '6s', animationDelay: '2s' }} />
+        <div className="absolute inset-0 bg-background" />
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-[800px] h-[600px] bg-gradient-to-b from-violet-500/8 via-indigo-500/5 to-transparent rounded-full blur-[200px]" />
+        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-gradient-to-t from-pink-500/6 to-transparent rounded-full blur-[150px]" />
+        <div className="absolute top-1/4 right-1/3 w-[300px] h-[300px] bg-gradient-to-br from-purple-500/4 to-violet-500/3 rounded-full blur-[100px]" />
       </div>
 
       {/* Navbar */}
       {user && <DashboardNavbar user={user} />}
 
       {/* Main Container */}
-      <div className="flex-1 flex pt-20 px-6 pb-6 gap-4 relative z-10 max-w-[1800px] mx-auto w-full">
+      <div className="flex-1 flex h-screen pt-16 gap-0 relative z-10 w-full">
         {/* Left Sidebar - Conversations */}
-        <div className="w-96 flex flex-col rounded-2xl border border-white/10 bg-gradient-to-br from-card/95 via-card/80 to-card/60 backdrop-blur-2xl shadow-2xl overflow-hidden">
-          {/* Glassmorphic overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+        <div className="relative w-80 flex flex-col border-r border-white/10 bg-zinc-900/95 backdrop-blur-xl overflow-hidden">
 
           {/* Header */}
-          <div className="relative p-6 border-b border-white/10 bg-gradient-to-br from-card/50 to-transparent">
-            <div className="flex items-center justify-between mb-4">
+          <div className="relative p-4 border-b border-white/5">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand via-purple-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-brand/25">
-                  <MessageSquare className="w-5 h-5 text-white" />
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 via-indigo-500/15 to-pink-500/20 rounded-xl blur-lg animate-pulse" />
+                <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 flex items-center justify-center border border-violet-500/30 backdrop-blur-sm">
+                  <Send className="w-5 h-5 text-violet-400" />
+                </div>
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/60 bg-clip-text text-transparent">
-                    Messages
-                  </h1>
-                  <p className="text-xs text-muted-foreground">{conversations.length} conversations</p>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-violet-400 to-pink-400 bg-clip-text text-transparent">Messages</h1>
+                  <p className="text-xs text-gray-400">
+                    {transformedConversations?.length || 0} {transformedConversations?.length === 1 ? 'conversation' : 'conversations'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-8 h-8 p-0 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg"
+                  onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
+                  title="Multi-select conversations"
+                >
+                  <CheckSquare className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-8 h-8 p-0 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg"
+                  onClick={() => setShowMessageSearch(true)}
+                  title="Search messages"
+                >
+                  <Search className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
+                </Button>
+                <Button
                   size="sm"
                   variant="ghost"
-                  className="h-9 w-9 p-0 hover:bg-white/10 transition-all duration-300 hover:scale-110"
-                  onClick={() => setShowNewMessageDialog(true)}
+                  className={cn(
+                    "h-9 px-3 hover:bg-white/5 transition-colors",
+                    showArchived && "bg-violet-500/10 text-violet-400"
+                  )}
+                  onClick={() => setShowArchived(!showArchived)}
                 >
-                  <Plus className="w-4 h-4" />
+                  <Send className="w-4 h-4 mr-1" />
+                  {showArchived ? "Active" : "Archived"}
                 </Button>
               </div>
             </div>
 
-            {/* Search with glow effect */}
-            <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-r from-brand/20 via-purple-500/20 to-cyan-500/20 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="relative flex items-center">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
-                <Input
-                  placeholder="Search messages..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-muted/30 border-white/10 focus:border-brand/50 backdrop-blur-sm transition-all duration-300 rounded-xl"
-                />
-              </div>
+            {/* Search */}
+            <div className="relative">
+              <Send className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
+              <Input
+                placeholder="Search messages..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 bg-white/5 border-white/5 focus:border-emerald-500/50 focus:bg-white/[0.07] transition-colors rounded-xl text-sm"
+              />
             </div>
           </div>
 
           {/* Conversations List */}
-          <div className="flex-1 overflow-hidden relative">
-            <ScrollArea className="h-full">
-              <div className="p-3 space-y-1">
-                {filteredConversations.length === 0 ? (
-                  <div className="text-center py-12 px-6">
-                    <div className="relative inline-block mb-4">
-                      <div className="absolute inset-0 bg-gradient-to-r from-brand/20 to-purple-500/20 rounded-full blur-xl" />
-                      <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-muted/50 to-muted/30 backdrop-blur-sm flex items-center justify-center">
-                        <MessageSquare className="w-8 h-8 text-muted-foreground/50" />
-                      </div>
+          <ScrollArea className="flex-1">
+            <div className="p-3 space-y-1">
+              {isMultiSelectMode && selectedConversations.size > 0 && (
+                <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-blue-400">
+                      {selectedConversations.size} conversation{selectedConversations.size !== 1 ? 's' : ''} selected
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          // TODO: Implement delete functionality
+                          console.log('Delete conversations:', Array.from(selectedConversations));
+                        }}
+                      >
+                        Delete
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          // TODO: Implement archive functionality
+                          console.log('Archive conversations:', Array.from(selectedConversations));
+                        }}
+                      >
+                        Archive
+                      </Button>
                     </div>
-                    <p className="text-sm font-medium text-muted-foreground mb-1">No messages yet</p>
-                    <p className="text-xs text-muted-foreground/60">Start a conversation with your connections</p>
                   </div>
-                ) : (
-                  filteredConversations.map((item, index) => (
+                </div>
+              )}
+              {filteredConversations && filteredConversations.length > 0 ? (
+                filteredConversations.map((item) => (
                     <div
                       key={item.conversation.id}
-                      onClick={() => handleConversationSelect(item.conversation.id)}
+                      onClick={() => {
+                        if (isMultiSelectMode) {
+                          const newSelected = new Set(selectedConversations);
+                          if (newSelected.has(item.conversation.id)) {
+                            newSelected.delete(item.conversation.id);
+                          } else {
+                            newSelected.add(item.conversation.id);
+                          }
+                          setSelectedConversations(newSelected);
+                        } else {
+                          handleConversationSelect(item.conversation.id);
+                        }
+                      }}
                       className={cn(
-                        "relative p-3 rounded-xl cursor-pointer transition-all duration-300 group animate-in fade-in-0 slide-in-from-left-2",
+                      "relative p-3 cursor-pointer transition-all duration-300 group",
+                      "border-b border-white/5",
+                      "hover:bg-zinc-800/50",
                         activeConversation === item.conversation.id
-                          ? "bg-gradient-to-r from-brand/15 via-purple-500/10 to-transparent border-l-2 border-brand shadow-lg shadow-brand/10"
-                          : "hover:bg-white/5 hover:shadow-lg hover:shadow-white/5"
+                        ? "bg-violet-500/20 border-l-4 border-l-violet-500"
+                        : "bg-transparent",
+                        selectedConversations.has(item.conversation.id) && isMultiSelectMode
+                        ? "bg-blue-500/20 border-l-4 border-l-blue-500"
+                        : ""
                       )}
-                      style={{ animationDelay: `${index * 30}ms` }}
                     >
-                      {/* Hover glow */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-brand/10 to-purple-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl" />
-
-                      <div className="relative flex items-start gap-3">
+                      <div className="flex items-start gap-3">
+                        {isMultiSelectMode && (
+                          <div className="flex items-center justify-center w-5 h-5 mt-3">
+                            <CheckSquare 
+                              className={cn(
+                                "w-4 h-4",
+                                selectedConversations.has(item.conversation.id)
+                                  ? "text-blue-500"
+                                  : "text-zinc-400"
+                              )}
+                            />
+                          </div>
+                        )}
                         <div className="relative flex-shrink-0">
-                          <Avatar className="w-12 h-12 border-2 border-white/10 shadow-lg">
-                            <AvatarImage src={item.other_user?.avatar_url || undefined} />
-                            <AvatarFallback className="bg-gradient-to-br from-brand to-purple-500 text-white font-semibold">
-                              {item.other_user?.full_name?.charAt(0) ||
+                        <div className="relative">
+                          <Avatar className="w-12 h-12 border-2 border-violet-500/40 backdrop-blur-sm shadow-lg shadow-violet-500/20 group-hover:border-violet-500/60 transition-all duration-300">
+                            <AvatarImage 
+                              src={
+                                item.conversation.type === 'group' 
+                                  ? (item.conversation as any).avatar_url || undefined
+                                  : item.other_user?.avatar_url || undefined
+                              } 
+                            />
+                            <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold text-sm">
+                              {item.conversation.type === 'group' 
+                                ? item.conversation.name?.charAt(0) || "G"
+                                : item.other_user?.full_name?.charAt(0) ||
                                item.other_user?.username?.charAt(0) ||
                                "U"}
                             </AvatarFallback>
                           </Avatar>
-                          {/* Online indicator */}
-                          <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-card shadow-lg" />
+                          {/* Online indicator - only for 1-on-1 chats */}
+                          {item.conversation.type === 'direct' && (
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#1a1f2e] shadow-lg shadow-green-500/50 animate-pulse" />
+                          )}
+                          {/* Group chat indicator */}
+                          {item.conversation.type === 'group' && (
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-violet-500 rounded-full border-2 border-[#1a1f2e] shadow-lg shadow-violet-500/50 flex items-center justify-center">
+                              <Users className="w-2 h-2 text-white" />
+                            </div>
+                          )}
+                        </div>
                         </div>
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-semibold text-sm truncate">
-                              {item.conversation.type === "direct"
-                                ? item.other_user?.full_name || item.other_user?.username || "Unknown"
-                                : item.conversation.name || "Group Chat"}
-                            </h4>
-                            {item.last_message && (
-                              <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0 font-medium">
-                                {new Date(item.last_message.created_at).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-sm text-white truncate">
+                                {item.conversation.name || item.other_user?.full_name || item.other_user?.username || 'Unknown'}
+                              </h3>
+                              {/* Group Chat Indicator */}
+                              {item.conversation.type === 'group' && (
+                                <div className="flex items-center gap-1">
+                                  <Users className="w-3 h-3 text-violet-400" />
+                                  <span className="text-xs text-violet-400 font-medium">
+                                    {item.participants?.length || 0}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {item.unread_count > 0 && (
+                                <Badge className="h-5 min-w-[20px] px-1.5 bg-gradient-to-r from-violet-500 to-pink-500 text-white text-[10px] font-bold rounded-full shadow-lg shadow-violet-500/40 animate-pulse">
+                                  {item.unread_count}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
 
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-xs text-muted-foreground truncate flex-1">
                               {item.last_message?.content || "No messages yet"}
                             </p>
-
-                            {item.unread_count > 0 && (
-                              <Badge className="h-5 min-w-[20px] px-1.5 bg-gradient-to-br from-brand to-purple-500 text-white text-[10px] font-bold shadow-lg shadow-brand/50">
-                                {item.unread_count}
-                              </Badge>
-                            )}
+                          <span className="text-xs text-muted-foreground/60">
+                            {item.last_message?.created_at && formatDistanceToNow(new Date(item.last_message.created_at), { addSuffix: true })}
+                          </span>
                           </div>
                         </div>
                       </div>
                     </div>
                   ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-500/20 to-pink-500/20 flex items-center justify-center mb-6 backdrop-blur-sm border border-violet-500/30 shadow-lg shadow-violet-500/20">
+                    <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-pink-500/10 rounded-2xl blur-sm" />
+                    <Send className="w-10 h-10 text-violet-400 relative z-10" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-2">
+                    {showArchived ? "No archived conversations" : "No messages yet"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground/80 max-w-sm">
+                    {showArchived
+                      ? "Archived conversations will appear here when you archive them"
+                      : "Start a conversation with your connections to begin messaging"
+                    }
+                  </p>
+                </div>
                 )}
               </div>
             </ScrollArea>
-          </div>
         </div>
 
         {/* Right Side - Chat Area */}
-        <div className="flex-1 flex flex-col rounded-2xl border border-white/10 bg-gradient-to-br from-card/95 via-card/80 to-card/60 backdrop-blur-2xl shadow-2xl overflow-hidden">
-          {/* Glassmorphic overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
-
           {activeConversation ? (
-            <>
+          <div className="flex-1 flex flex-col bg-zinc-900/95 backdrop-blur-xl overflow-hidden">
               {/* Chat Header */}
-              <div className="relative p-4 border-b border-white/10 bg-gradient-to-r from-card/50 to-transparent backdrop-blur-sm">
+            <div className="relative p-4 border-b border-white/10">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <Avatar className="w-11 h-11 border-2 border-white/10 shadow-lg">
-                        <AvatarImage src={activeConversationData?.other_user?.avatar_url || undefined} />
-                        <AvatarFallback className="bg-gradient-to-br from-brand to-purple-500 text-white font-semibold">
-                          {activeConversationData?.other_user?.full_name?.charAt(0) || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-card shadow-lg" />
-                    </div>
-
-                    <div>
-                      <h3 className="font-bold text-sm bg-gradient-to-r from-foreground to-foreground/60 bg-clip-text text-transparent">
-                        {activeConversationData?.conversation.type === "direct"
-                          ? activeConversationData?.other_user?.full_name ||
-                            activeConversationData?.other_user?.username ||
-                            "Unknown User"
-                          : activeConversationData?.conversation.name || "Group Chat"}
-                      </h3>
-                      {activeConversationData?.other_user?.username && (
-                        <p className="text-xs text-muted-foreground font-medium">
-                          @{activeConversationData.other_user.username} • Active now
-                        </p>
-                      )}
+                <div className="flex items-center gap-3">
+                  <Avatar className="w-10 h-10 border border-white/10">
+                          <AvatarImage src={activeConversationData?.other_user?.avatar_url || undefined} />
+                    <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
+                      {activeConversationData?.other_user?.full_name?.charAt(0) ||
+                       activeConversationData?.other_user?.username?.charAt(0) ||
+                       activeConversationData?.conversation.name?.charAt(0) ||
+                       "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                  <div>
+                    <h2 className="font-semibold text-white">
+                      {activeConversationData?.conversation.name || activeConversationData?.other_user?.full_name || activeConversationData?.other_user?.username || 'Unknown'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full" />
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Active now</p>
+                      </div>
                     </div>
                   </div>
-
                   <div className="flex items-center gap-1">
-                    {[
-                      { icon: Star, color: "from-yellow-500 to-orange-500" },
-                      { icon: Archive, color: "from-blue-500 to-cyan-500" },
-                      { icon: Trash2, color: "from-red-500 to-pink-500" },
-                      { icon: Info, color: "from-purple-500 to-pink-500" }
-                    ].map((item, i) => (
-                      <Button
-                        key={i}
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 w-9 p-0 hover:bg-white/10 transition-all duration-300 hover:scale-110 group relative"
-                      >
-                        <div className={cn("absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300", item.color)} />
-                        <item.icon className="w-4 h-4 relative z-10" />
-                      </Button>
-                    ))}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-8 h-8 p-0 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg"
+                      onClick={() => setShowConversationMenu(true)}
+                      title="Conversation settings"
+                    >
+                      <MoreVertical className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
+                    </Button>
                   </div>
                 </div>
               </div>
 
-              {/* Messages Area */}
-              <div className="flex-1 overflow-hidden relative">
-                <ScrollArea className="h-full">
-                  <div className="p-6">
-                    {messagesLoading ? (
-                      <div className="flex items-center justify-center h-full min-h-[400px]">
-                        <div className="relative">
-                          <div className="absolute inset-0 bg-gradient-to-r from-brand via-purple-500 to-cyan-500 rounded-full blur-2xl opacity-20 animate-pulse" />
-                          <div className="relative animate-spin rounded-full h-10 w-10 border-b-2 border-brand" />
+            {/* Messages */}
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                {messages.map((message: any, index: number) => {
+                  const prevMessage = index > 0 ? messages[index - 1] : null;
+                  const showSender = !prevMessage || prevMessage.sender_id !== message.sender_id;
+                  
+                  // Debug logging for message data
+                  console.log('Rendering message:', {
+                    id: message.id,
+                    content: message.content,
+                    sender_id: message.sender_id,
+                    is_own_message: message.sender_id === currentUserId
+                  });
+
+                  return (
+        <MessageBubble
+          key={message.id || `temp-${Math.random()}`}
+          message={{
+            ...message,
+            is_own_message: message.sender_id === currentUserId,
+            sender: {
+              id: message.sender_id,
+              full_name: message.sender_id === currentUserId 
+                ? 'You' 
+                : (message.sender?.full_name || 'Unknown'),
+              username: message.sender_id === currentUserId 
+                ? undefined 
+                : (message.sender?.username || undefined),
+              avatar_url: message.sender_id === currentUserId 
+                ? undefined 
+                : (message.sender?.avatar_url || undefined),
+            }
+          }}
+          showSender={showSender}
+          messageRef={setMessageRef(message.id, message.sender_id)}
+          onReply={handleReply}
+          onEdit={handleEditMessage}
+          onReact={handleReact}
+        />
+                  );
+                })}
+                {/* Scroll target for auto-scroll */}
+                <div ref={messagesEndRef} />
+                {isTyping && (
+                  <div className="flex gap-3">
+                    <Avatar className="w-8 h-8 flex-shrink-0 border border-white/10">
+                      <AvatarImage src={activeConversationData?.other_user?.avatar_url || undefined} />
+                      <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold text-sm">
+                        {activeConversationData?.other_user?.full_name?.charAt(0) ||
+                         activeConversationData?.other_user?.username?.charAt(0) ||
+                         "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="bg-[#2a2f3a] border border-emerald-500/30 rounded-2xl rounded-bl-sm px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" />
+                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
                         </div>
                       </div>
-                    ) : messages.length === 0 ? (
-                      <div className="flex items-center justify-center h-full min-h-[400px]">
-                        <div className="text-center">
-                          <div className="relative inline-block mb-4">
-                            <div className="absolute inset-0 bg-gradient-to-r from-brand/20 to-purple-500/20 rounded-full blur-xl" />
-                            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-muted/50 to-muted/30 backdrop-blur-sm flex items-center justify-center">
-                              <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
-                            </div>
-                          </div>
-                          <p className="font-semibold text-lg mb-1">No messages yet</p>
-                          <p className="text-sm text-muted-foreground">Start the conversation!</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4 max-w-4xl mx-auto">
-                        {messages.map((message, index) => (
-                          <div
-                            key={message.id}
-                            className="animate-in fade-in-0 slide-in-from-bottom-2"
-                            style={{ animationDelay: `${index * 20}ms` }}
-                          >
-                            <MessageBubble
-                              message={message}
-                              onReply={() => setReplyingTo(message)}
-                            />
-                          </div>
-                        ))}
-                        <div ref={messagesEndRef} />
                       </div>
                     )}
                   </div>
                 </ScrollArea>
-              </div>
 
-              {/* Chat Input */}
-              <div className="relative border-t border-white/10 bg-gradient-to-r from-card/50 to-transparent backdrop-blur-sm">
-                <ChatInput
+            {/* File Upload */}
+            {showFileUpload && activeConversation && (
+              <div className="p-4 border-t border-white/5 bg-white/[0.02]">
+                <FileUpload
                   conversationId={activeConversation}
-                  onSendMessage={handleSendMessage}
-                  replyingTo={replyingTo}
-                  onCancelReply={() => setReplyingTo(null)}
-                  placeholder="Write a message..."
-                  disabled={messagesLoading}
+                  onFileUploaded={handleFileUpload}
+                  disabled={isSending}
                 />
               </div>
-            </>
-          ) : (
-            /* Empty State */
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center max-w-md px-6">
-                <div className="relative inline-block mb-8">
-                  <div className="absolute inset-0 bg-gradient-to-r from-brand/30 via-purple-500/30 to-cyan-500/30 rounded-full blur-3xl animate-pulse" />
-                  <div className="relative w-32 h-32 rounded-full bg-gradient-to-br from-brand/20 via-purple-500/20 to-cyan-500/20 backdrop-blur-sm flex items-center justify-center shadow-2xl">
-                    <MessageSquare className="w-16 h-16 text-brand" />
+            )}
+
+            {/* Reply Message */}
+            {replyTo && (
+              <ReplyMessage
+                replyTo={{
+                  id: replyTo.id,
+                  content: replyTo.content || '',
+                  sender_name: replyTo.sender?.full_name || replyTo.sender?.username || 'Unknown',
+                  sender_avatar: replyTo.sender?.avatar_url || undefined,
+                  created_at: replyTo.created_at
+                }}
+                onSendReply={handleSendReply}
+                onCancel={handleCancelReply}
+                disabled={isSending}
+              />
+            )}
+
+            {/* Message Input */}
+            <div className="p-4 border-t border-white/5">
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFileUpload(!showFileUpload)}
+                  className="px-3 bg-white/5 border-white/10 hover:border-violet-500/50 hover:bg-violet-500/10 transition-all duration-300 backdrop-blur-sm"
+                >
+                  📎
+                </Button>
+                <Input
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 bg-white/5 border-white/5 focus:border-emerald-500/50 focus:bg-white/[0.07] transition-colors rounded-xl text-sm"
+                  disabled={isSending}
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!newMessage.trim() || isSending}
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40"
+                >
+                  {isSending ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </Button>
+              </form>
                   </div>
                 </div>
-
-                <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-foreground via-brand to-purple-500 bg-clip-text text-transparent">
-                  Your Messages
-                </h2>
-                <p className="text-muted-foreground mb-8 leading-relaxed">
-                  Send private messages to your connections. Select a conversation to start messaging or create a new one.
-                </p>
-
-                <Button
-                  onClick={() => setShowNewMessageDialog(true)}
-                  className="relative group bg-gradient-to-r from-brand via-purple-500 to-cyan-500 hover:opacity-90 transition-all duration-500 shadow-2xl shadow-brand/50 px-8 py-6 text-base font-semibold"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-brand via-purple-500 to-cyan-500 rounded-lg blur-xl opacity-50 group-hover:opacity-75 transition-opacity duration-500" />
-                  <Plus className="w-5 h-5 mr-2 relative z-10" />
-                  <span className="relative z-10">Start New Conversation</span>
-                </Button>
+        ) : (
+          <div className="flex-1 flex items-center justify-center rounded-2xl border border-white/5 bg-[#1a1f2e]/95 backdrop-blur-xl">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+                <Send className="w-8 h-8 text-emerald-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">Select a conversation</h3>
+              <p className="text-sm text-gray-400">Choose a conversation to start messaging</p>
               </div>
             </div>
           )}
         </div>
-      </div>
 
-      {/* New Message Dialog */}
-      <NewMessageDialog
-        open={showNewMessageDialog}
-        onClose={() => setShowNewMessageDialog(false)}
-        onConversationCreated={(conversationId) => {
-          setActiveConversation(conversationId);
-          setShowNewMessageDialog(false);
-          loadConversations();
+      {/* Conversation Menu Modal */}
+      {showConversationMenu && activeConversationData && (
+        <ConversationMenuModal
+          open={showConversationMenu}
+          onOpenChange={setShowConversationMenu}
+          conversation={{
+            id: activeConversationData.conversation.id,
+            type: activeConversationData.conversation.type === 'pod_chat' ? 'group' : activeConversationData.conversation.type,
+            name: activeConversationData.conversation.name || activeConversationData.other_user?.full_name || activeConversationData.other_user?.username || 'Unknown',
+            participants: (activeConversationData as any).participants?.map((p: any) => ({
+              id: p.user_id,
+              name: p.full_name || p.username,
+              username: p.username,
+              avatar: p.avatar,
+              role: p.role,
+            })),
+            is_archived: activeConversationData.conversation.is_archived || false,
+            is_muted: (activeConversationData as any).is_muted,
+            muted_until: (activeConversationData as any).muted_until,
+          }}
+          currentUserId={currentUserId}
+          onLeaveChat={handleLeaveChat}
+          onMuteToggle={handleMuteToggle}
+          onRemoveMember={handleRemoveMember}
+          onDeleteChat={handleDeleteChat}
+          onUnarchiveChat={handleUnarchiveChat}
+          onArchiveChat={handleArchiveChat}
+          onUpdateAvatar={handleUpdateAvatar}
+        />
+      )}
+
+      {/* Message Search Modal */}
+      <MessageSearch
+        isOpen={showMessageSearch}
+        onClose={() => setShowMessageSearch(false)}
+        onSelectMessage={(messageId, conversationId) => {
+          // TODO: Implement message selection and navigation
+          console.log('Select message:', messageId, 'in conversation:', conversationId);
         }}
+        conversationId={activeConversation || undefined}
       />
     </div>
   );

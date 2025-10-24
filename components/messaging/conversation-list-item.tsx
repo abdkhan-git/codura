@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import type { ConversationListItem } from "@/types/messaging";
 import { Users, CheckCheck } from "lucide-react";
 
@@ -81,9 +82,7 @@ export function ConversationListItemComponent({
           {/* Timestamp */}
           {last_message && (
             <span className="text-[10px] text-muted-foreground flex-shrink-0 ml-2">
-              {formatDistanceToNow(new Date(last_message.created_at), {
-                addSuffix: false,
-              })}
+              {format(new Date(last_message.created_at), 'h:mm a')}
             </span>
           )}
         </div>

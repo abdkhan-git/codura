@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     // First get conversation IDs where user is a participant
     const { data: userConversations, error: userConversationsError } = await supabase
       .from('conversation_participants')
-      .select('conversation_id')
+      .select('conversation_id, is_pinned')
       .eq('user_id', user.id)
       .eq('status', 'active');
 
@@ -77,7 +77,8 @@ export async function GET(request: Request) {
         role
       `)
       .in('conversation_id', conversationIdsForMessages)
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .order('joined_at', { ascending: true });
 
     // Get user data for participants and message senders
     const allUserIds = [
@@ -118,6 +119,7 @@ export async function GET(request: Request) {
     const processedConversations = conversations.map(conversation => {
       const lastMessage = lastMessages?.find(m => m.conversation_id === conversation.id);
       const conversationParticipants = participants?.filter(p => p.conversation_id === conversation.id) || [];
+      const userConv = userConversations.find(uc => uc.conversation_id === conversation.id);
 
       // Calculate unread count - messages in this conversation that are:
       // 1. Not sent by current user
@@ -132,11 +134,35 @@ export async function GET(request: Request) {
       // Get sender info for last message
       const senderInfo = lastMessage ? users?.find(u => u.user_id === lastMessage.sender_id) : null;
 
+      // Generate proper conversation name
+      let conversationName = conversation.name;
+      
+      // Override generic names for direct messages
+      if (conversation.type === 'direct') {
+        const otherParticipant = conversationParticipants.find(p => p.user_id !== user.id);
+        if (otherParticipant) {
+          const otherUser = users?.find(u => u.user_id === otherParticipant.user_id);
+          // Override if no name, or if it's a generic name like "Chat with X people"
+          if (!conversationName || 
+              conversationName.includes('Chat with') || 
+              conversationName.includes('people') ||
+              conversationName === 'Unknown') {
+            conversationName = otherUser?.full_name || otherUser?.username || 'Unknown';
+          }
+        }
+      } else if (conversation.type === 'group') {
+        // For group chats, only override if no name or generic name
+        if (!conversationName || conversationName.includes('Chat with')) {
+          const participantCount = conversationParticipants.length;
+          conversationName = `Group Chat (${participantCount} members)`;
+        }
+      }
+
       return {
         id: conversation.id,
-        name: conversation.name,
+        name: conversationName,
         type: conversation.type,
-        is_pinned: false, // Default value since not in select
+        is_pinned: userConv?.is_pinned || false,
         is_archived: conversation.is_archived,
         updated_at: conversation.updated_at,
         last_message: lastMessage ? {
@@ -145,16 +171,29 @@ export async function GET(request: Request) {
           created_at: lastMessage.created_at,
           message_type: lastMessage.message_type
         } : null,
-        participants: conversationParticipants.map(p => {
-          const userInfo = users?.find(u => u.user_id === p.user_id);
-          return {
-            id: p.user_id,
-            name: userInfo?.full_name || userInfo?.username || 'Unknown',
-            avatar: userInfo?.avatar_url,
-            username: userInfo?.username,
-            role: p.role
-          };
-        }),
+        participants: conversationParticipants
+          .filter(p => conversation.type === 'direct' ? p.user_id !== user.id : true) // Only exclude current user for direct messages
+          .map(p => {
+            const userInfo = users?.find(u => u.user_id === p.user_id);
+            const participant = {
+              id: p.user_id,
+              name: userInfo?.full_name || userInfo?.username || 'Unknown',
+              avatar: userInfo?.avatar_url,
+              username: userInfo?.username,
+              role: p.role
+            };
+            
+            // Debug logging for avatar issue
+            if (conversation.type === 'direct') {
+              console.log('API Debug - Conversation:', conversation.id);
+              console.log('API Debug - Current User ID:', user.id);
+              console.log('API Debug - Participant User ID:', p.user_id);
+              console.log('API Debug - User Info:', userInfo);
+              console.log('API Debug - Avatar URL:', userInfo?.avatar_url);
+            }
+            
+            return participant;
+          }),
         unread_count: unreadCount
       };
     });

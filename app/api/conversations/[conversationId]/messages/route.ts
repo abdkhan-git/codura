@@ -47,7 +47,7 @@ export async function GET(
     // Build query - fetch messages first
     let query = supabase
       .from('messages')
-      .select('*')
+      .select('*, read_by, delivery_status')
       .eq('conversation_id', conversationId)
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
@@ -99,15 +99,14 @@ export async function GET(
         edited_at: message.edited_at,
         reactions: message.reactions,
         metadata: message.metadata,
+        read_by: message.read_by || [],
+        delivery_status: message.delivery_status || 'sent',
         sender: {
           user_id: message.sender_id,
           full_name: sender?.full_name || 'Unknown',
           username: sender?.username || '',
           avatar_url: sender?.avatar_url || null
-        },
-        read_by: readReceipts
-          ?.filter(rr => rr.message_id === message.id)
-          ?.map(rr => rr.user_id) || []
+        }
       };
     }) || [];
 

@@ -227,7 +227,7 @@ export function ConversationsList({
                         </Avatar>
                         <Avatar className="w-8 h-8 absolute bottom-0 right-0">
                           <AvatarImage src={conversation.participants[1]?.avatar} />
-                          <AvatarFallback className="bg-gradient-to-br from-green-500 to-blue-500">
+                          <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300">
                             {conversation.participants[1]?.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>

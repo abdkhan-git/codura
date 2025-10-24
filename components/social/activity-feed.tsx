@@ -245,7 +245,7 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
     <div className={cn("space-y-6", className)}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-cyan-400 to-rose-400 bg-clip-text text-transparent">
           Activity Feed
         </h2>
         <div className="flex items-center gap-3">
@@ -304,19 +304,10 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
             ? "bg-white/80 border-black/5" 
             : "bg-zinc-950/80 border-white/5"
         )}>
-          <div className={cn(
-            "w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center",
-            theme === 'light' ? "bg-zinc-100" : "bg-zinc-900"
-          )}>
-            <Clock className={cn(
-              "w-10 h-10",
-              theme === 'light' ? "text-zinc-400" : "text-zinc-600"
-            )} />
+          <div className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-cyan-500/10 to-rose-500/10 border-2 border-cyan-500/20">
+            <Clock className="w-10 h-10 text-cyan-400" />
           </div>
-          <h3 className={cn(
-            "text-xl font-semibold mb-3",
-            theme === 'light' ? "text-zinc-900" : "text-white"
-          )}>
+          <h3 className="text-xl font-semibold mb-3 bg-gradient-to-r from-white via-cyan-400 to-rose-400 bg-clip-text text-transparent">
             No activities yet
           </h3>
           <p className="text-muted-foreground">

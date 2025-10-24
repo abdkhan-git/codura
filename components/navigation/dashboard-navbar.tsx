@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { NotificationsDropdown } from "@/components/social/notifications-dropdown";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
 
 interface UserData {
   name: string;
@@ -475,17 +476,13 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                     : "hover:bg-zinc-800"
                 )}
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white font-semibold text-xs overflow-hidden relative ring-2 ring-background">
-                  {user?.avatar && typeof user.avatar === 'string' && user.avatar.startsWith('http') ? (
-                    <img
-                      src={user.avatar}
-                      alt="Avatar"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-xs">{user?.avatar || user?.name?.charAt(0).toUpperCase() || 'U'}</span>
-                  )}
-                </div>
+                <DefaultAvatar
+                  src={user?.avatar}
+                  name={user?.name}
+                  username={user?.username}
+                  size="sm"
+                  className="ring-2 ring-background"
+                />
                 <span className="hidden sm:inline text-sm font-medium">
                   {user?.name?.split(' ')[0] || 'User'}
                 </span>
@@ -513,17 +510,13 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               <div className="px-3 py-3 mb-1 relative z-10">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white font-semibold overflow-hidden ring-2 ring-border/50">
-                      {user?.avatar && typeof user.avatar === 'string' && user.avatar.startsWith('http') ? (
-                        <img
-                          src={user.avatar}
-                          alt="Avatar"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-sm">{user?.avatar || user?.name?.charAt(0).toUpperCase() || 'U'}</span>
-                      )}
-                    </div>
+                    <DefaultAvatar
+                      src={user?.avatar}
+                      name={user?.name}
+                      username={user?.username}
+                      size="lg"
+                      className="ring-2 ring-border/50"
+                    />
                     <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full ring-2 ring-background" />
                   </div>
                   <UserNameText name={user?.name || 'User'} email={user?.email || ''} />

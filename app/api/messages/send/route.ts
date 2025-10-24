@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { conversation_id, content, message_type = "text" } = await request.json();
+    const { conversation_id, content, message_type = "text", attachments, metadata } = await request.json();
 
     if (!conversation_id || !content) {
       return NextResponse.json(
@@ -40,15 +40,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Prepare message data
+    const messageData: any = {
+      conversation_id,
+      sender_id: user.id,
+      content,
+      message_type,
+    };
+
+    // Add metadata if attachments exist
+    if (attachments && attachments.length > 0) {
+      messageData.metadata = {
+        ...metadata,
+        attachments,
+      };
+    } else if (metadata) {
+      messageData.metadata = metadata;
+    }
+
     // Create the message
     const { data: message, error: messageError } = await supabase
       .from("messages")
-      .insert({
-        conversation_id,
-        sender_id: user.id,
-        content,
-        message_type,
-      })
+      .insert(messageData)
       .select("*")
       .single();
 

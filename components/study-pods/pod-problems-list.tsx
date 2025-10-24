@@ -555,7 +555,7 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
                                     >
                                       <Avatar className="w-5 h-5 border border-white/10">
                                         <AvatarImage src={completion.user?.avatar_url || ""} />
-                                        <AvatarFallback className="text-xs bg-gradient-to-br from-emerald-500 to-cyan-500">
+                                        <AvatarFallback className="text-xs bg-gradient-to-br from-brand to-orange-300">
                                           {completion.user?.full_name?.charAt(0) || "?"}
                                         </AvatarFallback>
                                       </Avatar>

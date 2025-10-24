@@ -25,6 +25,7 @@ import {
   Settings,
   ListPlus,
   Target,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -226,6 +227,16 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
               {pod.is_member ? (
                 <>
                   <div className="flex gap-2">
+                    {pod.group_chat_id && (
+                      <Link href={`/messages?conversation=${pod.group_chat_id}`}>
+                        <Button
+                          className="bg-gradient-to-r from-cyan-500 to-blue-500"
+                        >
+                          <MessageCircle className="w-4 h-4 mr-2" />
+                          Group Chat
+                        </Button>
+                      </Link>
+                    )}
                     {(pod.user_role === 'owner' || pod.user_role === 'moderator') && (
                       <>
                         <Button

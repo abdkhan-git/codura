@@ -49,6 +49,34 @@ export interface ConversationParticipant {
   updated_at: string;
 }
 
+export interface ConversationListItem {
+  conversation: Conversation;
+  other_user?: {
+    user_id: string;
+    username: string;
+    full_name: string;
+    avatar_url?: string | null;
+    is_online?: boolean;
+    last_seen?: string;
+  };
+  participants?: Array<{
+    id: string;
+    name: string;
+    username?: string;
+    avatar?: string;
+    role?: ParticipantRole;
+  }>;
+  unread_count: number;
+  last_message?: {
+    content: string;
+    sender_name: string;
+    is_own_message: boolean;
+    created_at: string;
+  };
+  is_typing: boolean;
+  typing_users: string[];
+}
+
 export interface MessageAttachment {
   url: string;
   type: 'image' | 'file' | 'video' | 'audio';
