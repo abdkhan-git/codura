@@ -13,6 +13,7 @@ import {
   MonitorOff,
   Circle,
   MessageSquare,
+  Code,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ import { ChatBox } from "./chat-box";
 import { SessionNavbar } from "./session-navbar";
 import { SimpleSignaling, SignalingMessage } from "@/lib/simple-signaling";
 import { AdmissionModal, PendingUser } from "./admission-modal";
+import { CollaborativeCodeEditor } from "./collaborative-code-editor";
 
 interface VideoCallInterfaceProps {
   sessionId: string;
@@ -48,6 +50,8 @@ export function VideoCallInterface({
   const offerSentRef = useRef(false);
   const admissionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const codeEditorRef = useRef<any>(null);
 
   // Media states
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -59,10 +63,15 @@ export function VideoCallInterface({
   // UI states
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showChat, setShowChat] = useState(true);
+  const [showCodeEditor, setShowCodeEditor] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [partnerName, setPartnerName] = useState<string | null>(null);
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+
+  // Code editor states
+  const [currentCode, setCurrentCode] = useState("");
+  const [currentLanguage, setCurrentLanguage] = useState("python");
 
   // Recording
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -264,6 +273,79 @@ export function VideoCallInterface({
     fetchPendingRequests();
   }, [fetchPendingRequests]);
 
+  // Setup data channel for code synchronization
+  const setupDataChannel = (dataChannel: RTCDataChannel) => {
+    dataChannelRef.current = dataChannel;
+
+    dataChannel.onopen = () => {
+      console.log("Data channel opened");
+      toast.success("Code editor synchronized!");
+    };
+
+    dataChannel.onclose = () => {
+      console.log("Data channel closed");
+    };
+
+    dataChannel.onerror = (error) => {
+      console.error("Data channel error:", error);
+    };
+
+    dataChannel.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        handleDataChannelMessage(message);
+      } catch (error) {
+        console.error("Error parsing data channel message:", error);
+      }
+    };
+  };
+
+  // Handle incoming data channel messages
+  const handleDataChannelMessage = (message: any) => {
+    switch (message.type) {
+      case "code-change":
+        setCurrentCode(message.code);
+        if (message.language) {
+          setCurrentLanguage(message.language);
+        }
+        // Apply the change to the editor
+        if (codeEditorRef.current && codeEditorRef.current.applyRemoteChange) {
+          codeEditorRef.current.applyRemoteChange(message.code, message.language);
+        }
+        break;
+      case "language-change":
+        setCurrentLanguage(message.language);
+        if (codeEditorRef.current && codeEditorRef.current.applyRemoteChange) {
+          codeEditorRef.current.applyRemoteChange(currentCode, message.language);
+        }
+        break;
+      default:
+        console.log("Unknown data channel message type:", message.type);
+    }
+  };
+
+  // Send data via data channel
+  const sendDataMessage = useCallback((message: any) => {
+    if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+      try {
+        dataChannelRef.current.send(JSON.stringify(message));
+      } catch (error) {
+        console.error("Error sending data channel message:", error);
+      }
+    }
+  }, []);
+
+  // Handle code changes from editor
+  const handleCodeChange = useCallback((code: string, language: string) => {
+    setCurrentCode(code);
+    setCurrentLanguage(language);
+  }, []);
+
+  // Handle language changes from editor
+  const handleLanguageChange = useCallback((language: string) => {
+    setCurrentLanguage(language);
+  }, []);
+
   const initializeCall = async () => {
     if (!user.user_id) {
       toast.error("Unable to start call. Please refresh and try again.");
@@ -373,6 +455,18 @@ export function VideoCallInterface({
     stream.getTracks().forEach((track) => {
       pc.addTrack(track, stream);
     });
+
+    // Setup data channel for code synchronization
+    if (!isHost) {
+      // Non-host creates the data channel
+      const dataChannel = pc.createDataChannel("code-sync");
+      setupDataChannel(dataChannel);
+    } else {
+      // Host listens for incoming data channel
+      pc.ondatachannel = (event) => {
+        setupDataChannel(event.channel);
+      };
+    }
 
     // Handle remote stream
     pc.ontrack = (event) => {
@@ -564,6 +658,10 @@ export function VideoCallInterface({
       localStream.getTracks().forEach((track) => track.stop());
     }
     setLocalStream(null);
+    if (dataChannelRef.current) {
+      dataChannelRef.current.close();
+      dataChannelRef.current = null;
+    }
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
     }
@@ -611,9 +709,12 @@ export function VideoCallInterface({
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex gap-4 mt-4">
-        {/* Video Area */}
-        <div className={cn("flex-1 relative", showChat ? "lg:w-2/3" : "w-full")}>
+      <div className="flex-1 flex gap-4 mt-4 overflow-hidden">
+        {/* Video Area - Always on left with consistent width */}
+        <div className={cn(
+          "relative",
+          showCodeEditor || showChat ? "w-1/2" : "w-full"
+        )}>
           <Card className="h-full border-2 border-border/20 bg-zinc-900 relative overflow-hidden">
             {/* Remote Video (Partner) - Large View */}
             <div className="absolute inset-0">
@@ -719,9 +820,20 @@ export function VideoCallInterface({
                   )}
                 </Button>
 
+                {/* Code Editor Toggle */}
+                <Button
+                  variant={showCodeEditor ? "default" : "secondary"}
+                  size="lg"
+                  onClick={() => setShowCodeEditor(!showCodeEditor)}
+                  className="rounded-full w-14 h-14 p-0"
+                  title="Toggle code editor"
+                >
+                  <Code className="w-6 h-6" />
+                </Button>
+
                 {/* Chat Toggle */}
                 <Button
-                  variant="secondary"
+                  variant={showChat ? "default" : "secondary"}
                   size="lg"
                   onClick={() => setShowChat(!showChat)}
                   className="rounded-full w-14 h-14 p-0"
@@ -760,14 +872,38 @@ export function VideoCallInterface({
           </Card>
         </div>
 
-        {/* Chat Panel */}
-        {showChat && (
-          <div className="w-full lg:w-1/3">
-            <ChatBox
-              sessionId={sessionId}
-              user={user}
-              onClose={() => setShowChat(false)}
-            />
+        {/* Right Side - Code Editor and/or Chat */}
+        {(showCodeEditor || showChat) && (
+          <div className="w-1/2 flex flex-col gap-4">
+            {/* Code Editor Panel - Takes 70% height when chat is also shown */}
+            {showCodeEditor && (
+              <Card className={cn(
+                "border-2 border-border/20 overflow-hidden",
+                showChat ? "h-[70%]" : "h-full"
+              )}>
+                <CollaborativeCodeEditor
+                  ref={codeEditorRef}
+                  onCodeChange={handleCodeChange}
+                  onLanguageChange={handleLanguageChange}
+                  sendDataMessage={sendDataMessage}
+                  initialCode={currentCode}
+                  initialLanguage={currentLanguage}
+                />
+              </Card>
+            )}
+
+            {/* Chat Panel - Takes 30% height when editor is also shown, 100% otherwise */}
+            {showChat && (
+              <div className={cn(
+                showCodeEditor ? "h-[30%]" : "h-full"
+              )}>
+                <ChatBox
+                  sessionId={sessionId}
+                  user={user}
+                  onClose={() => setShowChat(false)}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
