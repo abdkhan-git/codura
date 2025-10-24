@@ -14,6 +14,7 @@ import {
   Circle,
   MessageSquare,
   Code,
+  Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -22,6 +23,7 @@ import { SessionNavbar } from "./session-navbar";
 import { SimpleSignaling, SignalingMessage } from "@/lib/simple-signaling";
 import { AdmissionModal, PendingUser } from "./admission-modal";
 import { CollaborativeCodeEditor } from "./collaborative-code-editor";
+import { CollaborativeWhiteboard } from "./collaborative-whiteboard";
 
 interface VideoCallInterfaceProps {
   sessionId: string;
@@ -52,6 +54,7 @@ export function VideoCallInterface({
   const isMountedRef = useRef(true);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const codeEditorRef = useRef<any>(null);
+  const whiteboardRef = useRef<any>(null);
 
   // Media states
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -64,6 +67,7 @@ export function VideoCallInterface({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showChat, setShowChat] = useState(true);
   const [showCodeEditor, setShowCodeEditor] = useState(true);
+  const [showWhiteboard, setShowWhiteboard] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [partnerName, setPartnerName] = useState<string | null>(null);
@@ -317,6 +321,16 @@ export function VideoCallInterface({
         setCurrentLanguage(message.language);
         if (codeEditorRef.current && codeEditorRef.current.applyRemoteChange) {
           codeEditorRef.current.applyRemoteChange(currentCode, message.language);
+        }
+        break;
+      case "whiteboard-draw":
+        if (whiteboardRef.current && whiteboardRef.current.applyRemoteDrawing) {
+          whiteboardRef.current.applyRemoteDrawing(message.imageData);
+        }
+        break;
+      case "whiteboard-clear":
+        if (whiteboardRef.current && whiteboardRef.current.clear) {
+          whiteboardRef.current.clear();
         }
         break;
       default:
@@ -831,6 +845,17 @@ export function VideoCallInterface({
                   <Code className="w-6 h-6" />
                 </Button>
 
+                {/* Whiteboard Toggle */}
+                <Button
+                  variant={showWhiteboard ? "default" : "secondary"}
+                  size="lg"
+                  onClick={() => setShowWhiteboard(!showWhiteboard)}
+                  className="rounded-full w-14 h-14 p-0"
+                  title="Toggle whiteboard"
+                >
+                  <Palette className="w-6 h-6" />
+                </Button>
+
                 {/* Chat Toggle */}
                 <Button
                   variant={showChat ? "default" : "secondary"}
@@ -907,6 +932,16 @@ export function VideoCallInterface({
           </div>
         )}
       </div>
+
+      {/* Floating Whiteboard */}
+      {showWhiteboard && (
+        <CollaborativeWhiteboard
+          ref={whiteboardRef}
+          sendDataMessage={sendDataMessage}
+          initialPosition={{ x: 150, y: 150 }}
+          initialSize={{ width: 600, height: 400 }}
+        />
+      )}
     </div>
   );
 }
