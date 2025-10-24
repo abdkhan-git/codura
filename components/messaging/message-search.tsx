@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import { formatDistanceToNow } from "date-fns";
 
 interface SearchResult {
@@ -58,6 +59,7 @@ export function MessageSearch({
   onSelectMessage,
   conversationId
 }: MessageSearchProps) {
+  const { theme } = useTheme();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MessageSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -159,7 +161,10 @@ export function MessageSearch({
                 <Search className="w-4 h-4 text-violet-400" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-white">Search Messages</h2>
+                <h2 className={cn(
+                  "text-lg font-semibold",
+                  theme === 'light' ? "text-gray-900" : "text-white"
+                )}>Search Messages</h2>
                 <p className="text-sm text-gray-400">
                   {conversationId ? "Search in this conversation" : "Search all conversations"}
                 </p>
@@ -255,7 +260,10 @@ export function MessageSearch({
                             </Avatar>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-sm text-white">
+                                <span className={cn(
+                                  "font-medium text-sm",
+                                  theme === 'light' ? "text-gray-900" : "text-white"
+                                )}>
                                   {message.sender_name || 'Unknown'}
                                 </span>
                                 <span className="text-xs text-gray-400">
@@ -279,7 +287,10 @@ export function MessageSearch({
                 <div className="w-12 h-12 rounded-full bg-gray-500/10 flex items-center justify-center mb-4">
                   <Search className="w-6 h-6 text-gray-400" />
                 </div>
-                <h3 className="text-sm font-medium text-white mb-1">No messages found</h3>
+                <h3 className={cn(
+                  "text-sm font-medium mb-1",
+                  theme === 'light' ? "text-gray-900" : "text-white"
+                )}>No messages found</h3>
                 <p className="text-xs text-gray-400">Try a different search term</p>
               </div>
             )
@@ -288,7 +299,10 @@ export function MessageSearch({
               <div className="w-12 h-12 rounded-full bg-violet-500/10 flex items-center justify-center mb-4">
                 <Search className="w-6 h-6 text-violet-400" />
               </div>
-              <h3 className="text-sm font-medium text-white mb-1">Search Messages</h3>
+              <h3 className={cn(
+                "text-sm font-medium mb-1",
+                theme === 'light' ? "text-gray-900" : "text-white"
+              )}>Search Messages</h3>
               <p className="text-xs text-gray-400">Enter a search term to find messages</p>
             </div>
           )}

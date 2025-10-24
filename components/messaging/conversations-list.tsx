@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import {
   Search,
   Send,
@@ -62,6 +63,7 @@ export function ConversationsList({
   selectedConversationId,
   onCreateNew,
 }: ConversationsListProps) {
+  const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "pinned">("all");
 
@@ -201,8 +203,13 @@ export function ConversationsList({
               <Card
                 key={conversation.id}
                 className={cn(
-                  "p-3 cursor-pointer transition-all duration-200 hover:bg-accent/50",
-                  selectedConversationId === conversation.id && "bg-accent border-brand/20",
+                  "p-3 cursor-pointer transition-all duration-200",
+                  theme === 'light' 
+                    ? "bg-white hover:bg-gray-50 border-gray-200"
+                    : "hover:bg-accent/50",
+                  selectedConversationId === conversation.id && (theme === 'light'
+                    ? "bg-blue-50 border-blue-200"
+                    : "bg-accent border-brand/20"),
                   conversation.is_pinned && "border-l-4 border-l-brand"
                 )}
                 onClick={() => onSelectConversation(conversation)}
@@ -243,7 +250,12 @@ export function ConversationsList({
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-medium text-foreground truncate">
+                      <h3 className={cn(
+                        "font-medium truncate",
+                        theme === 'light' 
+                          ? (selectedConversationId === conversation.id ? "text-gray-900" : "text-gray-900")
+                          : "text-foreground"
+                      )}>
                         {conversation.name}
                       </h3>
                       <div className="flex items-center gap-1">
@@ -251,7 +263,12 @@ export function ConversationsList({
                           <Pin className="w-3 h-3 text-brand" />
                         )}
                         {getMessageStatus(conversation)}
-                        <span className="text-xs text-muted-foreground">
+                        <span className={cn(
+                          "text-xs",
+                          theme === 'light' 
+                            ? (selectedConversationId === conversation.id ? "text-gray-600" : "text-gray-500")
+                            : "text-muted-foreground"
+                        )}>
                           {conversation.last_message
                             ? formatDistanceToNow(new Date(conversation.last_message.created_at), { addSuffix: true })
                             : ""}
@@ -259,7 +276,12 @@ export function ConversationsList({
                       </div>
                     </div>
                     
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p className={cn(
+                      "text-sm truncate",
+                      theme === 'light' 
+                        ? (selectedConversationId === conversation.id ? "text-gray-800" : "text-gray-600")
+                        : "text-muted-foreground"
+                    )}>
                       {formatLastMessage(conversation.last_message)}
                     </p>
                     

@@ -500,7 +500,7 @@ export default function SocialFeedPage() {
                 </div>
               </div>
               <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-emerald-400 to-yellow-400 bg-clip-text text-transparent">
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-emerald-400 to-yellow-400 bg-clip-text text-transparent">
                   Activity Feed
                 </h1>
                 <p className="text-slate-400 text-lg">Connect, share, and engage with your network</p>

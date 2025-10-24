@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import {
   MessageSquare,
   X,
@@ -29,6 +30,7 @@ interface FloatingMessengerProps {
 }
 
 export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
+  const { theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
@@ -310,7 +312,9 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
           ref={widgetRef}
           className={cn(
             "fixed bottom-6 right-6 z-50",
-            "bg-zinc-950 border-2 border-white/10 rounded-2xl shadow-2xl",
+            theme === 'light' 
+              ? "bg-white border-2 border-gray-200 rounded-2xl shadow-2xl"
+              : "bg-zinc-950 border-2 border-white/10 rounded-2xl shadow-2xl",
             "backdrop-blur-xl overflow-hidden transition-all duration-300",
             isMinimized ? "w-80 h-16" : "w-96 h-[600px]",
             "flex flex-col"
@@ -318,11 +322,22 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
         >
           {/* Header */}
           <div 
-            className="flex items-center justify-between p-4 border-b border-white/10 bg-gradient-to-r from-brand/10 to-purple-600/10"
+            className={cn(
+              "flex items-center justify-between p-4 border-b",
+              theme === 'light' 
+                ? "border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50"
+                : "border-white/10 bg-gradient-to-r from-brand/10 to-purple-600/10"
+            )}
           >
             <div className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-brand" />
-              <h3 className="font-semibold">
+              <MessageSquare className={cn(
+                "w-5 h-5",
+                theme === 'light' ? "text-blue-600" : "text-brand"
+              )} />
+              <h3 className={cn(
+                "font-semibold",
+                theme === 'light' ? "text-gray-900" : "text-white"
+              )}>
                 {activeConversation ? "Chat" : "Messages"}
               </h3>
               {unreadCount > 0 && (
@@ -366,14 +381,25 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
                 // Conversations List
                 <div className="flex-1 flex flex-col overflow-hidden">
                   {/* Search and New Message */}
-                  <div className="p-4 border-b border-white/5 space-y-3">
+                  <div className={cn(
+                    "p-4 border-b space-y-3",
+                    theme === 'light' ? "border-gray-200" : "border-white/5"
+                  )}>
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Search className={cn(
+                        "absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4",
+                        theme === 'light' ? "text-gray-500" : "text-muted-foreground"
+                      )} />
                       <Input
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search conversations..."
-                        className="pl-10 bg-zinc-900/50 border-white/10"
+                        className={cn(
+                          "pl-10",
+                          theme === 'light' 
+                            ? "bg-gray-50 border-gray-200 focus:border-blue-500"
+                            : "bg-zinc-900/50 border-white/10"
+                        )}
                       />
                     </div>
                     <Button
@@ -389,7 +415,10 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
                   {/* Conversations */}
                   <ScrollArea className="flex-1">
                     {filteredConversations.length === 0 ? (
-                      <div className="p-8 text-center text-muted-foreground">
+                      <div className={cn(
+                        "p-8 text-center",
+                        theme === 'light' ? "text-gray-500" : "text-muted-foreground"
+                      )}>
                         <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
                         <p>No conversations yet</p>
                         <p className="text-sm mt-2">
@@ -412,7 +441,10 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
                 // Chat View
                 <div className="flex-1 flex flex-col overflow-hidden">
                   {/* Chat Header */}
-                  <div className="p-4 border-b border-white/5 flex items-center gap-3">
+                  <div className={cn(
+                    "p-4 border-b flex items-center gap-3",
+                    theme === 'light' ? "border-gray-200" : "border-white/5"
+                  )}>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -459,7 +491,10 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
                             </Avatar>
                           )}
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-medium truncate">{displayName}</h4>
+                            <h4 className={cn(
+                              "font-medium truncate",
+                              theme === 'light' ? "text-gray-900" : "text-white"
+                            )}>{displayName}</h4>
                             {conv.conversation.type === "direct" &&
                               conv.other_user?.is_online && (
                                 <span className="text-xs text-green-400">
@@ -467,7 +502,10 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
                                 </span>
                               )}
                             {conv.is_typing && (
-                              <span className="text-xs text-brand">Typing...</span>
+                              <span className={cn(
+                                "text-xs",
+                                theme === 'light' ? "text-blue-600" : "text-brand"
+                              )}>Typing...</span>
                             )}
                           </div>
                         </>
@@ -482,7 +520,10 @@ export function FloatingMessenger({ currentUserId }: FloatingMessengerProps) {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand" />
                       </div>
                     ) : messages.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-muted-foreground">
+                      <div className={cn(
+                        "flex items-center justify-center h-full",
+                        theme === 'light' ? "text-gray-500" : "text-muted-foreground"
+                      )}>
                         <div className="text-center">
                           <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
                           <p>No messages yet</p>

@@ -11,13 +11,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import { MessageEdit } from "@/components/messaging/message-edit";
 import {
   MoreVertical,
   MessageSquare as ReplyIcon,
   Smile as SmileIcon,
   Edit as EditIcon,
-  Trash as TrashIcon,
+  Trash2 as TrashIcon,
   Copy as CopyIcon,
   Check as CheckIcon,
   CheckCircle2 as CheckCheckIcon,
@@ -54,6 +55,7 @@ export function MessageBubble({
   onReact,
   messageRef,
 }: MessageBubbleProps) {
+  const { theme } = useTheme();
   const [showReactions, setShowReactions] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isReacting, setIsReacting] = useState(false);
@@ -144,7 +146,12 @@ export function MessageBubble({
   if (message.message_type === "system") {
     return (
       <div className="flex justify-center my-4">
-        <div className="text-xs text-muted-foreground bg-zinc-900/50 px-4 py-2 rounded-full border border-white/5">
+        <div className={cn(
+          "text-xs px-4 py-2 rounded-full border",
+          theme === 'light' 
+            ? "text-gray-600 bg-gray-100 border-gray-200"
+            : "text-muted-foreground bg-zinc-900/50 border-white/5"
+        )}>
           {message.content}
         </div>
       </div>
@@ -186,13 +193,6 @@ export function MessageBubble({
               {readByCount}
             </span>
           )}
-        </div>
-      );
-    } else if (message.delivery_status === "sending") {
-      return (
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 border border-muted-foreground border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-muted-foreground">Sending...</span>
         </div>
       );
     } else if (message.delivery_status === "sent") {
@@ -249,7 +249,10 @@ export function MessageBubble({
       >
         {/* Sender name */}
         {showSender && !isOwn && (
-          <span className="text-xs text-muted-foreground mb-1 px-1">
+          <span className={cn(
+            "text-xs mb-1 px-1",
+            theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+          )}>
             {message.sender.full_name || message.sender.username}
           </span>
         )}
@@ -260,14 +263,24 @@ export function MessageBubble({
             className={cn(
               "text-xs p-2 rounded-lg mb-1 border-l-2 max-w-full",
               isOwn
-                ? "bg-brand/10 border-brand/50"
-                : "bg-zinc-900/50 border-zinc-700"
+                ? (theme === 'light' 
+                    ? "bg-blue-50 border-blue-300"
+                    : "bg-brand/10 border-brand/50")
+                : (theme === 'light'
+                    ? "bg-gray-100 border-gray-300"
+                    : "bg-zinc-900/50 border-zinc-700")
             )}
           >
-            <div className="font-medium text-muted-foreground">
+            <div className={cn(
+              "font-medium",
+              theme === 'light' ? "text-gray-700" : "text-muted-foreground"
+            )}>
               {message.reply_to.sender.full_name}
             </div>
-            <div className="text-muted-foreground truncate">
+            <div className={cn(
+              "truncate",
+              theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+            )}>
               {message.reply_to.content}
             </div>
           </div>
@@ -278,8 +291,12 @@ export function MessageBubble({
           className={cn(
             "relative px-4 py-2 rounded-2xl break-words backdrop-blur-xl",
             isOwn
-              ? "bg-gradient-to-br from-violet-500/90 to-indigo-500/90 text-white rounded-br-sm border border-violet-400/30 shadow-lg shadow-violet-500/20"
-              : "bg-zinc-800/80 text-gray-100 border border-white/10 rounded-bl-sm shadow-lg shadow-black/20 backdrop-blur-xl",
+              ? (theme === 'light'
+                  ? "bg-gradient-to-br from-blue-500 to-indigo-500 text-white rounded-br-sm border border-blue-400/30 shadow-lg shadow-blue-500/20"
+                  : "bg-gradient-to-br from-violet-500/90 to-indigo-500/90 text-white rounded-br-sm border border-violet-400/30 shadow-lg shadow-violet-500/20")
+              : (theme === 'light'
+                  ? "bg-gray-100 text-gray-900 border border-gray-200 rounded-bl-sm shadow-lg shadow-gray-200/20"
+                  : "bg-zinc-800/80 text-gray-100 border border-white/10 rounded-bl-sm shadow-lg shadow-black/20 backdrop-blur-xl"),
             !showSender && "mt-1"
           )}
         >
@@ -295,8 +312,12 @@ export function MessageBubble({
                     className={cn(
                       "rounded-lg overflow-hidden border",
                       isOwn
-                        ? "border-white/20 bg-white/10"
-                        : "border-white/10 bg-black/20"
+                        ? (theme === 'light'
+                            ? "border-white/20 bg-white/10"
+                            : "border-white/20 bg-white/10")
+                        : (theme === 'light'
+                            ? "border-gray-200 bg-gray-50"
+                            : "border-white/10 bg-black/20")
                     )}
                   >
                     {isImage ? (
@@ -339,7 +360,9 @@ export function MessageBubble({
                           <div className="text-sm font-medium truncate">{attachment.name}</div>
                           <div className={cn(
                             "text-xs",
-                            isOwn ? "text-white/70" : "text-muted-foreground"
+                            isOwn 
+                              ? "text-white/70"
+                              : (theme === 'light' ? "text-gray-600" : "text-muted-foreground")
                           )}>
                             Click to download
                           </div>
@@ -377,7 +400,9 @@ export function MessageBubble({
                     "flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-all duration-200 hover:scale-105 backdrop-blur-sm",
                     isOwn 
                       ? "bg-white/20 hover:bg-white/30 text-white border border-white/20" 
-                      : "bg-zinc-700/80 hover:bg-zinc-600/80 text-gray-200 border border-white/10"
+                      : (theme === 'light'
+                          ? "bg-gray-200 hover:bg-gray-300 text-gray-800 border border-gray-300"
+                          : "bg-zinc-700/80 hover:bg-zinc-600/80 text-gray-200 border border-white/10")
                   )}
                 >
                   <span>{emoji}</span>
@@ -404,19 +429,34 @@ export function MessageBubble({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 w-6 p-0 bg-zinc-800/80 hover:bg-zinc-700/80 border border-white/10 hover:scale-110 transition-all duration-200 backdrop-blur-sm"
+                className={cn(
+                  "h-6 w-6 p-0 border hover:scale-110 transition-all duration-200 backdrop-blur-sm",
+                  theme === 'light'
+                    ? "bg-gray-200 hover:bg-gray-300 border-gray-300"
+                    : "bg-zinc-800/80 hover:bg-zinc-700/80 border-white/10"
+                )}
                 onClick={() => setShowReactions(!showReactions)}
               >
                 <SmileIcon className="w-3 h-3" />
               </Button>
 
               {showReactions && (
-                <div className="absolute top-full mt-1 z-50 flex gap-1 bg-zinc-800/95 border border-white/10 rounded-lg p-2 shadow-xl backdrop-blur-md">
+                <div className={cn(
+                  "absolute top-full mt-1 z-50 flex gap-1 border rounded-lg p-2 shadow-xl backdrop-blur-md",
+                  theme === 'light'
+                    ? "bg-white border-gray-200"
+                    : "bg-zinc-800/95 border-white/10"
+                )}>
                   {COMMON_REACTIONS.map((emoji) => (
                     <button
                       key={emoji}
                       onClick={() => handleReaction(emoji)}
-                      className="hover:scale-125 transition-transform text-lg p-1 rounded hover:bg-white/10"
+                      className={cn(
+                        "hover:scale-125 transition-transform text-lg p-1 rounded",
+                        theme === 'light'
+                          ? "hover:bg-gray-100"
+                          : "hover:bg-white/10"
+                      )}
                     >
                       {emoji}
                     </button>
@@ -431,7 +471,12 @@ export function MessageBubble({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-6 w-6 p-0 bg-zinc-800/80 hover:bg-zinc-700/80 border border-white/10 hover:scale-110 transition-all duration-200 backdrop-blur-sm"
+                  className={cn(
+                    "h-6 w-6 p-0 border hover:scale-110 transition-all duration-200 backdrop-blur-sm",
+                    theme === 'light'
+                      ? "bg-gray-200 hover:bg-gray-300 border-gray-300"
+                      : "bg-zinc-800/80 hover:bg-zinc-700/80 border-white/10"
+                  )}
                 >
                   <MoreVertical className="w-3 h-3" />
                 </Button>
@@ -489,8 +534,10 @@ export function MessageBubble({
               <div
                 key={emoji}
                 className={cn(
-                  "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs backdrop-blur-sm",
-                  "bg-zinc-900/80 border border-white/10 hover:border-white/20 transition-all duration-200 hover:scale-105"
+                  "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs backdrop-blur-sm transition-all duration-200 hover:scale-105",
+                  theme === 'light'
+                    ? "bg-gray-100 border border-gray-200 hover:border-gray-300"
+                    : "bg-zinc-900/80 border border-white/10 hover:border-white/20"
                 )}
               >
                 <span>{emoji}</span>
@@ -517,7 +564,8 @@ export function MessageBubble({
         {(showSender || message.show_timestamp) && (
           <div
             className={cn(
-              "flex items-center gap-1 mt-1 text-[10px] text-muted-foreground px-1",
+              "flex items-center gap-1 mt-1 text-[10px] px-1",
+              theme === 'light' ? "text-gray-500" : "text-muted-foreground",
               isOwn && "flex-row-reverse"
             )}
           >

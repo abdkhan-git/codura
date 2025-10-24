@@ -430,7 +430,7 @@ export default function ConnectionsPage() {
             </div>
             <div>
                 <h1 className="text-4xl font-bold">
-                  <span className="text-white">My</span> <span className="bg-gradient-to-r from-cyan-400 to-rose-400 bg-clip-text text-transparent">Network</span>
+                  <span className="bg-gradient-to-r from-foreground to-foreground bg-clip-text text-transparent">My</span> <span className="bg-gradient-to-r from-cyan-400 to-rose-400 bg-clip-text text-transparent">Network</span>
               </h1>
                 <p className="text-slate-400 text-lg">Grow and manage your professional connections</p>
               </div>
@@ -643,7 +643,7 @@ export default function ConnectionsPage() {
                 <div className="flex items-center gap-3">
 
                   {/* View Mode Toggle - Clean style with proper z-index */}
-                  <div className="flex rounded-lg border border-slate-700/50 overflow-hidden bg-slate-800/30">
+                  <div className="flex rounded-lg border border-slate-300/50 overflow-hidden bg-slate-100/50">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
@@ -651,8 +651,8 @@ export default function ConnectionsPage() {
                           className={cn(
                             "p-2.5 transition-all duration-200 relative z-10",
                             viewMode === 'grid'
-                              ? 'bg-cyan-500/20 text-cyan-400'
-                              : 'text-slate-400 hover:text-white hover:bg-slate-700/30'
+                              ? 'bg-cyan-500/20 text-cyan-600'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                           )}
                         >
                           <Grid className="w-4 h-4" />
@@ -669,8 +669,8 @@ export default function ConnectionsPage() {
                           className={cn(
                             "p-2.5 transition-all duration-200 relative z-10",
                             viewMode === 'list'
-                              ? 'bg-cyan-500/20 text-cyan-400'
-                              : 'text-slate-400 hover:text-white hover:bg-slate-700/30'
+                              ? 'bg-cyan-500/20 text-cyan-600'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                           )}
                         >
                           <ListIcon className="w-4 h-4" />
@@ -736,7 +736,7 @@ export default function ConnectionsPage() {
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span className="hidden sm:inline">Connections</span>
-                  <Badge variant="secondary" className="ml-1 bg-cyan-500/20 text-cyan-300 border-cyan-500/30">
+                  <Badge variant="secondary" className="ml-1 bg-cyan-500/20 text-cyan-700 border-cyan-500/30">
                     {filteredConnections.length}
                   </Badge>
                 </TabsTrigger>
@@ -746,7 +746,7 @@ export default function ConnectionsPage() {
                 >
                   <Clock className="w-4 h-4" />
                   <span className="hidden sm:inline">Pending</span>
-                  <Badge variant="secondary" className="ml-1 bg-cyan-500/20 text-cyan-300 border-cyan-500/30">
+                  <Badge variant="secondary" className="ml-1 bg-cyan-500/20 text-cyan-700 border-cyan-500/30">
                     {pendingRequests.filter(req => req.type === 'received').length}
                   </Badge>
                 </TabsTrigger>
@@ -756,7 +756,7 @@ export default function ConnectionsPage() {
                 >
                   <Plus className="w-4 h-4" />
                   <span className="hidden sm:inline">Sent</span>
-                  <Badge variant="secondary" className="ml-1 bg-cyan-500/20 text-cyan-300 border-cyan-500/30">
+                  <Badge variant="secondary" className="ml-1 bg-cyan-500/20 text-cyan-700 border-cyan-500/30">
                     {pendingRequests.filter(req => req.type === 'sent').length}
                   </Badge>
                 </TabsTrigger>
@@ -925,10 +925,10 @@ function ConnectionCard({
 
           {/* User Info */}
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-lg truncate bg-gradient-to-r from-white via-cyan-400 to-rose-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:via-rose-300 group-hover:to-blue-300 transition-all duration-500">
+            <h3 className="font-bold text-lg truncate bg-gradient-to-r from-foreground via-cyan-400 to-rose-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:via-rose-300 group-hover:to-blue-300 transition-all duration-500">
               {connection.user.full_name || connection.user.username || 'Anonymous'}
             </h3>
-            <p className="text-sm text-slate-400 truncate group-hover:text-cyan-300 transition-colors duration-300">
+            <p className="text-sm text-slate-600 truncate group-hover:text-cyan-600 transition-colors duration-300">
               @{connection.user.username || 'user'}
             </p>
 
@@ -962,7 +962,7 @@ function ConnectionCard({
                 {/* Problems Solved */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1.5 text-slate-400 hover:text-cyan-400 transition-colors cursor-help">
+                    <div className="flex items-center gap-1.5 text-slate-600 hover:text-cyan-600 transition-colors cursor-help">
                       <Trophy className="w-4 h-4" />
                       <span>{connection.user.total_solved || 0}</span>
                     </div>
@@ -975,7 +975,7 @@ function ConnectionCard({
                 {/* Current Streak */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1.5 text-slate-400 hover:text-cyan-400 transition-colors cursor-help">
+                    <div className="flex items-center gap-1.5 text-slate-600 hover:text-cyan-600 transition-colors cursor-help">
                       <Calendar className="w-4 h-4" />
                       <span>{connection.user.current_streak || 0}d</span>
                     </div>
@@ -988,7 +988,7 @@ function ConnectionCard({
                 {/* Mutual Connections */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1.5 text-slate-400 hover:text-cyan-400 transition-colors cursor-help">
+                    <div className="flex items-center gap-1.5 text-slate-600 hover:text-cyan-600 transition-colors cursor-help">
                       <Users className="w-4 h-4" />
                       <span>{connection.mutual_connections || 0}</span>
                     </div>
@@ -1000,7 +1000,7 @@ function ConnectionCard({
             </div>
 
               {/* Connection Date */}
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-600">
                 Connected {connection.connected_at ? new Date(connection.connected_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Recently'}
               </div>
             </div>
@@ -1090,24 +1090,24 @@ function PendingRequestCard({
         {/* User Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="font-bold text-lg truncate bg-gradient-to-r from-white via-cyan-400 to-rose-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:via-rose-300 group-hover:to-blue-300 transition-all duration-500">
+            <h3 className="font-bold text-lg truncate bg-gradient-to-r from-foreground via-cyan-400 to-rose-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:via-rose-300 group-hover:to-blue-300 transition-all duration-500">
               {request.user.full_name || request.user.username || 'Anonymous'}
             </h3>
             {request.type === 'received' && (
-              <Badge variant="secondary" className="text-xs bg-cyan-500/20 text-cyan-300 border-cyan-500/30">
+              <Badge variant="secondary" className="text-xs bg-cyan-500/20 text-cyan-700 border-cyan-500/30">
                 New
               </Badge>
             )}
           </div>
-          <p className="text-sm text-slate-400 truncate group-hover:text-cyan-300 transition-colors duration-300">
+          <p className="text-sm text-slate-600 truncate group-hover:text-cyan-600 transition-colors duration-300">
             @{request.user.username || 'user'}
           </p>
           {request.message && (
-            <p className="text-sm mt-2 italic text-slate-400 line-clamp-2 group-hover:text-cyan-300 transition-colors duration-300">
+            <p className="text-sm mt-2 italic text-slate-600 line-clamp-2 group-hover:text-cyan-600 transition-colors duration-300">
               "{request.message}"
             </p>
           )}
-          <div className="text-xs text-slate-500 mt-1">
+          <div className="text-xs text-slate-600 mt-1">
             {request.type === 'received' ? 'Received' : 'Sent'} {new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </div>
         </div>

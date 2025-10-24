@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 import { useRealtimeMessaging } from "@/hooks/use-realtime-messaging";
 import { useTypingIndicator } from "@/hooks/use-realtime-messaging";
 import { useMessaging } from "@/hooks/use-messaging";
@@ -39,6 +40,7 @@ interface UserData {
 }
 
 export default function MessagesPage() {
+  const { theme } = useTheme();
   const [user, setUser] = useState<UserData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeConversation, setActiveConversation] = useState<string | null>(null);
@@ -460,21 +462,40 @@ export default function MessagesPage() {
       {/* Main Container */}
       <div className="flex-1 flex h-screen pt-16 gap-0 relative z-10 w-full">
         {/* Left Sidebar - Conversations */}
-        <div className="relative w-80 flex flex-col border-r border-white/10 bg-zinc-900/95 backdrop-blur-xl overflow-hidden">
+        <div className={cn(
+          "relative w-80 flex flex-col border-r backdrop-blur-xl overflow-hidden",
+          theme === 'light' 
+            ? "border-gray-200 bg-white/95" 
+            : "border-white/10 bg-zinc-900/95"
+        )}>
 
           {/* Header */}
-          <div className="relative p-4 border-b border-white/5">
+          <div className={cn(
+            "relative p-4 border-b",
+            theme === 'light' ? "border-gray-200" : "border-white/5"
+          )}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 via-indigo-500/15 to-pink-500/20 rounded-xl blur-lg animate-pulse" />
                 <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 flex items-center justify-center border border-violet-500/30 backdrop-blur-sm">
-                  <Send className="w-5 h-5 text-violet-400" />
+                  <Send className={cn(
+                    "w-5 h-5",
+                    theme === 'light' ? "text-violet-600" : "text-violet-400"
+                  )} />
                 </div>
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-violet-400 to-pink-400 bg-clip-text text-transparent">Messages</h1>
-                  <p className="text-xs text-gray-400">
+                  <h1 className={cn(
+                    "text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent",
+                    theme === 'light' 
+                      ? "from-gray-900 via-violet-600 to-pink-600" 
+                      : "from-white via-violet-400 to-pink-400"
+                  )}>Messages</h1>
+                  <p className={cn(
+                    "text-xs",
+                    theme === 'light' ? "text-gray-600" : "text-gray-400"
+                  )}>
                     {transformedConversations?.length || 0} {transformedConversations?.length === 1 ? 'conversation' : 'conversations'}
                   </p>
                 </div>
@@ -487,7 +508,10 @@ export default function MessagesPage() {
                   onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
                   title="Multi-select conversations"
                 >
-                  <CheckSquare className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
+                  <CheckSquare className={cn(
+                    "w-4 h-4",
+                    theme === 'light' ? "text-gray-700" : "text-zinc-400"
+                  )} />
                 </Button>
                 <Button
                   variant="ghost"
@@ -496,7 +520,10 @@ export default function MessagesPage() {
                   onClick={() => setShowMessageSearch(true)}
                   title="Search messages"
                 >
-                  <Search className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
+                  <Search className={cn(
+                    "w-4 h-4",
+                    theme === 'light' ? "text-gray-700" : "text-zinc-400"
+                  )} />
                 </Button>
                 <Button
                   size="sm"
@@ -507,7 +534,10 @@ export default function MessagesPage() {
                   )}
                   onClick={() => setShowArchived(!showArchived)}
                 >
-                  <Send className="w-4 h-4 mr-1" />
+                  <Send className={cn(
+                    "w-4 h-4 mr-1",
+                    theme === 'light' ? "text-gray-700" : "text-zinc-400"
+                  )} />
                   {showArchived ? "Active" : "Archived"}
                 </Button>
               </div>
@@ -515,12 +545,20 @@ export default function MessagesPage() {
 
             {/* Search */}
             <div className="relative">
-              <Send className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
+              <Send className={cn(
+                "absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4",
+                theme === 'light' ? "text-gray-500" : "text-gray-500"
+              )} />
               <Input
                 placeholder="Search messages..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 bg-white/5 border-white/5 focus:border-emerald-500/50 focus:bg-white/[0.07] transition-colors rounded-xl text-sm"
+                className={cn(
+                  "pl-10 transition-colors rounded-xl text-sm",
+                  theme === 'light'
+                    ? "bg-gray-100 border-gray-200 focus:border-violet-500/50 focus:bg-white"
+                    : "bg-white/5 border-white/5 focus:border-emerald-500/50 focus:bg-white/[0.07]"
+                )}
               />
             </div>
           </div>
@@ -578,10 +616,13 @@ export default function MessagesPage() {
                       }}
                       className={cn(
                       "relative p-3 cursor-pointer transition-all duration-300 group",
-                      "border-b border-white/5",
-                      "hover:bg-zinc-800/50",
+                      theme === 'light' 
+                        ? "border-b border-gray-200 hover:bg-gray-50"
+                        : "border-b border-white/5 hover:bg-zinc-800/50",
                         activeConversation === item.conversation.id
-                        ? "bg-violet-500/20 border-l-4 border-l-violet-500"
+                        ? (theme === 'light'
+                            ? "bg-blue-50 border-l-4 border-l-blue-500"
+                            : "bg-violet-500/20 border-l-4 border-l-violet-500")
                         : "bg-transparent",
                         selectedConversations.has(item.conversation.id) && isMultiSelectMode
                         ? "bg-blue-500/20 border-l-4 border-l-blue-500"
@@ -635,7 +676,10 @@ export default function MessagesPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-sm text-white truncate">
+                              <h3 className={cn(
+                                "font-semibold text-sm truncate",
+                                theme === 'light' ? "text-gray-900" : "text-white"
+                              )}>
                                 {item.conversation.name || item.other_user?.full_name || item.other_user?.username || 'Unknown'}
                               </h3>
                               {/* Group Chat Indicator */}
@@ -675,7 +719,10 @@ export default function MessagesPage() {
                     <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-pink-500/10 rounded-2xl blur-sm" />
                     <Send className="w-10 h-10 text-violet-400 relative z-10" />
                   </div>
-                  <h3 className="text-lg font-semibold text-white mb-2">
+                  <h3 className={cn(
+                    "text-lg font-semibold mb-2",
+                    theme === 'light' ? "text-gray-900" : "text-white"
+                  )}>
                     {showArchived ? "No archived conversations" : "No messages yet"}
                   </h3>
                   <p className="text-sm text-muted-foreground/80 max-w-sm">
@@ -692,9 +739,15 @@ export default function MessagesPage() {
 
         {/* Right Side - Chat Area */}
           {activeConversation ? (
-          <div className="flex-1 flex flex-col bg-zinc-900/95 backdrop-blur-xl overflow-hidden">
+          <div className={cn(
+            "flex-1 flex flex-col backdrop-blur-xl overflow-hidden",
+            theme === 'light' ? "bg-white" : "bg-zinc-900/95"
+          )}>
               {/* Chat Header */}
-            <div className="relative p-4 border-b border-white/10">
+            <div className={cn(
+              "relative p-4 border-b",
+              theme === 'light' ? "border-gray-200" : "border-white/10"
+            )}>
                 <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Avatar className="w-10 h-10 border border-white/10">
@@ -707,12 +760,18 @@ export default function MessagesPage() {
                           </AvatarFallback>
                         </Avatar>
                   <div>
-                    <h2 className="font-semibold text-white">
+                    <h2 className={cn(
+                      "font-semibold",
+                      theme === 'light' ? "text-gray-900" : "text-white"
+                    )}>
                       {activeConversationData?.conversation.name || activeConversationData?.other_user?.full_name || activeConversationData?.other_user?.username || 'Unknown'}
                     </h2>
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-green-500 rounded-full" />
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Active now</p>
+                      <p className={cn(
+                        "text-xs",
+                        theme === 'light' ? "text-gray-500" : "text-zinc-400"
+                      )}>Active now</p>
                       </div>
                     </div>
                   </div>
@@ -858,13 +917,24 @@ export default function MessagesPage() {
                   </div>
                 </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center rounded-2xl border border-white/5 bg-[#1a1f2e]/95 backdrop-blur-xl">
+          <div className={cn(
+            "flex-1 flex items-center justify-center rounded-2xl border backdrop-blur-xl",
+            theme === 'light' 
+              ? "border-gray-200 bg-gray-50" 
+              : "border-white/5 bg-[#1a1f2e]/95"
+          )}>
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
                 <Send className="w-8 h-8 text-emerald-400" />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Select a conversation</h3>
-              <p className="text-sm text-gray-400">Choose a conversation to start messaging</p>
+              <h3 className={cn(
+                "text-lg font-semibold mb-2",
+                theme === 'light' ? "text-gray-900" : "text-white"
+              )}>Select a conversation</h3>
+              <p className={cn(
+                "text-sm",
+                theme === 'light' ? "text-gray-600" : "text-gray-400"
+              )}>Choose a conversation to start messaging</p>
               </div>
             </div>
           )}

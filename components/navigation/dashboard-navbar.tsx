@@ -110,13 +110,13 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
         </Link>
 
         {/* Navigation */}
-        <nav className="hidden items-center gap-2 lg:flex">
+        <nav className="flex items-center gap-1 sm:gap-2">
           {/* Problems - Direct Link */}
           <Link href="/problems">
             <Button
               variant="ghost"
               className={cn(
-                "relative group px-4 h-9 text-sm font-medium transition-all duration-300",
+                "relative group px-2 sm:px-4 h-9 text-xs sm:text-sm font-medium transition-all duration-300",
                 "hover:bg-gradient-to-b",
                 currentTheme === 'light'
                   ? "text-zinc-700 hover:text-zinc-900 hover:from-zinc-100 hover:to-zinc-50"
@@ -140,16 +140,16 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               <Button
                 variant="ghost"
                 className={cn(
-                  "relative group px-4 h-9 text-sm font-medium transition-all duration-300 gap-1",
+                  "relative group px-2 sm:px-4 h-9 text-xs sm:text-sm font-medium transition-all duration-300 gap-1",
                   "hover:bg-gradient-to-b",
                   currentTheme === 'light'
                     ? "text-zinc-700 hover:text-zinc-900 hover:from-zinc-100 hover:to-zinc-50"
                     : "text-zinc-300 hover:text-white hover:from-zinc-800 hover:to-zinc-900"
                 )}
               >
-                <Users className="w-4 h-4" />
-                <span className="relative z-10">Network</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="relative z-10 hidden sm:inline">Network</span>
+                <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-50" />
                 {/* Underglow effect */}
                 <div className={cn(
                   "absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl",
@@ -282,16 +282,16 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               <Button
                 variant="ghost"
                 className={cn(
-                  "relative group px-4 h-9 text-sm font-medium transition-all duration-300 gap-1",
+                  "relative group px-2 sm:px-4 h-9 text-xs sm:text-sm font-medium transition-all duration-300 gap-1",
                   "hover:bg-gradient-to-b",
                   currentTheme === 'light'
                     ? "text-zinc-700 hover:text-zinc-900 hover:from-zinc-100 hover:to-zinc-50"
                     : "text-zinc-300 hover:text-white hover:from-zinc-800 hover:to-zinc-900"
                 )}
               >
-                <Trophy className="w-4 h-4" />
-                <span className="relative z-10">Compete</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="relative z-10 hidden sm:inline">Compete</span>
+                <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-50" />
                 {/* Underglow effect */}
                 <div className={cn(
                   "absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl",
@@ -364,16 +364,16 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               <Button
                 variant="ghost"
                 className={cn(
-                  "relative group px-4 h-9 text-sm font-medium transition-all duration-300 gap-1",
+                  "relative group px-2 sm:px-4 h-9 text-xs sm:text-sm font-medium transition-all duration-300 gap-1",
                   "hover:bg-gradient-to-b",
                   currentTheme === 'light'
                     ? "text-zinc-700 hover:text-zinc-900 hover:from-zinc-100 hover:to-zinc-50"
                     : "text-zinc-300 hover:text-white hover:from-zinc-800 hover:to-zinc-900"
                 )}
               >
-                <MessageSquare className="w-4 h-4" />
-                <span className="relative z-10">Community</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="relative z-10 hidden sm:inline">Community</span>
+                <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-50" />
                 {/* Underglow effect */}
                 <div className={cn(
                   "absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl",
@@ -442,7 +442,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
         </nav>
 
         {/* Right Side - Notifications & User Menu */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 sm:gap-3">
           {/* Messenger Toggle */}
           <Button
             variant="ghost"
@@ -483,7 +483,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                   size="sm"
                   className="ring-2 ring-background"
                 />
-                <span className="hidden sm:inline text-sm font-medium">
+                <span className="hidden md:inline text-sm font-medium">
                   {user?.name?.split(' ')[0] || 'User'}
                 </span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-50" />

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import {
   Send,
   X,
@@ -58,6 +59,7 @@ interface FloatingMessagingWidgetProps {
 }
 
 export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidgetProps) {
+  const { theme } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -151,9 +153,17 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
       <div className="fixed bottom-6 right-6 z-50">
         <Button
           onClick={() => setIsMinimized(false)}
-          className="relative w-14 h-14 rounded-2xl bg-[#1a1f2e] border border-white/10 shadow-2xl hover:bg-[#1f2537] transition-colors"
+          className={cn(
+            "relative w-14 h-14 rounded-2xl shadow-2xl transition-colors",
+            theme === 'light'
+              ? "bg-white border border-gray-200 hover:bg-gray-50"
+              : "bg-[#1a1f2e] border border-white/10 hover:bg-[#1f2537]"
+          )}
         >
-          <Send className="w-5 h-5 text-violet-400" />
+          <Send className={cn(
+            "w-5 h-5",
+            theme === 'light' ? "text-violet-600" : "text-violet-400"
+          )} />
 
           {totalUnreadCount > 0 && (
             <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-violet-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
@@ -167,20 +177,37 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
 
   return (
     <div className="fixed bottom-6 right-6 z-50 w-96">
-      <Card className="bg-[#1a1f2e]/95 backdrop-blur-xl border border-white/5 shadow-2xl rounded-2xl overflow-hidden">
+      <Card className={cn(
+        "backdrop-blur-xl shadow-2xl rounded-2xl overflow-hidden",
+        theme === 'light'
+          ? "bg-white/95 border border-gray-200"
+          : "bg-[#1a1f2e]/95 border border-white/5"
+      )}>
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/5">
+        <div className={cn(
+          "flex items-center justify-between p-4 border-b",
+          theme === 'light' ? "border-gray-200" : "border-white/5"
+        )}>
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 via-indigo-500/15 to-pink-500/20 rounded-xl blur-lg animate-pulse" />
               <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 flex items-center justify-center border border-violet-500/30 backdrop-blur-sm">
-                <Send className="w-5 h-5 text-violet-400" />
+                <Send className={cn(
+                  "w-5 h-5",
+                  theme === 'light' ? "text-violet-600" : "text-violet-400"
+                )} />
               </div>
             </div>
             <div>
-              <h3 className="font-bold text-white">Messages</h3>
+              <h3 className={cn(
+                "font-bold",
+                theme === 'light' ? "text-gray-900" : "text-white"
+              )}>Messages</h3>
               {totalUnreadCount > 0 && (
-                <p className="text-xs text-gray-400">{totalUnreadCount} unread</p>
+                <p className={cn(
+                  "text-xs",
+                  theme === 'light' ? "text-gray-600" : "text-gray-400"
+                )}>{totalUnreadCount} unread</p>
               )}
             </div>
           </div>
@@ -189,7 +216,10 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
               variant="ghost"
               size="sm"
               onClick={() => setShowConversations(!showConversations)}
-              className="w-8 h-8 p-0 hover:bg-white/5 transition-colors rounded-lg"
+              className={cn(
+                "w-8 h-8 p-0 transition-colors rounded-lg",
+                theme === 'light' ? "hover:bg-gray-100" : "hover:bg-white/5"
+              )}
             >
               <Settings className="w-4 h-4" />
             </Button>
@@ -197,7 +227,10 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
               variant="ghost"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="w-8 h-8 p-0 hover:bg-white/5 transition-colors rounded-lg"
+              className={cn(
+                "w-8 h-8 p-0 transition-colors rounded-lg",
+                theme === 'light' ? "hover:bg-gray-100" : "hover:bg-white/5"
+              )}
             >
               {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
             </Button>
@@ -205,7 +238,10 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
               variant="ghost"
               size="sm"
               onClick={() => setIsMinimized(true)}
-              className="w-8 h-8 p-0 hover:bg-white/5 transition-colors rounded-lg"
+              className={cn(
+                "w-8 h-8 p-0 transition-colors rounded-lg",
+                theme === 'light' ? "hover:bg-gray-100" : "hover:bg-white/5"
+              )}
             >
               <X className="w-4 h-4" />
             </Button>
@@ -214,7 +250,10 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
 
         {/* Conversations List */}
         {showConversations && (
-          <div className="max-h-64 overflow-y-auto border-b border-white/5">
+          <div className={cn(
+            "max-h-64 overflow-y-auto border-b",
+            theme === 'light' ? "border-gray-200" : "border-white/5"
+          )}>
             {conversations.length === 0 ? (
               <div className="relative p-6 text-center">
                 <div className="relative inline-block mb-4">
@@ -235,7 +274,9 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
                       "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors duration-200",
                       selectedConversation?.id === conversation.id
                         ? "bg-violet-500/10 border border-violet-500/20"
-                        : "hover:bg-white/[0.03] border border-transparent"
+                        : theme === 'light' 
+                          ? "hover:bg-gray-50 border border-transparent"
+                          : "hover:bg-white/[0.03] border border-transparent"
                     )}
                     onClick={() => {
                       setSelectedConversation(conversation);
@@ -250,7 +291,10 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-semibold text-white truncate">
+                        <p className={cn(
+                          "text-sm font-semibold truncate",
+                          theme === 'light' ? "text-gray-900" : "text-white"
+                        )}>
                           {conversation.name}
                         </p>
                         {conversation.unread_count > 0 && (
@@ -259,7 +303,10 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400 truncate">
+                      <p className={cn(
+                        "text-xs truncate",
+                        theme === 'light' ? "text-gray-600" : "text-gray-400"
+                      )}>
                         {formatLastMessage(conversation.last_message)}
                       </p>
                     </div>
@@ -282,7 +329,10 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-white">{selectedConversation.name}</p>
+                <p className={cn(
+                  "text-sm font-semibold",
+                  theme === 'light' ? "text-gray-900" : "text-white"
+                )}>{selectedConversation.name}</p>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full" />
                   <p className="text-xs text-gray-400">Active now</p>
@@ -466,7 +516,10 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
                 <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 via-indigo-500/15 to-pink-500/20 rounded-2xl blur-lg" />
                 <Send className="w-8 h-8 text-violet-400 relative z-10" />
               </div>
-              <h3 className="text-sm font-semibold text-white mb-2">
+              <h3 className={cn(
+                "text-sm font-semibold mb-2",
+                theme === 'light' ? "text-gray-900" : "text-white"
+              )}>
                 {conversations.length === 0
                   ? "No conversations yet"
                   : "Select a conversation to start messaging"
@@ -477,7 +530,12 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
               </p>
               <Button
                 onClick={() => window.location.href = '/messages'}
-                className="w-full bg-purple-500 hover:bg-purple-600 text-white rounded-xl transition-colors shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40"
+                className={cn(
+                  "w-full rounded-xl transition-colors shadow-lg",
+                  theme === 'light'
+                    ? "bg-purple-500 hover:bg-purple-600 text-white shadow-purple-500/30 hover:shadow-purple-500/40"
+                    : "bg-purple-500 hover:bg-purple-600 text-white shadow-purple-500/30 hover:shadow-purple-500/40"
+                )}
                 size="sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
