@@ -50,11 +50,14 @@ export function VideoCallInterface({
   const partnerIdRef = useRef<string | null>(null);
   const partnerNameRef = useRef<string | null>(null);
   const offerSentRef = useRef(false);
+  const answerSentRef = useRef(false);
+  const offerReceivedRef = useRef(false);
   const admissionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const codeEditorRef = useRef<any>(null);
   const whiteboardRef = useRef<any>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidate[]>([]);
 
   // Media states
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -72,6 +75,9 @@ export function VideoCallInterface({
   const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [partnerName, setPartnerName] = useState<string | null>(null);
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [iceConnectionState, setIceConnectionState] = useState<string>("new");
+  const [signalingState, setSignalingState] = useState<string>("stable");
 
   // Code editor states
   const [currentCode, setCurrentCode] = useState("");
@@ -90,20 +96,61 @@ export function VideoCallInterface({
     };
   }, []);
 
+  // Effect to attach remote stream to video element when it becomes available
+  useEffect(() => {
+    if (remoteStream && remoteVideoRef.current) {
+      console.log("[WebRTC] Attaching remote stream to video element via useEffect");
+      remoteVideoRef.current.srcObject = remoteStream;
+
+      remoteVideoRef.current.onloadedmetadata = () => {
+        console.log("[WebRTC] Remote video metadata loaded (via useEffect)");
+        remoteVideoRef.current?.play()
+          .then(() => {
+            console.log("[WebRTC] Remote video playing successfully (via useEffect)!");
+          })
+          .catch(e => {
+            console.error("[WebRTC] Error playing remote video (via useEffect):", e);
+          });
+      };
+
+      // Try immediate play
+      remoteVideoRef.current.play().catch(() => {
+        console.log("[WebRTC] Immediate play failed, waiting for metadata (via useEffect)");
+      });
+    }
+  }, [remoteStream]);
+
   const sendSignalingMessage = useCallback(
     async (message: Partial<SignalingMessage>) => {
       if (!signalingRef.current) {
-        console.warn("Signaling channel not ready");
+        console.warn("[WebRTC] Signaling channel not ready");
         return;
       }
+
+      const targetId = message.to ?? partnerIdRef.current ?? undefined;
+      console.log(`[WebRTC] Sending ${message.type} to ${targetId || 'broadcast'}`);
 
       try {
         await signalingRef.current.send({
           ...message,
-          to: message.to ?? partnerIdRef.current ?? undefined,
+          to: targetId,
         });
+        console.log(`[WebRTC] Successfully sent ${message.type}`);
       } catch (error) {
-        console.error("Failed to send signaling message:", error);
+        console.error(`[WebRTC] Failed to send signaling message (${message.type}):`, error);
+        // Retry once after a short delay
+        setTimeout(async () => {
+          try {
+            console.log(`[WebRTC] Retrying ${message.type}...`);
+            await signalingRef.current?.send({
+              ...message,
+              to: targetId,
+            });
+            console.log(`[WebRTC] Retry successful for ${message.type}`);
+          } catch (retryError) {
+            console.error(`[WebRTC] Retry failed for ${message.type}:`, retryError);
+          }
+        }, 1000);
       }
     },
     []
@@ -145,8 +192,11 @@ export function VideoCallInterface({
       if (!currentUserId) return;
       if (message.from === currentUserId) return;
 
+      console.log(`[WebRTC] Received signaling message from ${message.from}:`, message.type);
+
       switch (message.type) {
         case "user-joined": {
+          console.log(`[WebRTC] User joined:`, message.from, message.data);
           partnerIdRef.current = message.from;
           offerSentRef.current = false;
           const remoteName = message.data?.name as string | undefined;
@@ -158,67 +208,154 @@ export function VideoCallInterface({
           setConnectionStatus("connecting");
           if (isHost) {
             // Acknowledge presence; send direct and broadcast to maximize delivery
+            console.log(`[WebRTC] Host acknowledging participant join`);
             await sendSignalingMessage({ type: "user-joined", data: { name: user.name }, to: message.from });
             await sendSignalingMessage({ type: "user-joined", data: { name: user.name } });
           }
           if (!isHost && !offerSentRef.current) {
+            console.log(`[WebRTC] Participant creating offer to host`);
             await createAndSendOffer(message.from);
           }
           break;
         }
         case "offer": {
-          if (!isHost) return;
+          if (!isHost) {
+            console.log(`[WebRTC] Non-host ignoring offer`);
+            return;
+          }
           const pc = peerConnectionRef.current;
-          if (!pc || !message.data) return;
+          if (!pc || !message.data) {
+            console.warn(`[WebRTC] No peer connection or data for offer`);
+            return;
+          }
+
+          // Check if we already processed an offer
+          if (offerReceivedRef.current) {
+            console.warn("[WebRTC] Already processed an offer, ignoring duplicate");
+            return;
+          }
+
+          // Check signaling state
+          if (pc.signalingState !== "stable" && pc.signalingState !== "have-local-offer") {
+            console.warn(`[WebRTC] Ignoring offer in signaling state: ${pc.signalingState}`);
+            return;
+          }
+
           partnerIdRef.current = message.from;
 
           if (pc.currentRemoteDescription) {
-            console.warn("Remote description already set, ignoring duplicate offer.");
+            console.warn("[WebRTC] Remote description already set, ignoring duplicate offer.");
             return;
           }
 
           try {
+            console.log(`[WebRTC] Host processing offer from ${message.from}`);
+            offerReceivedRef.current = true;
+
             const description: RTCSessionDescriptionInit = message.data;
             await pc.setRemoteDescription(new RTCSessionDescription(description));
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            await sendSignalingMessage({
-              type: "answer",
-              data: answer,
-              to: message.from,
-            });
+            console.log(`[WebRTC] Remote description set, creating answer`);
+
+            // Process any pending ICE candidates now that remote description is set
+            if (pendingIceCandidatesRef.current.length > 0) {
+              console.log(`[WebRTC] Adding ${pendingIceCandidatesRef.current.length} pending ICE candidates`);
+              for (const candidate of pendingIceCandidatesRef.current) {
+                try {
+                  await pc.addIceCandidate(candidate);
+                } catch (err) {
+                  console.error("[WebRTC] Error adding pending ICE candidate:", err);
+                }
+              }
+              pendingIceCandidatesRef.current = [];
+            }
+
+            // Only create answer if we haven't already
+            if (!answerSentRef.current) {
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              answerSentRef.current = true;
+              console.log(`[WebRTC] Sending answer to ${message.from}`);
+              await sendSignalingMessage({
+                type: "answer",
+                data: answer,
+                to: message.from,
+              });
+            } else {
+              console.log(`[WebRTC] Answer already sent, skipping`);
+            }
           } catch (error) {
-            console.error("Error handling offer:", error);
+            console.error("[WebRTC] Error handling offer:", error);
+            // Reset flags on error
+            offerReceivedRef.current = false;
+            answerSentRef.current = false;
           }
           break;
         }
         case "answer": {
-          if (isHost) return;
+          if (isHost) {
+            console.log(`[WebRTC] Host ignoring answer`);
+            return;
+          }
           const pc = peerConnectionRef.current;
-          if (!pc || !message.data) return;
+          if (!pc || !message.data) {
+            console.warn(`[WebRTC] No peer connection or data for answer`);
+            return;
+          }
 
           try {
+            console.log(`[WebRTC] Participant processing answer from ${message.from}`);
             const description: RTCSessionDescriptionInit = message.data;
             await pc.setRemoteDescription(new RTCSessionDescription(description));
+            console.log(`[WebRTC] Remote description set from answer`);
+
+            // Process any pending ICE candidates now that remote description is set
+            if (pendingIceCandidatesRef.current.length > 0) {
+              console.log(`[WebRTC] Adding ${pendingIceCandidatesRef.current.length} pending ICE candidates`);
+              for (const candidate of pendingIceCandidatesRef.current) {
+                try {
+                  await pc.addIceCandidate(candidate);
+                } catch (err) {
+                  console.error("[WebRTC] Error adding pending ICE candidate:", err);
+                }
+              }
+              pendingIceCandidatesRef.current = [];
+            }
           } catch (error) {
-            console.error("Error applying answer:", error);
+            console.error("[WebRTC] Error applying answer:", error);
           }
           break;
         }
         case "ice-candidate": {
           const pc = peerConnectionRef.current;
-          if (!pc || !message.data) return;
+          if (!pc || !message.data) {
+            console.warn(`[WebRTC] No peer connection or data for ICE candidate`);
+            return;
+          }
+
           try {
-            await pc.addIceCandidate(new RTCIceCandidate(message.data));
+            const candidate = new RTCIceCandidate(message.data);
+
+            // If we don't have a remote description yet, queue the candidate
+            if (!pc.currentRemoteDescription) {
+              console.log(`[WebRTC] Queuing ICE candidate (no remote description yet)`);
+              pendingIceCandidatesRef.current.push(candidate);
+            } else {
+              console.log(`[WebRTC] Adding ICE candidate immediately`);
+              await pc.addIceCandidate(candidate);
+            }
           } catch (error) {
-            console.error("Error adding ICE candidate:", error);
+            console.error("[WebRTC] Error adding ICE candidate:", error);
           }
           break;
         }
         case "user-left": {
+          console.log(`[WebRTC] User left:`, message.from);
           partnerIdRef.current = null;
           partnerNameRef.current = null;
           offerSentRef.current = false;
+          answerSentRef.current = false;
+          offerReceivedRef.current = false;
+          pendingIceCandidatesRef.current = [];
           updatePartnerName(null);
           setRemoteStream(null);
           if (remoteVideoRef.current) {
@@ -366,8 +503,11 @@ export function VideoCallInterface({
       return;
     }
 
+    console.log(`[WebRTC] Initializing call as ${isHost ? 'HOST' : 'PARTICIPANT'}, userId: ${user.user_id}`);
+
     try {
       // Get local media stream with better quality settings
+      console.log("[WebRTC] Requesting user media...");
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
@@ -381,22 +521,28 @@ export function VideoCallInterface({
         },
       });
 
+      console.log(`[WebRTC] Got local stream with ${stream.getTracks().length} tracks:`,
+        stream.getTracks().map(t => `${t.kind}:${t.id}`));
+
       setLocalStream(stream);
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
         // Ensure video plays
         localVideoRef.current.onloadedmetadata = () => {
+          console.log("[WebRTC] Local video metadata loaded");
           localVideoRef.current?.play().catch(e => {
-            console.error("Error playing local video:", e);
+            console.error("[WebRTC] Error playing local video:", e);
           });
         };
       }
 
       // Initialize WebRTC peer connection
+      console.log("[WebRTC] Setting up peer connection...");
       await setupPeerConnection(stream);
 
       // Initialize signaling
+      console.log("[WebRTC] Connecting to signaling server...");
       const signaling = new SimpleSignaling(sessionId, user.user_id);
       signalingRef.current = signaling;
       signaling.onMessage(handleSignalingMessage);
@@ -407,13 +553,17 @@ export function VideoCallInterface({
       });
 
       if (!connected) {
+        console.error("[WebRTC] Failed to connect to signaling server");
         toast.error("Failed to connect to the interview room. Please refresh.");
       } else {
+        console.log("[WebRTC] Successfully connected to signaling server");
         setConnectionStatus("connecting");
         // Proactively create an offer on the joiner side after connecting
         if (!isHost && !offerSentRef.current) {
+          console.log("[WebRTC] Participant scheduling offer creation...");
           setTimeout(() => {
             if (!offerSentRef.current) {
+              console.log("[WebRTC] Participant creating initial offer");
               createAndSendOffer();
             }
           }, 500);
@@ -423,12 +573,14 @@ export function VideoCallInterface({
       // Host marks ready; participant finalizes attendance
       try {
         if (isHost) {
+          console.log("[WebRTC] Host marking ready...");
           await fetch('/api/mock-interview/sessions', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sessionId, action: 'host_ready' }),
           });
         } else {
+          console.log("[WebRTC] Participant marking attendance...");
           await fetch('/api/mock-interview/sessions/attend', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -436,12 +588,13 @@ export function VideoCallInterface({
           });
         }
       } catch (e) {
-        console.error('Failed to mark readiness/attendance:', e);
+        console.error('[WebRTC] Failed to mark readiness/attendance:', e);
       }
 
       toast.success("Camera and microphone connected");
+      console.log("[WebRTC] Initialization complete");
     } catch (error: any) {
-      console.error("Error initializing call:", error);
+      console.error("[WebRTC] Error initializing call:", error);
       if (error.name === 'NotAllowedError') {
         toast.error("Camera/microphone access denied. Please allow permissions.");
       } else if (error.name === 'NotFoundError') {
@@ -465,61 +618,111 @@ export function VideoCallInterface({
     const pc = new RTCPeerConnection(configuration);
     peerConnectionRef.current = pc;
 
+    console.log("[WebRTC] Peer connection created");
+
     // Add local stream to peer connection
-    stream.getTracks().forEach((track) => {
-      pc.addTrack(track, stream);
+    const tracks = stream.getTracks();
+    console.log(`[WebRTC] Adding ${tracks.length} local tracks to peer connection:`, tracks.map(t => t.kind));
+    tracks.forEach((track) => {
+      const sender = pc.addTrack(track, stream);
+      console.log(`[WebRTC] Added ${track.kind} track, sender:`, sender);
     });
 
     // Setup data channel for code synchronization
     if (!isHost) {
       // Non-host creates the data channel
+      console.log("[WebRTC] Participant creating data channel");
       const dataChannel = pc.createDataChannel("code-sync");
       setupDataChannel(dataChannel);
     } else {
       // Host listens for incoming data channel
+      console.log("[WebRTC] Host waiting for data channel");
       pc.ondatachannel = (event) => {
+        console.log("[WebRTC] Host received data channel");
         setupDataChannel(event.channel);
       };
     }
 
-    // Handle remote stream
+    // Handle remote stream - CRITICAL FIX
     pc.ontrack = (event) => {
-      console.log("Received remote track:", event.track.kind);
-      const [remoteMediaStream] = event.streams;
-      setRemoteStream(remoteMediaStream);
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteMediaStream;
-        // Ensure remote video plays
-        remoteVideoRef.current.onloadedmetadata = () => {
-          remoteVideoRef.current?.play().catch(e => {
-            console.error("Error playing remote video:", e);
-          });
+      console.log(`[WebRTC] *** RECEIVED REMOTE TRACK *** kind: ${event.track.kind}, id: ${event.track.id}`);
+      console.log(`[WebRTC] Event streams:`, event.streams);
+      console.log(`[WebRTC] Track ready state:`, event.track.readyState);
+      console.log(`[WebRTC] Track enabled:`, event.track.enabled);
+
+      if (event.streams && event.streams.length > 0) {
+        const [remoteMediaStream] = event.streams;
+        console.log(`[WebRTC] Remote stream has ${remoteMediaStream.getTracks().length} tracks:`,
+          remoteMediaStream.getTracks().map(t => `${t.kind}:${t.id}`));
+
+        // Set the remote stream state first
+        setRemoteStream(remoteMediaStream);
+
+        // Wait for React to render the video element, then attach the stream
+        const attachStream = () => {
+          if (remoteVideoRef.current) {
+            console.log(`[WebRTC] Setting remote video srcObject`);
+            remoteVideoRef.current.srcObject = remoteMediaStream;
+
+            // Ensure remote video plays
+            remoteVideoRef.current.onloadedmetadata = () => {
+              console.log(`[WebRTC] Remote video metadata loaded, attempting play`);
+              remoteVideoRef.current?.play()
+                .then(() => {
+                  console.log(`[WebRTC] Remote video playing successfully!`);
+                  setConnectionStatus("connected");
+                  toast.success("Partner connected!");
+                })
+                .catch(e => {
+                  console.error("[WebRTC] Error playing remote video:", e);
+                  toast.error("Video playback issue - check browser permissions");
+                });
+            };
+
+            // Also try to play immediately
+            remoteVideoRef.current.play().catch(e => {
+              console.warn("[WebRTC] Immediate play failed (will retry on loadedmetadata):", e);
+            });
+          } else {
+            console.warn("[WebRTC] remoteVideoRef.current is null, will retry...");
+            // Retry after React renders
+            setTimeout(attachStream, 100);
+          }
         };
+
+        // Use setTimeout to allow React to render the video element
+        setTimeout(attachStream, 0);
+      } else {
+        console.warn("[WebRTC] Received track but no streams attached!");
       }
-      setConnectionStatus("connected");
-      toast.success("Partner connected!");
     };
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log(`[WebRTC] Generated ICE candidate:`, event.candidate.candidate);
         sendSignalingMessage({
           type: "ice-candidate",
           data: event.candidate,
         });
+      } else {
+        console.log(`[WebRTC] ICE gathering complete`);
       }
     };
 
     // Handle connection state
     pc.onconnectionstatechange = () => {
+      console.log(`[WebRTC] Connection state changed to: ${pc.connectionState}`);
       if (pc.connectionState === "connected") {
         setConnectionStatus("connected");
+        console.log(`[WebRTC] *** PEER CONNECTION ESTABLISHED ***`);
       } else if (
         pc.connectionState === "disconnected" ||
         pc.connectionState === "failed" ||
         pc.connectionState === "closed"
       ) {
         setConnectionStatus("disconnected");
+        console.error(`[WebRTC] Connection ${pc.connectionState}`);
         toast.error("Connection lost");
         if (!isHost) {
           cleanup();
@@ -531,9 +734,13 @@ export function VideoCallInterface({
     // Extra safety: watch ICE connection state as well
     pc.oniceconnectionstatechange = () => {
       const state = pc.iceConnectionState;
-      console.log("ICE state:", state);
-      if (state === "disconnected" || state === "failed") {
+      console.log(`[WebRTC] ICE connection state changed to: ${state}`);
+      setIceConnectionState(state);
+      if (state === "connected" || state === "completed") {
+        console.log(`[WebRTC] ICE connection successful!`);
+      } else if (state === "disconnected" || state === "failed") {
         setConnectionStatus("disconnected");
+        console.error(`[WebRTC] ICE connection ${state}`);
         toast.error("You were disconnected.");
         if (isHost) {
           fetch('/api/mock-interview/sessions', {
@@ -545,6 +752,18 @@ export function VideoCallInterface({
         cleanup();
         onLeave();
       }
+    };
+
+    // Monitor ICE gathering state
+    pc.onicegatheringstatechange = () => {
+      console.log(`[WebRTC] ICE gathering state: ${pc.iceGatheringState}`);
+    };
+
+    // Monitor signaling state
+    pc.onsignalingstatechange = () => {
+      const state = pc.signalingState;
+      console.log(`[WebRTC] Signaling state: ${state}`);
+      setSignalingState(state);
     };
   };
 
@@ -692,6 +911,9 @@ export function VideoCallInterface({
     partnerIdRef.current = null;
     partnerNameRef.current = null;
     offerSentRef.current = false;
+    answerSentRef.current = false;
+    offerReceivedRef.current = false;
+    pendingIceCandidatesRef.current = [];
     updatePartnerName(null);
     setRemoteStream(null);
     if (remoteVideoRef.current) {
@@ -892,6 +1114,50 @@ export function VideoCallInterface({
             {connectionStatus === "connecting" && (
               <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-yellow-500/90 backdrop-blur-sm px-4 py-2 rounded-full">
                 <span className="text-white text-sm font-medium">Connecting...</span>
+              </div>
+            )}
+
+            {/* Debug Info Toggle - Press 'D' key */}
+            <div className="absolute bottom-24 right-6">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDebugInfo(!showDebugInfo)}
+                className="text-white/60 hover:text-white text-xs"
+              >
+                Debug {showDebugInfo ? '▼' : '▶'}
+              </Button>
+            </div>
+
+            {/* Debug Info Panel */}
+            {showDebugInfo && (
+              <div className="absolute bottom-24 right-6 bg-black/80 backdrop-blur-sm p-4 rounded-lg text-white text-xs font-mono max-w-xs">
+                <div className="space-y-1">
+                  <div className="font-bold border-b border-white/20 pb-1 mb-2">WebRTC Debug Info</div>
+                  <div>Role: {isHost ? 'HOST' : 'PARTICIPANT'}</div>
+                  <div>User ID: {user.user_id?.substring(0, 8)}...</div>
+                  <div>Partner ID: {partnerIdRef.current?.substring(0, 8) || 'None'}</div>
+                  <div className="border-t border-white/20 pt-1 mt-1">
+                    <div>Connection: <span className={cn(
+                      "font-bold",
+                      connectionStatus === "connected" ? "text-green-400" :
+                      connectionStatus === "connecting" ? "text-yellow-400" : "text-red-400"
+                    )}>{connectionStatus}</span></div>
+                    <div>ICE State: <span className={cn(
+                      "font-bold",
+                      iceConnectionState === "connected" || iceConnectionState === "completed" ? "text-green-400" :
+                      iceConnectionState === "checking" ? "text-yellow-400" : "text-gray-400"
+                    )}>{iceConnectionState}</span></div>
+                    <div>Signaling: <span className="font-bold text-blue-400">{signalingState}</span></div>
+                  </div>
+                  <div className="border-t border-white/20 pt-1 mt-1">
+                    <div>Local Tracks: {localStream?.getTracks().length || 0}</div>
+                    <div>Remote Tracks: {remoteStream?.getTracks().length || 0}</div>
+                  </div>
+                  <div className="text-[10px] text-white/60 mt-2">
+                    Check browser console for detailed logs
+                  </div>
+                </div>
               </div>
             )}
           </Card>

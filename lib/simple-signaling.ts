@@ -37,16 +37,29 @@ export class SimpleSignaling {
       // Listen for broadcast messages
       this.channel
         .on("broadcast", { event: "signaling" }, ({ payload }: { payload: SignalingMessage }) => {
+          console.log(`[Signaling] Received message:`, {
+            type: payload.type,
+            from: payload.from,
+            to: payload.to,
+            forMe: !payload.to || payload.to === this.userId,
+            myId: this.userId
+          });
+
           // Only process messages meant for us or broadcast to all
           if (!payload.to || payload.to === this.userId) {
             if (this.messageCallback) {
               this.messageCallback(payload);
+            } else {
+              console.warn(`[Signaling] No message callback set, dropping message`);
             }
+          } else {
+            console.log(`[Signaling] Message not for me, ignoring`);
           }
         })
         .subscribe((status: string) => {
-          console.log(`Signaling channel status: ${status}`);
+          console.log(`[Signaling] Channel status: ${status} for session ${this.sessionId}`);
           if (status === "SUBSCRIBED") {
+            console.log(`[Signaling] Successfully subscribed, announcing presence`);
             // Announce presence
             this.send({
               type: "user-joined",
@@ -70,7 +83,7 @@ export class SimpleSignaling {
    */
   async send(message: Partial<SignalingMessage>) {
     if (!this.channel) {
-      console.error("Channel not connected");
+      console.error("[Signaling] Channel not connected");
       return false;
     }
 
@@ -81,15 +94,22 @@ export class SimpleSignaling {
       ...message,
     } as SignalingMessage;
 
+    console.log(`[Signaling] Sending message:`, {
+      type: fullMessage.type,
+      from: fullMessage.from,
+      to: fullMessage.to || 'broadcast',
+    });
+
     try {
       await this.channel.send({
         type: "broadcast",
         event: "signaling",
         payload: fullMessage,
       });
+      console.log(`[Signaling] Message sent successfully`);
       return true;
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("[Signaling] Error sending message:", error);
       return false;
     }
   }
