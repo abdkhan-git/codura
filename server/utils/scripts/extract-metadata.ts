@@ -10,8 +10,8 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 const supabase = createClient(
-  'https://prxtkrteujbptauwhnxs.supabase.co/',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByeHRrcnRldWpicHRhdXdobnhzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzM1Mzk2MywiZXhwIjoyMDcyOTI5OTYzfQ.72o4LIM5PoJ_kzQLymgZZgZOG-cOIaAyU0KklSewkUQ',
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 )
 
 // Change this to your actual problems table name!
