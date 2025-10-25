@@ -1,7 +1,6 @@
 // components/problem/TestCasesSection.tsx
 'use client'
 
-import React from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CopyCheck, ListChecks, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -56,14 +55,14 @@ export default function TestCasesSection({
   submissionResult,
 }: TestCasesSectionProps) {
   return (
-    <div className="h-full border-t">
+    <div className="h-full border-t flex flex-col">
       <Tabs
         value={activeBottomTab}
         onValueChange={(v) => setActiveBottomTab((v as BottomTab) || 'testcases')}
         defaultValue="testcases"
         className="w-full h-full flex flex-col"
       >
-        <div className="border-b overflow-x-auto tab-scroll-container">
+        <div className="border-b overflow-x-auto tab-scroll-container shrink-0">
           <TabsList className="inline-flex w-auto justify-start h-10">
             <TabsTrigger value="testcases" className="px-4 flex-shrink-0 cursor-pointer !text-zinc-500 data-[state=active]:!text-white">
               <CopyCheck className="text-green-600 w-4 h-4 mr-2" />
@@ -77,11 +76,11 @@ export default function TestCasesSection({
         </div>
 
         {/* Test Cases Tab */}
-        <TabsContent value="testcases" className="flex-1 overflow-auto flex flex-col m-0">
+        <TabsContent value="testcases" className="flex-1 overflow-y-auto flex flex-col m-0 min-h-0">
           {testcases && testcases.length > 0 ? (
-            <Tabs defaultValue="case-0" className="flex-1 flex flex-col">
+            <Tabs defaultValue="case-0" className="flex-1 flex flex-col min-h-0">
               {/* per-case tabs */}
-              <TabsList className="justify-start rounded-none bg-transparent px-1 h-auto">
+              <TabsList className="justify-start rounded-none bg-transparent px-1 h-auto shrink-0">
                 {testcases.map((_, index) => (
                   <TabsTrigger
                     key={index}
@@ -95,7 +94,7 @@ export default function TestCasesSection({
 
               {/* content */}
               {testcases.map((tc, index) => (
-                <TabsContent key={index} value={`case-${index}`} className="flex-1 overflow-auto p-4 space-y-3">
+                <TabsContent key={index} value={`case-${index}`} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
                   <TestCaseContent testCase={tc} />
                 </TabsContent>
               ))}
@@ -108,7 +107,7 @@ export default function TestCasesSection({
         </TabsContent>
 
         {/* Results Tab */}
-        <TabsContent value="results" className="flex-1 overflow-auto flex flex-col m-0">
+        <TabsContent value="results" className="flex-1 overflow-y-auto flex flex-col m-0 min-h-0">
           {/* Priority: submissionResult > testcaseResults > empty */}
           {submissionResult ? (
             <SubmissionResultDisplay submissionResult={submissionResult} />
@@ -192,9 +191,9 @@ function TestcaseResultsDisplay({ testcaseResults }: { testcaseResults: Testcase
   const allPassed = passCount === total && total > 0
 
   return (
-    <>
+    <div className="flex flex-col h-full min-h-0">
       {/* Overall Status */}
-      <div className="p-4 border-b">
+      <div className="p-4 border-b shrink-0">
         <div className="flex items-center gap-2">
           <div className={`w-6 h-6 rounded-full ${allPassed ? 'bg-green-500' : 'bg-red-500'} flex items-center justify-center`}>
             {allPassed ? (
@@ -217,8 +216,8 @@ function TestcaseResultsDisplay({ testcaseResults }: { testcaseResults: Testcase
       </div>
 
       {/* Per-case tabs */}
-      <Tabs defaultValue="case-0" className="flex-1 flex flex-col">
-        <TabsList className="justify-start rounded-none bg-transparent px-1 h-auto border-b">
+      <Tabs defaultValue="case-0" className="flex-1 flex flex-col min-h-0">
+        <TabsList className="justify-start rounded-none bg-transparent px-1 h-auto border-b shrink-0">
           {testcaseResults.map((_, index) => (
             <TabsTrigger
               key={index}
@@ -238,7 +237,7 @@ function TestcaseResultsDisplay({ testcaseResults }: { testcaseResults: Testcase
         </TabsList>
 
         {testcaseResults.map((result, index) => (
-          <TabsContent key={index} value={`case-${index}`} className="flex-1 overflow-auto p-4 space-y-3">
+          <TabsContent key={index} value={`case-${index}`} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
             {/* Status */}
             <div className="mb-2">
               <StatusPill result={result} />
@@ -274,7 +273,7 @@ function TestcaseResultsDisplay({ testcaseResults }: { testcaseResults: Testcase
           </TabsContent>
         ))}
       </Tabs>
-    </>
+    </div>
   )
 }
 
@@ -288,7 +287,7 @@ function SubmissionResultDisplay({ submissionResult }: { submissionResult: Submi
     submissionResult.passedTests === submissionResult.totalTests
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 overflow-y-auto h-full">
       {/* Overall */}
       <div
         className={`p-4 rounded-lg border ${

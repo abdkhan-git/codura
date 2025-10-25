@@ -57,6 +57,12 @@ interface ProblemData {
 
 interface Example { id: number; content: string }
 
+interface TestCase {
+  input: string
+  expectedOutput: string
+  explanation?: string
+}
+
 // NOTE: Removed stray top-level async/try block that caused a parse error.
 
 interface Submission {
@@ -270,7 +276,7 @@ export default function ProblemPage() {
   return (
     <div className="caffeine-theme min-h-screen w-full bg-background p-2 pt-0 overflow-y-auto">
       <style jsx global>{tabScrollStyles}</style>
-      <ResizablePanelGroup direction="horizontal" className="min-h-[700px]">
+      <ResizablePanelGroup direction="horizontal" className="min-h-screen">
         {/* LEFT: Problem Description & history */}
         <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>
           <ProblemDescriptionPanel
