@@ -83,13 +83,16 @@ export default function CodeEditorPanel({
   const [activeBottomTab, setActiveBottomTab] = useState<'testcases' | 'result'>('testcases')
   const [submissionResult, setSubmissionResult] = useState<SubmissionResult | undefined>()
   const [resultsVersion, setResultsVersion] = useState(0)
+
   useEffect(() => {
     if (testcaseResults?.length || submissionResult) {
       setActiveBottomTab('result');
     }
   }, [testcaseResults, submissionResult]);
+  
   const JUDGE_URL = process.env.NEXT_PUBLIC_JUDGE_URL ?? '';
   const judgeDisabled = () => !JUDGE_URL.trim();
+
   // Monaco theme (Caffeine)
   useEffect(() => {
     if (monaco) {
@@ -167,7 +170,7 @@ const handleCodeRunning = async () => {
     }
 
     // ✅ use the env-configured judge base URL
-    const response = await fetch(`${JUDGE_URL}/api/problems/run`, {
+    const response = await fetch(`http://localhost:8080/api/problems/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -261,35 +264,65 @@ const handleCodeSubmission = async () => {
       submitted_at: new Date().toISOString(),
     };
 
-    const resp = await fetch(`${JUDGE_URL}/api/problems/submit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+   const resp = await fetch(`http://localhost:8080/api/problems/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 
-    if (!resp.ok) {
-      const t = await resp.text().catch(() => '');
-      throw new Error(`Submit failed: ${resp.status} ${t}`);
-    }
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => '');
+    throw new Error(`Submit failed: ${resp.status} ${t}`);
+  }
 
-    // safely parse
-    let responseData: any = null;
-    try { responseData = await resp.json(); }
-    catch { throw new Error('Invalid JSON from judge /submit'); }
+  // Safely parse
+  let responseData: any = null;
+  try { 
+    responseData = await resp.json(); 
+  } catch { 
+    throw new Error('Invalid JSON from judge /submit'); 
+  }
 
-    const judge0Result = responseData.judge0Result;
-    const savedSubmission = responseData.savedSubmission;
-    const { results = [], label = '' } = responseData.testcaseResults || {};
+  const { judge0Result, savedSubmission, testcaseResults } = responseData;
+
+  // testcaseResults now has this structure:
+// {
+//   label: 'Accepted' | 'Wrong Answer' | 'Runtime Error' | etc.,
+//   passed: 2,
+//   failed: 1,
+//   errors: 0,
+//   total: 3,
+//   results: [
+//     {
+//       testcase_number: 1,
+//       input: { nums: [2,7,11,15], target: 9 },
+//       expected: [0, 1],
+//       actual: [0, 1],
+//       status: 'passed',
+//       error: null,
+//       passed: true
+//     },
+//     // ... more results
+//   ],
+//   stdout: '...',
+//   stderr: '...',
+//   runtime: '0.023',
+//   memory: 9216
+// }
+
+    console.log('Label:', testcaseResults.label);
+    console.log('Results:', testcaseResults);
+    console.log('Stats:', `${testcaseResults.passed}/${testcaseResults.total} passed`);
 
     // bottom panel
-    setSubmissionResultLabel(label);
-    setTestcaseResults(results);
+    setSubmissionResultLabel(testcaseResults.label);
+    setTestcaseResults(testcaseResults.results);
     setResultsVersion(v => v + 1); setActiveBottomTab('result');
     onSavedSubmission?.(savedSubmission);
 
     // ---------- 3) Normalize for AI ----------
-    const testsPassed = results.filter((r: any) => r.status === 'pass').length;
-    const totalTests = results.length;
+    const testsPassed = testcaseResults.results.filter((r: any) => r.status === 'pass').length;
+    const totalTests = testcaseResults.results.length;
     const status =
       savedSubmission?.status ||
       (totalTests > 0 && testsPassed === totalTests ? 'Accepted' : 'Wrong Answer');
@@ -334,7 +367,7 @@ const handleCodeSubmission = async () => {
           // raw judge payload (optional, helpful context)
           raw: {
             judge0Result,
-            testcaseResults: { results, label },
+            testcaseResults: { results: testcaseResults.results, label: testcaseResults.label },
             savedSubmission,
             request: {
               language_id: userLang.id,
@@ -355,8 +388,8 @@ const handleCodeSubmission = async () => {
     // compact display object
     setSubmissionResult({
       status,
-      description: label || '',
-      testResults: results,
+      description: testcaseResults.label || '',
+      testResults: testcaseResults.results,
       totalTests,
       passedTests: testsPassed,
       runtime,
@@ -483,7 +516,7 @@ const handleCodeSubmission = async () => {
                 height="100%"
                 language={userLang.value}
                 value={usersCode || getStarterCode()}
-                theme="caffeine-dark"
+                theme="vs-dark"
                 options={{
                   fontSize: 14,
                   fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
