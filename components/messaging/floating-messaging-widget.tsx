@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -283,12 +284,12 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
                       setShowConversations(false);
                     }}
                   >
-                    <Avatar className="w-10 h-10 border border-violet-500/30">
-                      <AvatarImage src={conversation.participants[0]?.avatar} />
-                      <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold text-sm">
-                        {conversation.participants[0]?.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <DefaultAvatar
+                      src={conversation.participants[0]?.avatar}
+                      name={conversation.participants[0]?.name}
+                      size="md"
+                      className="w-10 h-10 border border-violet-500/30"
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <p className={cn(
@@ -322,12 +323,12 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
           <div className="h-96 flex flex-col">
             {/* Chat Header */}
             <div className="flex items-center gap-3 p-4 border-b border-white/5 bg-white/[0.02]">
-              <Avatar className="w-10 h-10 border border-white/10">
-                <AvatarImage src={selectedConversation.participants[0]?.avatar} />
-                <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-medium">
-                  {selectedConversation.participants[0]?.name.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
+              <DefaultAvatar
+                src={selectedConversation.participants[0]?.avatar}
+                name={selectedConversation.participants[0]?.name}
+                size="md"
+                className="w-10 h-10 border border-white/10"
+              />
               <div className="flex-1">
                 <p className={cn(
                   "text-sm font-semibold",
@@ -382,12 +383,13 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
                     )}
                   >
                     {message.sender_id !== currentUserId && (
-                      <Avatar className="w-8 h-8 flex-shrink-0 border border-violet-500/30">
-                        <AvatarImage src={message.sender?.avatar_url} />
-                        <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold text-sm">
-                          {(message.sender?.full_name || 'U').charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <DefaultAvatar
+                        src={message.sender?.avatar_url}
+                        name={message.sender?.full_name}
+                        username={message.sender?.username}
+                        size="sm"
+                        className="w-8 h-8 flex-shrink-0 border border-violet-500/30"
+                      />
                     )}
                     
                     <div
@@ -455,12 +457,12 @@ export function FloatingMessagingWidget({ currentUserId }: FloatingMessagingWidg
                 
                 {typingUsers.length > 0 && (
                   <div className="flex gap-3 justify-start">
-                    <Avatar className="w-8 h-8 flex-shrink-0 border border-violet-500/30">
-                      <AvatarImage src={selectedConversation.participants[0]?.avatar} />
-                      <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold text-sm">
-                        {selectedConversation.participants[0]?.name?.charAt(0) || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
+                    <DefaultAvatar
+                      src={selectedConversation.participants[0]?.avatar}
+                      name={selectedConversation.participants[0]?.name}
+                      size="sm"
+                      className="w-8 h-8 flex-shrink-0 border border-violet-500/30"
+                    />
                     <div className="bg-[#2a2f3a] border border-violet-500/30 rounded-2xl rounded-bl-sm px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">

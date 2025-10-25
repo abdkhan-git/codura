@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { useTheme } from "next-themes";
 import { 
   Heart, 
@@ -329,12 +330,12 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
               )}>
                 <div className="flex items-start gap-4">
                   {/* Avatar */}
-                  <Avatar className="w-12 h-12">
-                    <AvatarImage src={activity.user_avatar_url} />
-                    <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
-                      {activity.user_name.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <DefaultAvatar
+                    src={activity.user_avatar_url}
+                    name={activity.user_name}
+                    size="lg"
+                    className="w-12 h-12"
+                  />
 
                   <div className="flex-1 space-y-3">
                     {/* Activity Header */}
@@ -410,11 +411,11 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
                       <div className="border-t pt-4 space-y-3">
                         {/* Add Comment */}
                         <div className="flex gap-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white text-sm">
-                              U
-                            </AvatarFallback>
-                          </Avatar>
+                          <DefaultAvatar
+                            name="User"
+                            size="sm"
+                            className="w-8 h-8"
+                          />
                           <div className="flex-1 flex gap-2">
                             <Input
                               placeholder="Write a comment..."

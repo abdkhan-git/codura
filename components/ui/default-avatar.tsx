@@ -1,10 +1,13 @@
+"use client"
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 
 interface DefaultAvatarProps {
   src?: string | null;
-  name?: string;
-  username?: string;
+  name?: string | null;
+  username?: string | null;
   className?: string;
   size?: "sm" | "md" | "lg" | "xl";
 }
@@ -16,6 +19,8 @@ export function DefaultAvatar({
   className,
   size = "md" 
 }: DefaultAvatarProps) {
+  const { theme } = useTheme();
+  
   const getInitials = () => {
     if (name) {
       return name
@@ -38,10 +43,19 @@ export function DefaultAvatar({
     xl: "w-16 h-16 text-xl"
   };
 
+  // Light mode: soft blue to purple gradient with dark text
+  // Dark mode: brand to orange gradient with white text (existing)
+  const getFallbackClasses = () => {
+    if (theme === 'light') {
+      return "bg-gradient-to-br from-blue-400 to-purple-500 text-white font-semibold shadow-lg";
+    }
+    return "bg-gradient-to-br from-brand to-orange-300 text-white font-semibold";
+  };
+
   return (
     <Avatar className={cn(sizeClasses[size], className)}>
       <AvatarImage src={src || undefined} />
-      <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
+      <AvatarFallback className={getFallbackClasses()}>
         {getInitials()}
       </AvatarFallback>
     </Avatar>

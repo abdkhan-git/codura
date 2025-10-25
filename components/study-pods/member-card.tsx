@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import {
@@ -157,12 +158,13 @@ export function MemberCard({ member, podId, currentUserRole, onMemberUpdate }: M
         : "border-white/5 bg-zinc-950/80"
     )}>
       <div className="flex items-center gap-4">
-        <Avatar className="w-12 h-12">
-          <AvatarImage src={member.users.avatar_url || ""} />
-          <AvatarFallback className="bg-gradient-to-br from-brand to-purple-600">
-            {member.users.full_name?.charAt(0) || "?"}
-          </AvatarFallback>
-        </Avatar>
+        <DefaultAvatar
+          src={member.users.avatar_url}
+          name={member.users.full_name}
+          username={member.users.username}
+          size="lg"
+          className="w-12 h-12"
+        />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">

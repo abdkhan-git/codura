@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -520,12 +521,12 @@ export default function SocialFeedPage() {
             onClick={() => setShowCreatePost(true)}
           >
             <div className="flex items-center gap-4">
-              <Avatar className="w-12 h-12 ring-2 ring-brand/10">
-                <AvatarImage src={user.avatar} />
-                <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
-                  {user.name.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <DefaultAvatar
+                src={user.avatar}
+                name={user.name}
+                size="lg"
+                className="w-12 h-12 ring-2 ring-brand/10"
+              />
               <div className="flex-1">
                 <p className="text-muted-foreground text-lg">
                   What do you want to talk about?
@@ -929,12 +930,12 @@ function PostCard({
       <div className="space-y-4">
         {/* Post Header */}
         <div className="flex items-start gap-4">
-          <Avatar className="w-12 h-12">
-            <AvatarImage src={post.user_avatar_url} />
-            <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
-              {post.user_name.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <DefaultAvatar
+            src={post.user_avatar_url}
+            name={post.user_name}
+            size="lg"
+            className="w-12 h-12"
+          />
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span className="font-bold text-base text-foreground">{post.user_name}</span>
@@ -1045,11 +1046,11 @@ function PostCard({
                 : "bg-zinc-900/80 border-white/5"
             )}>
               <div className="flex items-start gap-3">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white text-sm">
-                    {post.original_post_user_name?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <DefaultAvatar
+                  name={post.original_post_user_name}
+                  size="sm"
+                  className="w-8 h-8"
+                />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium text-sm">{post.original_post_user_name}</span>
@@ -1213,12 +1214,12 @@ function PostCard({
           }}>
             {/* Add Comment */}
             <div className="flex gap-3">
-              <Avatar className="w-8 h-8">
-                <AvatarImage src={post.user_avatar_url} />
-                <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white text-sm">
-                  {post.user_name.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <DefaultAvatar
+                src={post.user_avatar_url}
+                name={post.user_name}
+                size="sm"
+                className="w-8 h-8"
+              />
               <div className="flex-1 flex gap-2">
                 <Input
                   placeholder="Write a comment..."

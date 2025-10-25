@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -27,8 +28,6 @@ import {
   CheckCircle2,
   Clock,
   Users,
-  CheckSquare,
-  Search,
 } from "lucide-react";
 import type { ConversationListItem, ChatMessage } from "@/types/messaging";
 
@@ -508,7 +507,7 @@ export default function MessagesPage() {
                   onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
                   title="Multi-select conversations"
                 >
-                  <CheckSquare className={cn(
+                  <CheckCircle2 className={cn(
                     "w-4 h-4",
                     theme === 'light' ? "text-gray-700" : "text-zinc-400"
                   )} />
@@ -520,7 +519,7 @@ export default function MessagesPage() {
                   onClick={() => setShowMessageSearch(true)}
                   title="Search messages"
                 >
-                  <Search className={cn(
+                  <MoreVertical className={cn(
                     "w-4 h-4",
                     theme === 'light' ? "text-gray-700" : "text-zinc-400"
                   )} />
@@ -632,7 +631,7 @@ export default function MessagesPage() {
                       <div className="flex items-start gap-3">
                         {isMultiSelectMode && (
                           <div className="flex items-center justify-center w-5 h-5 mt-3">
-                            <CheckSquare 
+                            <CheckCircle2 
                               className={cn(
                                 "w-4 h-4",
                                 selectedConversations.has(item.conversation.id)
@@ -644,22 +643,25 @@ export default function MessagesPage() {
                         )}
                         <div className="relative flex-shrink-0">
                         <div className="relative">
-                          <Avatar className="w-12 h-12 border-2 border-violet-500/40 backdrop-blur-sm shadow-lg shadow-violet-500/20 group-hover:border-violet-500/60 transition-all duration-300">
-                            <AvatarImage 
-                              src={
-                                item.conversation.type === 'group' 
-                                  ? (item.conversation as any).avatar_url || undefined
-                                  : item.other_user?.avatar_url || undefined
-                              } 
-                            />
-                            <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold text-sm">
-                              {item.conversation.type === 'group' 
-                                ? item.conversation.name?.charAt(0) || "G"
-                                : item.other_user?.full_name?.charAt(0) ||
-                               item.other_user?.username?.charAt(0) ||
-                               "U"}
-                            </AvatarFallback>
-                          </Avatar>
+                          <DefaultAvatar
+                            src={(
+                              item.conversation.type === 'group' 
+                                ? (item.conversation as any).avatar_url
+                                : item.other_user?.avatar_url
+                            ) as string | null | undefined}
+                            name={
+                              item.conversation.type === 'group' 
+                                ? item.conversation.name
+                                : item.other_user?.full_name
+                            }
+                            username={
+                              item.conversation.type === 'group' 
+                                ? undefined
+                                : item.other_user?.username
+                            }
+                            size="lg"
+                            className="w-12 h-12 border-2 border-violet-500/40 backdrop-blur-sm shadow-lg shadow-violet-500/20 group-hover:border-violet-500/60 transition-all duration-300"
+                          />
                           {/* Online indicator - only for 1-on-1 chats */}
                           {item.conversation.type === 'direct' && (
                             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#1a1f2e] shadow-lg shadow-green-500/50 animate-pulse" />
@@ -750,15 +752,13 @@ export default function MessagesPage() {
             )}>
                 <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Avatar className="w-10 h-10 border border-white/10">
-                          <AvatarImage src={activeConversationData?.other_user?.avatar_url || undefined} />
-                    <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
-                      {activeConversationData?.other_user?.full_name?.charAt(0) ||
-                       activeConversationData?.other_user?.username?.charAt(0) ||
-                       activeConversationData?.conversation.name?.charAt(0) ||
-                       "U"}
-                          </AvatarFallback>
-                        </Avatar>
+                  <DefaultAvatar
+                    src={activeConversationData?.other_user?.avatar_url}
+                    name={activeConversationData?.other_user?.full_name}
+                    username={activeConversationData?.other_user?.username}
+                    size="md"
+                    className="w-10 h-10 border border-white/10"
+                  />
                   <div>
                     <h2 className={cn(
                       "font-semibold",
@@ -835,14 +835,13 @@ export default function MessagesPage() {
                 <div ref={messagesEndRef} />
                 {isTyping && (
                   <div className="flex gap-3">
-                    <Avatar className="w-8 h-8 flex-shrink-0 border border-white/10">
-                      <AvatarImage src={activeConversationData?.other_user?.avatar_url || undefined} />
-                      <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold text-sm">
-                        {activeConversationData?.other_user?.full_name?.charAt(0) ||
-                         activeConversationData?.other_user?.username?.charAt(0) ||
-                         "U"}
-                      </AvatarFallback>
-                    </Avatar>
+                    <DefaultAvatar
+                      src={activeConversationData?.other_user?.avatar_url}
+                      name={activeConversationData?.other_user?.full_name}
+                      username={activeConversationData?.other_user?.username}
+                      size="sm"
+                      className="w-8 h-8 flex-shrink-0 border border-white/10"
+                    />
                     <div className="bg-[#2a2f3a] border border-emerald-500/30 rounded-2xl rounded-bl-sm px-4 py-3">
                       <div className="flex items-center gap-1">
                         <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" />
