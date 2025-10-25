@@ -80,13 +80,13 @@ export default function CodeEditorPanel({
   const [isRunning, setIsRunning] = useState(false)
   const [submissionResultLabel, setSubmissionResultLabel] = useState('')
   const [testcaseResults, setTestcaseResults] = useState<any[] | undefined>(undefined)
-  const [activeBottomTab, setActiveBottomTab] = useState<'testcases' | 'result'>('testcases')
+  const [activeBottomTab, setActiveBottomTab] = useState<'testcases' | 'results'>('testcases')
   const [submissionResult, setSubmissionResult] = useState<SubmissionResult | undefined>()
   const [resultsVersion, setResultsVersion] = useState(0)
 
   useEffect(() => {
     if (testcaseResults?.length || submissionResult) {
-      setActiveBottomTab('result');
+      setActiveBottomTab('results');
     }
   }, [testcaseResults, submissionResult]);
   
@@ -138,7 +138,7 @@ const handleCodeRunning = async () => {
   if (!usersCode?.trim()) return
 
   setIsRunning(true)
-  setActiveBottomTab('result')
+  setActiveBottomTab('results')
 
   try {
     if (onRun) {
@@ -157,7 +157,7 @@ const handleCodeRunning = async () => {
       }))
       setSubmissionResultLabel(label)
       setTestcaseResults(results)
-      setResultsVersion(v => v + 1); setActiveBottomTab('result');
+      setResultsVersion(v => v + 1); setActiveBottomTab('results');
       setIsRunning(false)
       return
     }
@@ -191,7 +191,7 @@ const handleCodeRunning = async () => {
 
     setSubmissionResultLabel(label)
     setTestcaseResults(results)
-    setResultsVersion(v => v + 1); setActiveBottomTab('result');
+    setResultsVersion(v => v + 1); setActiveBottomTab('results');
   } catch (e) {
     console.error('Run error:', e)
   } finally {
@@ -205,7 +205,7 @@ const handleCodeSubmission = async () => {
   if (!usersCode?.trim()) return;
 
   setIsSubmitting(true);
-  setActiveBottomTab('result');
+  setActiveBottomTab('results');
   onSetActiveLeftPanelTab?.('submissions');
 
   try {
@@ -226,7 +226,7 @@ const handleCodeSubmission = async () => {
         message: 'Judge unavailable',
         testNumber: i + 1,
       })));
-      setResultsVersion(v => v + 1); setActiveBottomTab('result');
+      setResultsVersion(v => v + 1); setActiveBottomTab('results');
 
       // unlock AI
       const submissionForAI: Submission = {
@@ -317,7 +317,7 @@ const handleCodeSubmission = async () => {
     // bottom panel
     setSubmissionResultLabel(testcaseResults.label);
     setTestcaseResults(testcaseResults.results);
-    setResultsVersion(v => v + 1); setActiveBottomTab('result');
+    setResultsVersion(v => v + 1); setActiveBottomTab('results');
     onSavedSubmission?.(savedSubmission);
 
     // ---------- 3) Normalize for AI ----------
@@ -419,7 +419,7 @@ const handleCodeSubmission = async () => {
       message: error instanceof Error ? error.message : 'Unknown error',
       testNumber: 1,
     }]);
-    setResultsVersion(v => v + 1); setActiveBottomTab('result');
+    setResultsVersion(v => v + 1); setActiveBottomTab('results');
   } finally {
     setIsSubmitting(false);
   }
