@@ -559,7 +559,7 @@ const handleCodeSubmission = async () => {
       <ResizableHandle withHandle />
 
       {/* Bottom: Test Cases & Results */}
-      <ResizablePanel defaultSize={40} minSize={20}>
+      <ResizablePanel defaultSize={60} minSize={20}>
         <TestCasesSection
           key={resultsVersion}
           testcases={testcases}

@@ -288,7 +288,7 @@ export default function ProblemPage() {
         <ResizableHandle withHandle />
 
         {/* MIDDLE: Editor + Testcases UI (self-managed) */}
-        <ResizablePanel defaultSize={45} minSize={30}>
+        <ResizablePanel defaultSize={65} minSize={30}>
           <CodeEditorPanel
             problem={problem}
             testcases={testcases}
