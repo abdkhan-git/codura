@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "dev:webpack": "next dev",
     "build": "next build",
     "start": "next start",
     "type-check": "tsc --noEmit"
@@ -52,6 +51,8 @@
     "react-hook-form": "^7.64.0",
     "react-resizable-panels": "^3.0.6",
     "recharts": "^3.2.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "sonner": "^2.0.7",
     "supabase": "^2.40.7",
     "tailwind-merge": "^3.3.1",

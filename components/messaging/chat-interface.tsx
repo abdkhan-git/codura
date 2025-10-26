@@ -28,7 +28,8 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { useMessaging } from "@/hooks/use-messaging";
+import { useRealtimeMessaging } from "@/hooks/use-realtime-messaging";
+import { useRealtimeTyping } from "@/hooks/use-realtime-typing";
 
 interface Message {
   id: string;
@@ -70,19 +71,27 @@ export function ChatInterface({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Use the real-time messaging hook
+  // Use real-time WebSocket hooks
   const {
     messages,
     isLoading,
-    isTyping,
-    typingUsers,
+    error,
     sendMessage,
-    sendTypingIndicator,
     markAsRead
-  } = useMessaging({
+  } = useRealtimeMessaging({
     conversationId,
     currentUserId
   });
+
+  const {
+    typingUsers,
+    sendTypingIndicator
+  } = useRealtimeTyping({
+    conversationId,
+    currentUserId
+  });
+
+  const isTyping = typingUsers.length > 0;
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -93,6 +102,32 @@ export function ChatInterface({
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Track which messages we've already marked as read to prevent loops
+  const markedAsReadRef = useRef<Set<string>>(new Set());
+
+  // Mark messages as read when they arrive (with deduplication)
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    // Find unread messages that we haven't already tried to mark as read
+    const unreadMessageIds = messages
+      .filter(msg =>
+        msg.sender_id !== currentUserId &&
+        !msg.read_by?.includes(currentUserId) &&
+        !markedAsReadRef.current.has(msg.id)
+      )
+      .map(msg => msg.id);
+
+    if (unreadMessageIds.length > 0) {
+      console.log('📖 Marking messages as read:', unreadMessageIds);
+
+      // Mark them in our ref BEFORE calling the API to prevent duplicate calls
+      unreadMessageIds.forEach(id => markedAsReadRef.current.add(id));
+
+      markAsRead(unreadMessageIds);
+    }
+  }, [messages, currentUserId, markAsRead]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();

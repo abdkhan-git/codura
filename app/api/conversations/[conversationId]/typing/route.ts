@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import { createServiceClient } from '@/utils/supabase/service';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,12 @@ export async function POST(
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
+    // Use regular client for auth
     const supabase = await createClient();
+
+    // Use service role client for database queries (bypasses RLS)
+    const supabaseService = createServiceClient();
+
     const { conversationId } = await params;
 
     // Get authenticated user
@@ -23,7 +29,7 @@ export async function POST(
     }
 
     // Verify user is a participant
-    const { data: participation } = await supabase
+    const { data: participation } = await supabaseService
       .from('conversation_participants')
       .select('user_id')
       .eq('conversation_id', conversationId)
@@ -39,7 +45,7 @@ export async function POST(
     }
 
     // Upsert typing indicator (will auto-expire after 5 seconds based on client polling)
-    const { error: upsertError } = await supabase
+    const { error: upsertError } = await supabaseService
       .from('conversation_typing_indicators')
       .upsert({
         conversation_id: conversationId,
@@ -77,7 +83,12 @@ export async function DELETE(
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
+    // Use regular client for auth
     const supabase = await createClient();
+
+    // Use service role client for database queries (bypasses RLS)
+    const supabaseService = createServiceClient();
+
     const { conversationId } = await params;
 
     // Get authenticated user
@@ -88,7 +99,7 @@ export async function DELETE(
     }
 
     // Delete typing indicator
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await supabaseService
       .from('conversation_typing_indicators')
       .delete()
       .eq('conversation_id', conversationId)
@@ -122,7 +133,12 @@ export async function GET(
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
+    // Use regular client for auth
     const supabase = await createClient();
+
+    // Use service role client for database queries (bypasses RLS)
+    const supabaseService = createServiceClient();
+
     const { conversationId } = await params;
 
     // Get authenticated user
@@ -135,7 +151,7 @@ export async function GET(
     // Get typing indicators (exclude current user and those older than 5 seconds)
     const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
 
-    const { data: typingIndicators } = await supabase
+    const { data: typingIndicators } = await supabaseService
       .from('conversation_typing_indicators')
       .select('user_id, started_typing_at')
       .eq('conversation_id', conversationId)
@@ -144,7 +160,7 @@ export async function GET(
 
     // Get user data separately
     const typingUserIds = typingIndicators?.map(t => t.user_id) || [];
-    const { data: typingUsersData } = await supabase
+    const { data: typingUsersData } = await supabaseService
       .from('users')
       .select('user_id, full_name, username')
       .in('user_id', typingUserIds);

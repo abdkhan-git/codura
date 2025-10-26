@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import { createServiceClient } from '@/utils/supabase/service';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +10,11 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   try {
+    // Use regular client for auth
     const supabase = await createClient();
+
+    // Use service role client for database queries (bypasses RLS)
+    const supabaseService = createServiceClient();
 
     // Get authenticated user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -29,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     // Verify user is a participant in the conversation
-    const { data: participation } = await supabase
+    const { data: participation } = await supabaseService
       .from('conversation_participants')
       .select('role, status')
       .eq('conversation_id', conversation_id)
@@ -46,7 +51,7 @@ export async function POST(request: Request) {
 
     // If specific message IDs provided, mark those as read
     if (message_ids && Array.isArray(message_ids) && message_ids.length > 0) {
-      const { error: receiptsError } = await supabase
+      const { error: receiptsError } = await supabaseService
         .from('message_read_receipts')
         .upsert(
           message_ids.map(messageId => ({
@@ -66,7 +71,7 @@ export async function POST(request: Request) {
       }
     } else {
       // Mark all unread messages in the conversation as read
-      const { data: unreadMessages } = await supabase
+      const { data: unreadMessages } = await supabaseService
         .from('messages')
         .select('id')
         .eq('conversation_id', conversation_id)
@@ -75,7 +80,7 @@ export async function POST(request: Request) {
         .not('id', 'in', `(SELECT message_id FROM message_read_receipts WHERE user_id = '${user.id}')`);
 
       if (unreadMessages && unreadMessages.length > 0) {
-        const { error: receiptsError } = await supabase
+        const { error: receiptsError } = await supabaseService
           .from('message_read_receipts')
           .upsert(
             unreadMessages.map(msg => ({

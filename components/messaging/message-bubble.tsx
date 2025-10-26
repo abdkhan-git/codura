@@ -158,22 +158,22 @@ export function MessageBubble({
     );
   }
 
-  // Calculate read status icon with enhanced indicators
+  // Calculate read status icon based on read_by array
   const ReadStatusIcon = () => {
     if (!isOwn) return null;
+
+    const readByCount = message.read_by?.length || 0;
 
     // Debug logging
     console.log('ReadStatusIcon - Message data:', {
       id: message.id,
       read_by: message.read_by,
-      delivery_status: message.delivery_status,
+      readByCount,
       isOwn
     });
 
-    const readByCount = message.read_by?.length || 0;
-    const totalParticipants = (message as any).total_participants || 1;
-
-    if (message.delivery_status === "read") {
+    // Message has been read by at least one person (not including sender)
+    if (readByCount > 0) {
       return (
         <div className="flex items-center gap-1">
           <CheckCheckIcon className="w-3 h-3 text-blue-400" />
@@ -184,36 +184,10 @@ export function MessageBubble({
           )}
         </div>
       );
-    } else if (message.delivery_status === "delivered") {
-      return (
-        <div className="flex items-center gap-1">
-          <CheckCheckIcon className="w-3 h-3 text-muted-foreground" />
-          {readByCount > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {readByCount}
-            </span>
-          )}
-        </div>
-      );
-    } else if (message.delivery_status === "sent") {
-      return <CheckIcon className="w-3 h-3 text-muted-foreground" />;
-    } else if (message.delivery_status === "failed") {
-      return (
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-red-400 font-medium">Failed</span>
-          <button 
-            onClick={() => {
-              // TODO: Implement retry functionality
-              console.log('Retry sending message:', message.id);
-            }}
-            className="text-xs text-red-400 hover:text-red-300 underline"
-          >
-            Retry
-          </button>
-        </div>
-      );
     }
-    return null;
+
+    // Message sent but not read yet (delivered)
+    return <CheckCheckIcon className="w-3 h-3 text-muted-foreground" />;
   };
 
   return (
@@ -527,38 +501,7 @@ export function MessageBubble({
           </div>
         </div>
 
-        {/* Reactions */}
-        {message.reactions && Object.keys(message.reactions).length > 0 && (
-          <div className="flex gap-1 mt-1 flex-wrap">
-            {Object.entries(message.reactions).map(([emoji, userIds]) => (
-              <div
-                key={emoji}
-                className={cn(
-                  "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs backdrop-blur-sm transition-all duration-200 hover:scale-105",
-                  theme === 'light'
-                    ? "bg-gray-100 border border-gray-200 hover:border-gray-300"
-                    : "bg-zinc-900/80 border border-white/10 hover:border-white/20"
-                )}
-              >
-                <span>{emoji}</span>
-                <div className="flex -space-x-1">
-                  {userIds.slice(0, 3).map((userId) => (
-                    <DefaultAvatar
-                      key={userId}
-                      size="sm"
-                      className="w-4 h-4 border border-white/20"
-                    />
-                  ))}
-                  {userIds.length > 3 && (
-                    <div className="w-4 h-4 rounded-full bg-zinc-700 border border-white/20 flex items-center justify-center text-xs text-white">
-                      +{userIds.length - 3}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Reactions - REMOVED DUPLICATE - reactions are shown inside the message bubble above */}
 
         {/* Timestamp and read status */}
         {(showSender || message.show_timestamp) && (

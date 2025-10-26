@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import { createServiceClient } from '@/utils/supabase/service';
 import { NextResponse } from 'next/server';
 
 export async function POST(
@@ -6,7 +7,12 @@ export async function POST(
   { params }: { params: { messageId: string } }
 ) {
   try {
+    // Use regular client for auth
     const supabase = await createClient();
+
+    // Use service role client for database queries (bypasses RLS)
+    const supabaseService = createServiceClient();
+
     const { messageId } = params;
     const { emoji } = await request.json();
 
@@ -18,7 +24,7 @@ export async function POST(
     }
 
     // Get the message to verify the user is a participant in the conversation
-    const { data: message, error: messageError } = await supabase
+    const { data: message, error: messageError } = await supabaseService
       .from('messages')
       .select(`
         id,
@@ -33,7 +39,7 @@ export async function POST(
     }
 
     // Check if user is a participant in the conversation
-    const { data: participant, error: participantError } = await supabase
+    const { data: participant, error: participantError } = await supabaseService
       .from('conversation_participants')
       .select('id')
       .eq('conversation_id', message.conversation_id)
@@ -65,7 +71,7 @@ export async function POST(
       [user.id]: updatedUserReactions
     };
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseService
       .from('messages')
       .update({ reactions: updatedReactions })
       .eq('id', messageId);

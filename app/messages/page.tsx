@@ -14,9 +14,8 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { useRealtimeMessaging } from "@/hooks/use-realtime-messaging";
-import { useTypingIndicator } from "@/hooks/use-realtime-messaging";
-import { useMessaging } from "@/hooks/use-messaging";
-import { useMessageReadReceipts } from "@/hooks/use-message-read-receipts";
+import { useRealtimeConversations } from "@/hooks/use-realtime-conversations";
+import { useRealtimeTyping } from "@/hooks/use-realtime-typing";
 import { ConversationMenuModal } from "@/components/messaging/conversation-menu-modal";
 import { MessageBubble } from "@/components/messaging/message-bubble";
 import { MessageSearch } from "@/components/messaging/message-search";
@@ -57,28 +56,38 @@ export default function MessagesPage() {
   // Get current user ID from the user data
   const [currentUserId, setCurrentUserId] = useState<string>('');
 
-  // Only call hooks when we have a valid currentUserId
-  const { isTyping } = useTypingIndicator(activeConversation, currentUserId);
-
+  // Conversations list hook
   const {
     conversations,
-    messages,
-    isLoading: loading,
-    sendMessage,
-    markAsRead,
-    fetchConversations,
-    fetchMessages,
-  } = useMessaging({
-    conversationId: activeConversation || undefined,
-    currentUserId: currentUserId,
+    isLoading: conversationsLoading,
+    refetch: fetchConversations
+  } = useRealtimeConversations({
+    currentUserId
   });
 
-  // Read receipts hook
-  const { setMessageRef } = useMessageReadReceipts({
-    messages: messages || [],
-    currentUserId: currentUserId || '',
-    conversationId: activeConversation || ''
+  // Messages for selected conversation
+  const {
+    messages,
+    isLoading: messagesLoading,
+    error: messagesError,
+    sendMessage,
+    markAsRead
+  } = useRealtimeMessaging({
+    conversationId: activeConversation,
+    currentUserId
   });
+
+  // Typing indicators
+  const {
+    typingUsers,
+    sendTypingIndicator
+  } = useRealtimeTyping({
+    conversationId: activeConversation,
+    currentUserId
+  });
+
+  const loading = conversationsLoading || messagesLoading;
+  const isTyping = typingUsers.length > 0;
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -88,6 +97,32 @@ export default function MessagesPage() {
       }, 100);
     }
   }, [messages]);
+
+  // Track which messages we've already marked as read to prevent loops
+  const markedAsReadRef = useRef<Set<string>>(new Set());
+
+  // Mark messages as read when they arrive (debounced to prevent excessive calls)
+  useEffect(() => {
+    if (!messages || messages.length === 0 || !currentUserId) return;
+
+    // Find unread messages that we haven't already tried to mark as read
+    const unreadMessageIds = messages
+      .filter((msg: any) =>
+        msg.sender_id !== currentUserId &&
+        !msg.read_by?.includes(currentUserId) &&
+        !markedAsReadRef.current.has(msg.id)
+      )
+      .map((msg: any) => msg.id);
+
+    if (unreadMessageIds.length > 0) {
+      console.log('📖 Marking messages as read:', unreadMessageIds);
+
+      // Mark them in our ref BEFORE calling the API to prevent duplicate calls
+      unreadMessageIds.forEach(id => markedAsReadRef.current.add(id));
+
+      markAsRead(unreadMessageIds);
+    }
+  }, [messages, currentUserId, markAsRead]);
 
   // Filter conversations based on search and archive status
   const [filteredConversations, setFilteredConversations] = useState<ConversationListItem[]>([]);
@@ -123,8 +158,6 @@ export default function MessagesPage() {
           username: otherUser?.username || '',
           full_name: otherUser?.name,
           avatar_url: otherUser?.avatar || undefined,
-          is_online: otherUser?.is_online || false,
-          last_seen: otherUser?.last_seen,
         };
       })() : undefined,
       participants: conv.participants || [],
@@ -379,10 +412,7 @@ export default function MessagesPage() {
       });
 
       if (response.ok) {
-        // Refresh messages to show updated content
-        if (activeConversation) {
-          fetchMessages();
-        }
+        // Real-time update will happen automatically via postgres_changes
         toast.success("Message updated");
       } else {
         toast.error("Failed to update message");
@@ -404,10 +434,7 @@ export default function MessagesPage() {
       });
 
       if (response.ok) {
-        // Refresh messages to show updated reactions
-        if (activeConversation) {
-          fetchMessages();
-        }
+        // Real-time update will happen automatically via postgres_changes
       } else {
         toast.error("Failed to add reaction");
       }
@@ -824,7 +851,6 @@ export default function MessagesPage() {
             }
           }}
           showSender={showSender}
-          messageRef={setMessageRef(message.id, message.sender_id)}
           onReply={handleReply}
           onEdit={handleEditMessage}
           onReact={handleReact}
@@ -895,7 +921,13 @@ export default function MessagesPage() {
                 </Button>
                 <Input
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={(e) => {
+                    setNewMessage(e.target.value);
+                    // Send typing indicator when user types
+                    if (e.target.value.trim()) {
+                      sendTypingIndicator();
+                    }
+                  }}
                   placeholder="Type a message..."
                   className="flex-1 bg-white/5 border-white/5 focus:border-emerald-500/50 focus:bg-white/[0.07] transition-colors rounded-xl text-sm"
                   disabled={isSending}

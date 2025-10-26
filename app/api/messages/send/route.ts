@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { createServiceClient } from "@/utils/supabase/service";
 
 export async function POST(request: NextRequest) {
   try {
+    // Use regular client for auth
     const supabase = await createClient();
+
+    // Use service role client for database queries (bypasses RLS)
+    const supabaseService = createServiceClient();
 
     // Get the current user
     const {
@@ -25,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user is a participant in the conversation
-    const { data: participant, error: participantError } = await supabase
+    const { data: participant, error: participantError } = await supabaseService
       .from("conversation_participants")
       .select("id")
       .eq("conversation_id", conversation_id)
@@ -59,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the message
-    const { data: message, error: messageError } = await supabase
+    const { data: message, error: messageError } = await supabaseService
       .from("messages")
       .insert(messageData)
       .select("*")
@@ -78,14 +83,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Get sender data from users table
-    const { data: sender } = await supabase
+    const { data: sender } = await supabaseService
       .from("users")
       .select("user_id, full_name, username, avatar_url")
       .eq("user_id", user.id)
       .single();
 
     // Update conversation's last_message_at
-    await supabase
+    await supabaseService
       .from("conversations")
       .update({
         last_message_at: new Date().toISOString(),
@@ -97,6 +102,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: {
         ...message,
+        read_by: [], // New messages haven't been read by anyone yet
         sender: {
           user_id: user.id,
           full_name: sender?.full_name || 'Unknown',

@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { useMessaging } from "@/hooks/use-messaging";
 
 interface Conversation {
   id: string;
@@ -41,8 +40,6 @@ interface Conversation {
     name: string;
     avatar?: string;
     username?: string;
-    is_online?: boolean;
-    last_seen?: string;
   }>;
   unread_count: number;
   is_pinned: boolean;
@@ -52,13 +49,17 @@ interface Conversation {
 
 interface ConversationsListProps {
   currentUserId: string;
-  onSelectConversation: (conversation: Conversation) => void;
+  conversations: Conversation[];
+  isLoading: boolean;
+  onSelectConversation: (conversationId: string) => void;
   selectedConversationId?: string;
   onCreateNew?: () => void;
 }
 
 export function ConversationsList({
   currentUserId,
+  conversations,
+  isLoading,
   onSelectConversation,
   selectedConversationId,
   onCreateNew,
@@ -66,21 +67,6 @@ export function ConversationsList({
   const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "pinned">("all");
-
-  // Use the real-time messaging hook
-  const {
-    conversations,
-    isLoading,
-    fetchConversations
-  } = useMessaging({
-    currentUserId
-  });
-
-  useEffect(() => {
-    if (currentUserId) {
-      fetchConversations();
-    }
-  }, [currentUserId, fetchConversations]);
 
   const filteredConversations = conversations.filter((conv) => {
     const matchesSearch = conv.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

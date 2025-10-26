@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
-import { 
-  Bell, 
-  Check, 
-  X, 
+import {
+  Bell,
+  Check,
+  X,
   MoreHorizontal,
   Users,
   Trophy,
@@ -24,25 +24,8 @@ import {
   ChevronDown
 } from "lucide-react";
 import { toast } from "sonner";
-
-interface Notification {
-  id: string;
-  type: string;
-  notification_type: string;
-  title: string;
-  message?: string;
-  link?: string;
-  read: boolean;
-  priority: string;
-  metadata: any;
-  created_at: string;
-  actor?: {
-    user_id: string;
-    full_name: string;
-    username: string;
-    avatar_url?: string;
-  };
-}
+import { useRealtimeNotifications, type Notification } from "@/hooks/use-realtime-notifications";
+import { createClient } from "@/utils/supabase/client";
 
 interface NotificationsDropdownProps {
   className?: string;
@@ -50,55 +33,34 @@ interface NotificationsDropdownProps {
 
 export function NotificationsDropdown({ className }: NotificationsDropdownProps) {
   const { theme } = useTheme();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [migrationsNeeded, setMigrationsNeeded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const supabase = createClient();
+  const [currentUserId, setCurrentUserId] = useState<string>("");
 
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      
-      // First check if migrations are needed
-      const healthResponse = await fetch('/api/health/migrations');
-      if (healthResponse.ok) {
-        const healthData = await healthResponse.json();
-        if (healthData.status === 'migrations_needed') {
-          console.warn('Database migrations needed for notifications feature');
-          setNotifications([]);
-          setUnreadCount(0);
-          setMigrationsNeeded(true);
-          return;
-        }
-      }
-      
-      const response = await fetch('/api/notifications?limit=10&unread_only=false');
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.notifications.filter((n: Notification) => !n.read).length);
-      } else {
-        const errorData = await response.json();
-        console.error('Failed to fetch notifications:', errorData.error || 'Unknown error');
-        // Set empty state on error
-        setNotifications([]);
-        setUnreadCount(0);
-      }
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-      // Set empty state on error
-      setNotifications([]);
-      setUnreadCount(0);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Get current user ID
   useEffect(() => {
-    fetchNotifications();
-  }, []);
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    };
+    getUser();
+  }, [supabase.auth]);
+
+  // Use the real-time notifications hook
+  const {
+    notifications,
+    unreadCount,
+    isLoading: loading,
+    markAsRead,
+    markAllAsRead: handleMarkAllAsRead,
+  } = useRealtimeNotifications({
+    currentUserId,
+    limit: 10,
+    unreadOnly: false,
+  });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -111,31 +73,9 @@ export function NotificationsDropdown({ className }: NotificationsDropdownProps)
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const markAsRead = async (notificationIds: string[]) => {
-    try {
-      const response = await fetch('/api/notifications', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          notification_ids: notificationIds,
-          read: true
-        })
-      });
-
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notification => 
-            notificationIds.includes(notification.id)
-              ? { ...notification, read: true }
-              : notification
-          )
-        );
-        setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
-      } else {
-        toast.error('Failed to mark notifications as read');
-      }
-    } catch (error) {
-      console.error('Error marking notifications as read:', error);
+  const handleMarkAsRead = async (notificationIds: string[]) => {
+    const success = await markAsRead(notificationIds);
+    if (!success) {
       toast.error('Failed to mark notifications as read');
     }
   };
@@ -144,8 +84,12 @@ export function NotificationsDropdown({ className }: NotificationsDropdownProps)
     const unreadNotifications = notifications.filter(n => !n.read);
     if (unreadNotifications.length === 0) return;
 
-    await markAsRead(unreadNotifications.map(n => n.id));
-    toast.success('All notifications marked as read');
+    const success = await handleMarkAllAsRead();
+    if (success) {
+      toast.success('All notifications marked as read');
+    } else {
+      toast.error('Failed to mark all notifications as read');
+    }
   };
 
   const getNotificationIcon = (type: string) => {
@@ -193,13 +137,13 @@ export function NotificationsDropdown({ className }: NotificationsDropdownProps)
 
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.read) {
-      markAsRead([notification.id]);
+      handleMarkAsRead([notification.id]);
     }
-    
+
     if (notification.link) {
       window.location.href = notification.link;
     }
-    
+
     setIsOpen(false);
   };
 
@@ -273,19 +217,6 @@ export function NotificationsDropdown({ className }: NotificationsDropdownProps)
                     </div>
                   </div>
                 ))}
-              </div>
-            ) : migrationsNeeded ? (
-              <div className="p-8 text-center">
-                <div className={cn(
-                  "w-12 h-12 mx-auto mb-4 rounded-full flex items-center justify-center",
-                  theme === 'light' ? "bg-yellow-100" : "bg-yellow-900/20"
-                )}>
-                  <Settings className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-                </div>
-                <h4 className="font-medium text-foreground mb-2">Setup Required</h4>
-                <p className="text-sm text-muted-foreground">
-                  Run database migrations to enable notifications
-                </p>
               </div>
             ) : notifications.length === 0 ? (
               <div className="p-8 text-center">
@@ -371,7 +302,7 @@ export function NotificationsDropdown({ className }: NotificationsDropdownProps)
                                 className="p-1 h-6 w-6"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  markAsRead([notification.id]);
+                                  handleMarkAsRead([notification.id]);
                                 }}
                               >
                                 <Check className="w-3 h-3" />

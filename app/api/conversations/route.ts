@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import { createServiceClient } from '@/utils/supabase/service';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +10,11 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: Request) {
   try {
+    // Use regular client for auth
     const supabase = await createClient();
+
+    // Use service role client for database queries (bypasses RLS)
+    const supabaseService = createServiceClient();
 
     // Get authenticated user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -19,7 +24,7 @@ export async function GET(request: Request) {
     }
 
     // First get conversation IDs where user is a participant
-    const { data: userConversations, error: userConversationsError } = await supabase
+    const { data: userConversations, error: userConversationsError } = await supabaseService
       .from('conversation_participants')
       .select('conversation_id, is_pinned')
       .eq('user_id', user.id)
@@ -31,20 +36,54 @@ export async function GET(request: Request) {
 
     const conversationIds = userConversations.map(uc => uc.conversation_id);
 
-    // Get conversations
-    const { data: conversations, error: conversationsError } = await supabase
-      .from('conversations')
-      .select(`
-        id,
-        name,
-        type,
-        is_archived,
-        updated_at,
-        last_message_at,
-        created_by
-      `)
-      .in('id', conversationIds)
-      .order('updated_at', { ascending: false });
+    // Get conversations in parallel with other data
+    const [
+      { data: conversations, error: conversationsError },
+      { data: lastMessages },
+      { data: participants },
+      { data: allMessagesForUnread }
+    ] = await Promise.all([
+      supabaseService
+        .from('conversations')
+        .select(`
+          id,
+          name,
+          type,
+          is_archived,
+          updated_at,
+          last_message_at,
+          created_by
+        `)
+        .in('id', conversationIds)
+        .order('updated_at', { ascending: false }),
+      supabaseService
+        .from('messages')
+        .select(`
+          conversation_id,
+          content,
+          created_at,
+          message_type,
+          sender_id
+        `)
+        .in('conversation_id', conversationIds)
+        .order('created_at', { ascending: false })
+        .limit(1),
+      supabaseService
+        .from('conversation_participants')
+        .select(`
+          conversation_id,
+          user_id,
+          role
+        `)
+        .in('conversation_id', conversationIds)
+        .eq('status', 'active')
+        .order('joined_at', { ascending: true }),
+      supabaseService
+        .from('messages')
+        .select('id, conversation_id, sender_id')
+        .in('conversation_id', conversationIds)
+        .eq('is_deleted', false)
+    ]);
 
     if (conversationsError) {
       console.error('Error fetching conversations:', conversationsError);
@@ -54,32 +93,6 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get last messages for each conversation
-    const conversationIdsForMessages = conversations.map(c => c.id);
-    const { data: lastMessages } = await supabase
-      .from('messages')
-      .select(`
-        conversation_id,
-        content,
-        created_at,
-        message_type,
-        sender_id
-      `)
-      .in('conversation_id', conversationIdsForMessages)
-      .order('created_at', { ascending: false });
-
-    // Get participants for each conversation
-    const { data: participants } = await supabase
-      .from('conversation_participants')
-      .select(`
-        conversation_id,
-        user_id,
-        role
-      `)
-      .in('conversation_id', conversationIdsForMessages)
-      .eq('status', 'active')
-      .order('joined_at', { ascending: true });
-
     // Get user data for participants and message senders
     const allUserIds = [
       ...new Set([
@@ -88,7 +101,7 @@ export async function GET(request: Request) {
       ])
     ];
 
-    const { data: users } = await supabase
+    const { data: users } = await supabaseService
       .from('users')
       .select(`
         user_id,
@@ -98,16 +111,9 @@ export async function GET(request: Request) {
       `)
       .in('user_id', allUserIds);
 
-    // Get all messages for unread count calculation
-    const { data: allMessagesForUnread } = await supabase
-      .from('messages')
-      .select('id, conversation_id, sender_id')
-      .in('conversation_id', conversationIdsForMessages)
-      .eq('is_deleted', false);
-
     // Get read receipts for current user
     const messageIdsForUnread = allMessagesForUnread?.map(m => m.id) || [];
-    const { data: userReadReceipts } = await supabase
+    const { data: userReadReceipts } = await supabaseService
       .from('message_read_receipts')
       .select('message_id')
       .eq('user_id', user.id)
@@ -175,24 +181,13 @@ export async function GET(request: Request) {
           .filter(p => conversation.type === 'direct' ? p.user_id !== user.id : true) // Only exclude current user for direct messages
           .map(p => {
             const userInfo = users?.find(u => u.user_id === p.user_id);
-            const participant = {
+            return {
               id: p.user_id,
               name: userInfo?.full_name || userInfo?.username || 'Unknown',
               avatar: userInfo?.avatar_url,
               username: userInfo?.username,
               role: p.role
             };
-            
-            // Debug logging for avatar issue
-            if (conversation.type === 'direct') {
-              console.log('API Debug - Conversation:', conversation.id);
-              console.log('API Debug - Current User ID:', user.id);
-              console.log('API Debug - Participant User ID:', p.user_id);
-              console.log('API Debug - User Info:', userInfo);
-              console.log('API Debug - Avatar URL:', userInfo?.avatar_url);
-            }
-            
-            return participant;
           }),
         unread_count: unreadCount
       };
@@ -217,7 +212,11 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    // Use regular client for auth
     const supabase = await createClient();
+
+    // Use service role client for database queries (bypasses RLS)
+    const supabaseService = createServiceClient();
 
     // Get authenticated user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -237,7 +236,7 @@ export async function POST(request: Request) {
     }
 
     // Validate participant IDs (check if they exist and are connections)
-    const { data: connections, error: connectionsError } = await supabase
+    const { data: connections, error: connectionsError } = await supabaseService
       .from('connections')
       .select('from_user_id, to_user_id')
       .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`)
@@ -276,7 +275,7 @@ export async function POST(request: Request) {
       const otherUserId = validParticipantIds[0];
 
       // Find existing direct conversation between these two users
-      const { data: existingConversations } = await supabase
+      const { data: existingConversations } = await supabaseService
         .from('conversations')
         .select(`
           id,
@@ -313,7 +312,7 @@ export async function POST(request: Request) {
     }
 
     // Create conversation
-    const { data: conversation, error: conversationError } = await supabase
+    const { data: conversation, error: conversationError } = await supabaseService
       .from('conversations')
       .insert({
         name: name || `Chat with ${validParticipantIds.length} people`,
@@ -353,7 +352,7 @@ export async function POST(request: Request) {
     console.log('Current user ID:', user.id);
     console.log('Conversation ID:', conversation.id);
 
-    const { data: insertedParticipants, error: participantsError } = await supabase
+    const { data: insertedParticipants, error: participantsError } = await supabaseService
       .from('conversation_participants')
       .insert(participants)
       .select();
@@ -364,7 +363,7 @@ export async function POST(request: Request) {
       console.error('Error adding participants:', participantsError);
       console.error('Full error details:', JSON.stringify(participantsError, null, 2));
       // Rollback conversation
-      await supabase.from('conversations').delete().eq('id', conversation.id);
+      await supabaseService.from('conversations').delete().eq('id', conversation.id);
       return NextResponse.json(
         { 
           error: 'Failed to add participants',
@@ -377,21 +376,21 @@ export async function POST(request: Request) {
     }
 
     // Get the created conversation with participants
-    const { data: fullConversation } = await supabase
+    const { data: fullConversation } = await supabaseService
       .from('conversations')
       .select('id, name, type, created_at')
       .eq('id', conversation.id)
       .single();
 
     // Get participants separately
-    const { data: convParticipants } = await supabase
+    const { data: convParticipants } = await supabaseService
       .from('conversation_participants')
       .select('user_id, role')
       .eq('conversation_id', conversation.id);
 
     // Get user data for participants
     const participantUserIds = convParticipants?.map(p => p.user_id) || [];
-    const { data: participantUsers } = await supabase
+    const { data: participantUsers } = await supabaseService
       .from('users')
       .select('user_id, full_name, username, avatar_url')
       .in('user_id', participantUserIds);

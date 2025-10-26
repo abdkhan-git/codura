@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { FloatingMessenger } from "@/components/messaging/floating-messenger";
-import { useRealtimeConversations } from "@/hooks/use-realtime-messaging";
 
 export function MessagingProvider() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -22,9 +21,6 @@ export function MessagingProvider() {
 
     checkUser();
   }, []);
-
-  // Subscribe to real-time conversation updates
-  const { isConnected } = useRealtimeConversations(userId || "");
 
   // Only render the messenger if user is authenticated
   if (isLoading || !userId) {

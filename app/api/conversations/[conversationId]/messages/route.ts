@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import { createServiceClient } from '@/utils/supabase/service';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,12 @@ export async function GET(
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
+    // Use regular client for auth
     const supabase = await createClient();
+
+    // Use service role client for database queries (bypasses RLS)
+    const supabaseService = createServiceClient();
+
     const { conversationId } = await params;
 
     // Get authenticated user
@@ -23,7 +29,7 @@ export async function GET(
     }
 
     // Verify user is a participant in the conversation
-    const { data: participation } = await supabase
+    const { data: participation } = await supabaseService
       .from('conversation_participants')
       .select('role, status')
       .eq('conversation_id', conversationId)
@@ -44,10 +50,10 @@ export async function GET(
     const offset = parseInt(url.searchParams.get('offset') || '0');
     const before = url.searchParams.get('before'); // Message ID to fetch messages before
 
-    // Build query - fetch messages first
-    let query = supabase
+    // Build query - fetch messages first (don't select read_by/delivery_status - they don't exist as columns)
+    let query = supabaseService
       .from('messages')
-      .select('*, read_by, delivery_status')
+      .select('*')
       .eq('conversation_id', conversationId)
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
@@ -72,35 +78,40 @@ export async function GET(
 
     // Get sender info from public.users table separately
     const senderIds = [...new Set(messages?.map(m => m.sender_id) || [])];
-    const { data: senders } = await supabase
+    const { data: senders } = await supabaseService
       .from('users')
       .select('user_id, full_name, username, avatar_url')
       .in('user_id', senderIds);
 
     // Get read receipts for these messages
     const messageIds = messages?.map(m => m.id) || [];
-    const { data: readReceipts } = await supabase
+    const { data: readReceipts } = await supabaseService
       .from('message_read_receipts')
       .select('message_id, user_id, read_at')
       .in('message_id', messageIds);
 
-    // Process messages with sender info
+    // Process messages with sender info and read receipts
     const processedMessages = messages?.map(message => {
       const sender = senders?.find(s => s.user_id === message.sender_id);
+
+      // Build read_by array from read receipts
+      const messageReceipts = readReceipts?.filter(r => r.message_id === message.id) || [];
+      const readByUsers = messageReceipts.map(r => r.user_id);
+
       return {
         id: message.id,
         content: message.content,
         sender_id: message.sender_id,
+        conversation_id: message.conversation_id,
         created_at: message.created_at,
         message_type: message.message_type,
-        attachments: message.attachments,
+        attachments: message.attachments || [],
         reply_to_message_id: message.reply_to_message_id,
-        is_edited: message.is_edited,
+        is_edited: message.is_edited || false,
         edited_at: message.edited_at,
-        reactions: message.reactions,
+        reactions: message.reactions || {},
         metadata: message.metadata,
-        read_by: message.read_by || [],
-        delivery_status: message.delivery_status || 'sent',
+        read_by: readByUsers,
         sender: {
           user_id: message.sender_id,
           full_name: sender?.full_name || 'Unknown',
@@ -117,7 +128,7 @@ export async function GET(
         .map(m => m.id);
 
       if (unreadMessageIds.length > 0) {
-        await supabase
+        await supabaseService
           .from('message_read_receipts')
           .upsert(
             unreadMessageIds.map(messageId => ({
