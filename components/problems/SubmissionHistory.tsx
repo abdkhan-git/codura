@@ -1,0 +1,194 @@
+import React, { useState } from 'react';
+import { X, Clock, Cpu, HardDrive, Calendar, CheckCircle, XCircle, AlertCircle, Code } from 'lucide-react';
+
+export default function SubmissionHistory({ allOfUsersSubmissions }) {
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
+
+  const getStatusIcon = (status) => {
+    if (status === "Accepted") return <CheckCircle className="w-5 h-5 text-green-400" />;
+    if (status === "Wrong Answer") return <XCircle className="w-5 h-5 text-red-400" />;
+    return <AlertCircle className="w-5 h-5 text-yellow-400" />;
+  };
+
+  const getStatusColor = (status) => {
+    if (status === "Accepted") return "text-green-400";
+    if (status === "Wrong Answer") return "text-red-400";
+    return "text-yellow-400";
+  };
+
+  const getDifficultyColor = (difficulty) => {
+    if (difficulty === "Easy") return "text-green-400";
+    if (difficulty === "Medium") return "text-yellow-400";
+    if (difficulty === "Hard") return "text-red-400";
+    return "text-gray-400";
+  };
+
+  return (
+    <div className="space-y-4">
+      {allOfUsersSubmissions && allOfUsersSubmissions.length > 0 ? (
+        allOfUsersSubmissions.map((submission, index) => {
+          const submissionNumber = allOfUsersSubmissions.length - index;
+          return (
+            <div
+              key={submission.id}
+              onClick={() => setSelectedSubmission({ ...submission, number: submissionNumber })}
+              className="relative border border-zinc-800/50 rounded-xl p-5 bg-zinc-900/40 backdrop-blur-sm hover:bg-zinc-800/50 hover:border-zinc-700/50 transition-all duration-300 cursor-pointer group"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/5 to-blue-500/0 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300" />
+              
+              <div className="relative flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                  {getStatusIcon(submission.status)}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-base font-semibold text-white">
+                      Submission #{submissionNumber}
+                    </span>
+                  <span className="text-xs text-gray-500">
+                    {submission.submitted_at
+                      ? new Date(submission.submitted_at).toLocaleString()
+                      : "Date not available"}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-6">
+                <span className={`text-sm font-semibold ${getStatusColor(submission.status)}`}>
+                  {submission.status || "Unknown"}
+                </span>
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Clock className="w-4 h-4" />
+                  <span className="text-sm">{submission.runtime ? submission.runtime.toFixed(3) : "N/A"}s</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-400">
+                  <HardDrive className="w-4 h-4" />
+                  <span className="text-sm">{submission.memory ? (submission.memory / 1024).toFixed(2) : "N/A"} MB</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )})
+      ) : (
+        <p className="text-sm text-gray-500 text-center py-8">
+          Your submission history will appear here.
+        </p>
+      )}
+
+      {/* Glassmorphism Modal */}
+      {selectedSubmission && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200"
+          onClick={() => setSelectedSubmission(null)}
+        >
+          <div 
+            className="relative max-w-4xl w-full max-h-[90vh] overflow-y-auto bg-zinc-900/80 backdrop-blur-xl border border-zinc-700/50 rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-blue-500/10 rounded-2xl pointer-events-none" />
+            
+            {/* Header */}
+            <div className="relative sticky top-0 bg-zinc-900/95 backdrop-blur-xl border-b border-zinc-800/50 p-6 rounded-t-2xl z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {getStatusIcon(selectedSubmission.status)}
+                  <div>
+                    <h3 className="text-xl font-bold text-white">
+                      Submission #{selectedSubmission.number}
+                    </h3>
+                    <p className="text-sm text-gray-400 mt-1">
+                      {selectedSubmission.problem_title} • <span className={getDifficultyColor(selectedSubmission.difficulty)}>{selectedSubmission.difficulty}</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(selectedSubmission.submitted_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedSubmission(null)}
+                  className="p-2 hover:bg-zinc-800/50 rounded-lg transition-colors"
+                >
+                  <X className="w-6 h-6 text-gray-400 hover:text-white" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="relative p-6 space-y-6">
+              {/* Status Banner */}
+              <div className={`p-4 rounded-xl border ${
+                selectedSubmission.status === "Accepted" 
+                  ? "bg-green-500/10 border-green-500/30" 
+                  : selectedSubmission.status === "Wrong Answer"
+                  ? "bg-red-500/10 border-red-500/30"
+                  : "bg-yellow-500/10 border-yellow-500/30"
+              }`}>
+                <p className={`text-lg font-semibold ${getStatusColor(selectedSubmission.status)}`}>
+                  {selectedSubmission.status}
+                </p>
+              </div>
+
+              {/* Statistics Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <StatCard 
+                  icon={<Clock className="w-5 h-5" />}
+                  label="Runtime"
+                  value={`${selectedSubmission.runtime ? selectedSubmission.runtime.toFixed(3) : "N/A"}s`}
+                />
+                <StatCard 
+                  icon={<HardDrive className="w-5 h-5" />}
+                  label="Memory"
+                  value={`${selectedSubmission.memory ? (selectedSubmission.memory / 1024).toFixed(2) : "N/A"} MB`}
+                  subtext={`${selectedSubmission.memory || "N/A"} KB`}
+                />
+                <StatCard 
+                  icon={<Code className="w-5 h-5" />}
+                  label="Language"
+                  value={selectedSubmission.language || "N/A"}
+                />
+              </div>
+
+              {/* Code Section */}
+              {selectedSubmission.code && (
+                <div className="border border-zinc-700/30 bg-zinc-800/30 rounded-xl overflow-hidden">
+                  <div className="bg-zinc-800/50 px-4 py-3 border-b border-zinc-700/30">
+                    <h4 className="text-sm font-semibold text-white">Submitted Code</h4>
+                  </div>
+                  <div className="p-4 overflow-x-auto">
+                    <pre className="text-sm text-gray-300 font-mono whitespace-pre">
+                      {selectedSubmission.code}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              {/* Metadata */}
+              <div className="pt-4 border-t border-zinc-800/50 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-gray-500">Submission ID:</span>
+                  <p className="font-mono text-gray-400 mt-1">{selectedSubmission.id}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Problem ID:</span>
+                  <p className="font-mono text-gray-400 mt-1">{selectedSubmission.problem_id}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ icon, label, value, subtext }) {
+  return (
+    <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-xl p-4 backdrop-blur-sm">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="text-purple-400">{icon}</div>
+        <span className="text-sm text-gray-400">{label}</span>
+      </div>
+      <p className="text-xl font-semibold text-white">{value}</p>
+      {subtext && <p className="text-xs text-gray-500 mt-1">{subtext}</p>}
+    </div>
+  );
+}
