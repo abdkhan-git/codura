@@ -176,7 +176,7 @@ app.post('/api/problems/run', async (req: any, res: any) => {
       false
     );
     
-    console.log('Generated code length:', wrappedCode.length);
+    console.log('Generated wrapped code:', wrappedCode);
 
     // Submit to Judge0
     const body = { 
@@ -323,17 +323,6 @@ async function storeSubmission(
   return data;
 }
 
-// ============================================================================
-// PASTE YOUR COMPLETE TEST HARNESS GENERATOR HERE
-// (The code from the unified-test-system artifact with all the helper functions)
-// ============================================================================
-
-// Copy all the code from "unified-test-system" artifact here, including:
-// - PYTHON_DATA_STRUCTURES
-// - PYTHON_HELPER_FUNCTIONS
-// - wrapInClass, getRequiredDataStructures, etc.
-// - generatePythonTestHarness
-
 const PYTHON_DATA_STRUCTURES: Record<string, string> = {
   ListNode: `# Definition for singly-linked list.
 class ListNode:
@@ -422,6 +411,9 @@ function generatePythonTestHarness(
   const paramExtraction = generateParamExtraction(metadata);
   const functionCall = `solution.${metadata.functionName}(${metadata.parameters.join(', ')})`;
 
+  // Convert test cases to Python-compatible format
+  const pythonTestCases = convertToPythonFormat(testCases);
+
   return `${dataStructures}
 
 ${wrappedCode}
@@ -432,7 +424,7 @@ ${comparisonCode}
 
 # Test harness
 solution = Solution()
-test_cases = ${JSON.stringify(testCases)}
+test_cases = ${pythonTestCases}
 
 for i, test in enumerate(test_cases):
     try:
@@ -440,14 +432,46 @@ for i, test in enumerate(test_cases):
         result = ${functionCall}
         expected = test['expected']
         
-        if compare_results(result, expected):
+        # Handle None results
+        if result is None and expected is not None:
+            print(f"Test {i + 1}: FAIL - Expected {expected}, got None")
+        elif compare_results(result, expected):
             print(f"Test {i + 1}: PASS")
         else:
-            print(f"Test {i + 1}: FAIL - Expected {expected}, got {result}")
+            # Format output for better display
+            result_str = str(result) if result is not None else "None"
+            expected_str = str(expected) if expected is not None else "None"
+            print(f"Test {i + 1}: FAIL - Expected {expected_str}, got {result_str}")
     except Exception as e:
-        print(f"Test {i + 1}: ERROR - {str(e)}")
+        import traceback
+        error_msg = str(e)
+        # Truncate very long error messages
+        if len(error_msg) > 200:
+            error_msg = error_msg[:200] + "..."
+        print(f"Test {i + 1}: ERROR - {error_msg}")
 `;
 }
+
+// Helper function to convert JSON to Python-compatible format
+function convertToPythonFormat(obj: any): string {
+  if (obj === null) return 'None';
+  if (obj === true) return 'True';
+  if (obj === false) return 'False';
+  if (typeof obj === 'string') return JSON.stringify(obj);
+  if (typeof obj === 'number') return String(obj);
+  if (Array.isArray(obj)) {
+    const items = obj.map(item => convertToPythonFormat(item));
+    return `[${items.join(', ')}]`;
+  }
+  if (typeof obj === 'object') {
+    const entries = Object.entries(obj).map(([key, value]) => {
+      return `"${key}": ${convertToPythonFormat(value)}`;
+    });
+    return `{${entries.join(', ')}}`;
+  }
+  return String(obj);
+}
+
 
 function wrapInClass(code: string): string {
   const hasClass = code.includes('class Solution');
@@ -514,14 +538,45 @@ def compare_results(result, expected):
   }
 
   const comparisons: Record<string, string> = {
-    sorted: 'return sorted(result) == sorted(expected)',
-    unordered: 'return sorted(map(sorted, result)) == sorted(map(sorted, expected))',
-    float: 'return abs(result - expected) < 1e-5',
-    exact: 'return result == expected'
+    sorted: `
+def compare_results(result, expected):
+    try:
+        return sorted(result) == sorted(expected)
+    except:
+        return result == expected
+`,
+    unordered: `
+def compare_results(result, expected):
+    try:
+        # For 2D arrays (like 3Sum output)
+        if result is None or expected is None:
+            return result == expected
+        if not isinstance(result, list) or not isinstance(expected, list):
+            return result == expected
+        if len(result) != len(expected):
+            return False
+        # Sort each inner list, then sort the outer list
+        sorted_result = sorted([sorted(r) if isinstance(r, list) else r for r in result])
+        sorted_expected = sorted([sorted(e) if isinstance(e, list) else e for e in expected])
+        return sorted_result == sorted_expected
+    except Exception as e:
+        # Fallback to exact comparison
+        return result == expected
+`,
+    float: `
+def compare_results(result, expected):
+    try:
+        return abs(result - expected) < 1e-5
+    except:
+        return result == expected
+`,
+    exact: `
+def compare_results(result, expected):
+    return result == expected
+`
   };
 
-  const comparison = comparisons[metadata.comparisonType] || comparisons.exact;
-  return `def compare_results(result, expected):\n    ${comparison}\n`;
+  return comparisons[metadata.comparisonType] || comparisons.exact;
 }
 
 function generateParamExtraction(metadata: any): string {
