@@ -1,8 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Clock, Cpu, HardDrive, Calendar, CheckCircle, XCircle, AlertCircle, Code } from 'lucide-react';
 
 export default function SubmissionHistory({ allOfUsersSubmissions }) {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
+
+  useEffect(() => {
+    // Load Prism.js CSS and JS
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css';
+    document.head.appendChild(link);
+
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    // Load Python language support
+    const pythonScript = document.createElement('script');
+    pythonScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js';
+    pythonScript.async = true;
+    document.body.appendChild(pythonScript);
+
+    return () => {
+      document.head.removeChild(link);
+      document.body.removeChild(script);
+      document.body.removeChild(pythonScript);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Highlight code when modal opens
+    if (selectedSubmission && window.Prism) {
+      window.Prism.highlightAll();
+    }
+  }, [selectedSubmission]);
 
   const getStatusIcon = (status) => {
     if (status === "Accepted") return <CheckCircle className="w-5 h-5 text-green-400" />;
@@ -107,7 +139,7 @@ export default function SubmissionHistory({ allOfUsersSubmissions }) {
                   onClick={() => setSelectedSubmission(null)}
                   className="p-2 hover:bg-zinc-800/50 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6 text-gray-400 hover:text-white" />
+                  <X className="w-6 h-6 text-gray-400 hover:text-white cursor-pointer" />
                 </button>
               </div>
             </div>
@@ -154,8 +186,10 @@ export default function SubmissionHistory({ allOfUsersSubmissions }) {
                     <h4 className="text-sm font-semibold text-white">Submitted Code</h4>
                   </div>
                   <div className="p-4 overflow-x-auto">
-                    <pre className="text-sm text-gray-300 font-mono whitespace-pre">
-                      {selectedSubmission.code}
+                    <pre className="!bg-transparent !m-0 !p-0">
+                      <code className={`language-${selectedSubmission.language?.toLowerCase() || 'python'}`}>
+                        {selectedSubmission.code}
+                      </code>
                     </pre>
                   </div>
                 </div>
