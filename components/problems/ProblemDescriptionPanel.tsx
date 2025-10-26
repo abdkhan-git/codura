@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Tag, ChevronDown, ChevronUp } from 'lucide-react'
+import SubmissionHistory from './SubmissionHistory'
 
 interface ProblemDescriptionPanelProps {
     problem: any
@@ -36,7 +37,7 @@ export default function ProblemDescriptionPanel({
     return (
         <div className="h-full flex flex-col">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-                <div className="border-b border-zinc-800/50">
+                <div className="border-b border-zinc-800/50 overflow-x-scroll">
                     <TabsList className="inline-flex w-auto min-w-full justify-start h-auto px-6 bg-transparent gap-6">
                         {['Description', 'Solution', 'Discussion', 'Community', 'Submissions'].map(tab => (
                             <TabsTrigger 
@@ -159,54 +160,9 @@ export default function ProblemDescriptionPanel({
                         </div>
                     </TabsContent>
 
-                    <TabsContent value="submissions" className="p-4 mt-0">
+                    <TabsContent value="submissions" className="p-4 mt-0 h-[100vh] overflow-y-scroll">
                         <h2 className="text-xl font-bold mb-3">My Submissions</h2>
-                        <div className="space-y-4">
-                            {allOfUsersSubmissions && allOfUsersSubmissions.length > 0 ? (
-                                [...allOfUsersSubmissions].reverse().map((submission: any, index: number) => (
-                                    <div
-                                        key={index}
-                                        className="border border-zinc-800 rounded-lg p-4 bg-zinc-900 shadow-sm hover:shadow-md transition-shadow duration-200"
-                                    >
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex flex-col gap-1">
-                                                <span className="text-sm font-medium text-white">
-                                                    Submission #{allOfUsersSubmissions.length - index}
-                                                </span>
-                                                <span className="text-xs text-gray-400">
-                                                    {submission.submitted_at
-                                                        ? new Date(submission.submitted_at).toLocaleString()
-                                                        : "Date not available"}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center space-x-4">
-                                                <span
-                                                    className={`text-sm font-semibold ${
-                                                        submission.status === "Accepted"
-                                                            ? "text-green-500"
-                                                            : submission.status === "Wrong Answer"
-                                                            ? "text-red-500"
-                                                            : "text-yellow-600"
-                                                    }`}
-                                                >
-                                                    {submission.status || "Unknown"}
-                                                </span>
-                                                <span className="text-sm text-gray-500">
-                                                    Runtime: {submission.runtime || "N/A"}s
-                                                </span>
-                                                <span className="text-sm text-gray-500">
-                                                    Memory: {submission.memory || "N/A"} kb
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-sm text-muted-foreground">
-                                    Your submission history will appear here.
-                                </p>
-                            )}
-                        </div>
+                        <SubmissionHistory allOfUsersSubmissions={allOfUsersSubmissions}></SubmissionHistory>
                     </TabsContent>
                 </ScrollArea>
             </Tabs>
