@@ -81,18 +81,38 @@ interface Submission {
 // ============================================
 
 const parseExamplesToTestCases = (examples: Example[] | undefined): TestCase[] => {
-  if (!examples) return []
+  if (!examples) return [];
+  
   return examples.map(example => {
-    const content = example.content.replace(/&nbsp;/g, '').trim()
-    const inputMatch = content.match(/Input:\s*(.+?)(?=\nOutput:|$)/s)
-    const input = inputMatch ? inputMatch[1].trim() : ''
-    const outputMatch = content.match(/Output:\s*(.+?)(?=\nExplanation:|$)/s)
-    const expectedOutput = outputMatch ? outputMatch[1].trim() : ''
-    const explanationMatch = content.match(/Explanation:\s*(.+?)$/s)
-    const explanation = explanationMatch ? explanationMatch[1].trim() : undefined
-    return { input, expectedOutput, explanation }
-  })
-}
+    // Clean all HTML entities
+    const content = example.content
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ')
+      .trim();
+    
+    // Extract input - handle multi-line inputs
+    const inputMatch = content.match(/Input:\s*([^\n]+(?:\n(?!Output:)[^\n]+)*)/);
+    const input = inputMatch ? inputMatch[1].trim() : '';
+    
+    // Extract output - stop at Explanation or end
+    const outputMatch = content.match(/Output:\s*([^\n]+)/);
+    const expectedOutput = outputMatch ? outputMatch[1].trim() : '';
+    
+    // Extract explanation if exists
+    const explanationMatch = content.match(/Explanation:\s*(.+?)$/s);
+    const explanation = explanationMatch ? explanationMatch[1].trim() : undefined;
+    
+    return { 
+      input, 
+      expectedOutput, 
+      explanation 
+    };
+  }).filter(tc => tc.input && tc.expectedOutput); // Filter out incomplete cases
+};
 
 // ============================================
 // MAIN COMPONENT
