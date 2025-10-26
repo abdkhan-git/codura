@@ -57,36 +57,7 @@ interface ProblemData {
 
 interface Example { id: number; content: string }
 
-                // Validate that params.id is a valid number
-                const problemId = parseInt(params.id as string);
-                if (isNaN(problemId)) {
-                    setError('Invalid problem ID');
-                    return;
-                }
-
-                // fetch problem data from Supabase using the problem ID from URL params
-                const { data, error } = await supabase
-                    .from('problems')
-                    .select('*')
-                    .eq('id', problemId)
-                    .single()
-
-                if (error) throw error
-
-                if (!data) {
-                    setError('Problem not found')
-                    return
-                }
-
-                // After fetching the problem data, this line sets the problem state
-                setProblem(data as ProblemData)
-            } catch (err) {
-                console.error('Error fetching problem:', err)
-                setError('Failed to load problem')
-            } finally {
-                setLoading(false)
-            }
-        }
+// NOTE: Removed stray top-level async/try block that caused a parse error.
 
 interface Submission {
   code: string
@@ -297,9 +268,9 @@ export default function ProblemPage() {
 
   // Render
   return (
-    <div className="caffeine-theme h-screen w-full bg-background p-2 pt-0">
+    <div className="caffeine-theme min-h-screen w-full bg-background p-2 pt-0 overflow-y-auto">
       <style jsx global>{tabScrollStyles}</style>
-      <ResizablePanelGroup direction="horizontal" className="h-full">
+      <ResizablePanelGroup direction="horizontal" className="min-h-[700px]">
         {/* LEFT: Problem Description & history */}
         <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>
           <ProblemDescriptionPanel
