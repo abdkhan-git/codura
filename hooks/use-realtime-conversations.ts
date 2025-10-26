@@ -96,7 +96,19 @@ export function useRealtimeConversations({
 
           console.log("💬 New message in conversation:", newMessage.conversation_id);
 
-          // Fetch sender info
+          // Optimization: Check if conversation exists before fetching sender info
+          setConversations((prev) => {
+            const conversationExists = prev.some((conv) => conv.id === newMessage.conversation_id);
+
+            if (!conversationExists) {
+              console.log("⏭️ Skipping message for conversation not in list:", newMessage.conversation_id);
+              return prev;
+            }
+
+            return prev;
+          });
+
+          // Fetch sender info only if conversation exists
           const { data: sender } = await supabase
             .from("users")
             .select("user_id, full_name, username")
