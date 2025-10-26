@@ -99,7 +99,7 @@ export function useRealtimeTyping({
       typingChannelRef.current = null;
     }
 
-    // Subscribe to typing indicators using postgres_changes
+    // Subscribe to typing indicators using postgres_changes with server-side filter
     const typingChannel = supabase
       .channel(`typing:${conversationId}`, { config: { private: true } })
       .on(
@@ -108,12 +108,10 @@ export function useRealtimeTyping({
           event: "INSERT",
           schema: "public",
           table: "conversation_typing_indicators",
+          filter: `conversation_id=eq.${conversationId}`,
         },
         async (payload: any) => {
           const indicator = payload.new;
-
-          // Client-side filtering - only for this conversation
-          if (indicator.conversation_id !== conversationId) return;
 
           // Ignore own typing indicator
           if (indicator.user_id === currentUserId) {
@@ -134,7 +132,7 @@ export function useRealtimeTyping({
             setTypingUsers((prev) => {
               const exists = prev.some((u) => u.user_id === user.user_id);
               if (exists) {
-                // Update timeout for existing typing user
+                // Update timeout for existing typing user - reset it
                 const existingTimeout = typingUsersTimeoutRef.current.get(
                   user.user_id
                 );
@@ -172,6 +170,36 @@ export function useRealtimeTyping({
 
             typingUsersTimeoutRef.current.set(user.user_id, newTimeout);
           }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "conversation_typing_indicators",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        async (payload: any) => {
+          const indicator = payload.old;
+
+          if (indicator.user_id === currentUserId) {
+            return;
+          }
+
+          console.log("🛑 Typing stopped:", indicator.user_id);
+
+          // Clear timeout immediately
+          const timeout = typingUsersTimeoutRef.current.get(indicator.user_id);
+          if (timeout) {
+            clearTimeout(timeout);
+            typingUsersTimeoutRef.current.delete(indicator.user_id);
+          }
+
+          // Remove immediately
+          setTypingUsers((prev) =>
+            prev.filter((u) => u.user_id !== indicator.user_id)
+          );
         }
       )
       .subscribe((status) => {

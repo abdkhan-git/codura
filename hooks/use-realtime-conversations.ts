@@ -23,7 +23,7 @@ interface Conversation {
   unread_count: number;
   is_pinned: boolean;
   is_archived: boolean;
-  updated_at: string;
+    updated_at: string;
 }
 
 interface UseRealtimeConversationsProps {
@@ -71,6 +71,76 @@ export function useRealtimeConversations({
     }
   }, [currentUserId]);
 
+  // Set up real-time subscription for new messages
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    // Clean up previous channel
+    if (messagesChannelRef.current) {
+      supabase.removeChannel(messagesChannelRef.current);
+      messagesChannelRef.current = null;
+    }
+
+    // Subscribe to all new messages to update last_message in conversations
+    const messageChannel = supabase
+      .channel("all-new-messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        async (payload: any) => {
+          const newMessage = payload.new as any;
+
+          console.log("💬 New message in conversation:", newMessage.conversation_id);
+
+          // Fetch sender info
+          const { data: sender } = await supabase
+            .from("users")
+            .select("user_id, full_name, username")
+            .eq("user_id", newMessage.sender_id)
+            .single();
+
+          // Update conversations list with new last_message
+          setConversations((prev) =>
+            prev.map((conv) => {
+              if (conv.id === newMessage.conversation_id) {
+                return {
+                  ...conv,
+                  last_message: {
+                    content: newMessage.content,
+                    sender_name: sender?.full_name || sender?.username || "Unknown",
+                    created_at: newMessage.created_at,
+                    message_type: newMessage.message_type,
+                  },
+                  updated_at: newMessage.created_at,
+                };
+              }
+              return conv;
+            })
+          );
+        }
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          console.log("✅ Subscribed to new messages for conversations");
+        } else if (status === "CHANNEL_ERROR") {
+          console.error("❌ Channel error subscribing to messages");
+        }
+      });
+
+    messagesChannelRef.current = messageChannel;
+
+    return () => {
+      if (messagesChannelRef.current) {
+        supabase.removeChannel(messagesChannelRef.current);
+        messagesChannelRef.current = null;
+      }
+    };
+  }, [currentUserId, supabase]);
+
   // Fetch conversations on mount only
   useEffect(() => {
     if (!currentUserId) return;
@@ -78,7 +148,7 @@ export function useRealtimeConversations({
     if (!conversationsLoadedRef.current) {
       fetchConversations();
     }
-  }, [currentUserId]); // Don't include fetchConversations to avoid re-runs
+  }, [currentUserId, fetchConversations]);
 
   return {
     conversations,
