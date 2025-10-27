@@ -261,18 +261,6 @@ export default function MessagesPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Close emoji picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (showEmojiPicker) {
-        setShowEmojiPicker(null);
-      }
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [showEmojiPicker]);
-
   // Handle typing
   const handleTyping = useCallback(
     async (value: string) => {
@@ -294,7 +282,7 @@ export default function MessagesPage() {
 
       try {
         setIsSending(true);
-        await sendMessageUtil(selectedConversationId, messageInput, replyToMessage?.id);
+        await sendMessageUtil(selectedConversationId, messageInput);
         setMessageInput('');
         setReplyToMessage(null);
         await clearTypingIndicator(selectedConversationId);
@@ -313,7 +301,7 @@ export default function MessagesPage() {
         setIsSending(false);
       }
     },
-    [selectedConversationId, messageInput, isSending, replyToMessage]
+    [selectedConversationId, messageInput, isSending]
   );
 
   // Handle reaction
@@ -567,7 +555,7 @@ export default function MessagesPage() {
 
         {/* Responsive Layout */}
         <div className="w-full">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-280px)] min-h-[600px]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-480px)]">
             {/* Conversations List - Premium Card */}
             <div className="md:col-span-1 overflow-hidden">
               <div className={cn(
@@ -584,8 +572,8 @@ export default function MessagesPage() {
                     : "border-white/10 from-zinc-900/80 to-zinc-900/40 text-white"
                 )}>
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold flex-shrink-0">Conversations</h2>
-                    <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                    <h2 className="text-lg font-semibold">Conversations</h2>
+                    <div className="flex items-center gap-2">
                       {isMultiSelectMode ? (
                         <>
                           <Button
@@ -596,23 +584,22 @@ export default function MessagesPage() {
                               setSelectedConversations(new Set());
                             }}
                             className={cn(
-                              "h-8 text-xs px-2",
+                              "h-8 text-xs",
                               theme === 'light' ? "text-gray-600" : "text-gray-400"
                             )}
                           >
-                            <X className="w-4 h-4 md:mr-1" />
-                            <span className="hidden md:inline">Cancel</span>
+                            <X className="w-4 h-4 mr-1" />
+                            Cancel
                           </Button>
                           {selectedConversations.size > 0 && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={handleDeleteSelected}
-                              className="h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 px-2"
+                              className="h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
                             >
-                              <Trash2 className="w-4 h-4 md:mr-1" />
-                              <span className="hidden md:inline">Delete ({selectedConversations.size})</span>
-                              <span className="md:hidden">({selectedConversations.size})</span>
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              Delete ({selectedConversations.size})
                             </Button>
                           )}
                         </>
@@ -623,7 +610,7 @@ export default function MessagesPage() {
                             size="icon"
                             onClick={() => setShowArchivedConversations(!showArchivedConversations)}
                             className={cn(
-                              "h-8 w-8 flex-shrink-0",
+                              "h-8 w-8",
                               showArchivedConversations
                                 ? theme === 'light'
                                   ? "bg-blue-100 text-blue-700"
@@ -641,12 +628,12 @@ export default function MessagesPage() {
                             size="sm"
                             onClick={() => setIsMultiSelectMode(true)}
                             className={cn(
-                              "h-8 text-xs px-2 flex-shrink-0",
+                              "h-8 text-xs",
                               theme === 'light' ? "text-gray-600" : "text-gray-400"
                             )}
                           >
-                            <Check className="w-4 h-4 md:mr-1" />
-                            <span className="hidden md:inline">Select</span>
+                            <Check className="w-4 h-4 mr-1" />
+                            Select
                           </Button>
                         </>
                       )}
@@ -815,7 +802,7 @@ export default function MessagesPage() {
                                   {contact.full_name}
                                 </p>
                                 <p className={cn("text-xs truncate", theme === 'light' ? "text-gray-500" : "text-gray-400")}>
-                                  {contact.last_message || contact.email}
+                                  {contact.email}
                                 </p>
                               </div>
                               <Send className={cn("w-4 h-4 flex-shrink-0", theme === 'light' ? "text-gray-300" : "text-gray-600")} />
@@ -952,35 +939,16 @@ export default function MessagesPage() {
                             )}
                             <div className="flex flex-col max-w-xs">
                               {/* Reply preview */}
-                              {msg.reply_to_message && (
+                              {msg.reply_to_message_id && (
                                 <div className={cn(
-                                  "text-xs mb-1 px-3 py-1.5 rounded-lg border-l-2 flex flex-col gap-0.5",
+                                  "text-xs mb-1 px-3 py-1 rounded-lg border-l-2",
                                   msg.sender_id === currentUserId
-                                    ? "bg-white/10 border-white/30"
+                                    ? "bg-white/10 border-white/30 text-white/70"
                                     : theme === 'light'
-                                      ? "bg-gray-200/50 border-gray-400"
-                                      : "bg-zinc-700/50 border-zinc-500"
+                                      ? "bg-gray-200/50 border-gray-400 text-gray-600"
+                                      : "bg-zinc-700/50 border-zinc-500 text-gray-400"
                                 )}>
-                                  <span className={cn(
-                                    "font-semibold",
-                                    msg.sender_id === currentUserId
-                                      ? "text-white/90"
-                                      : theme === 'light'
-                                        ? "text-gray-700"
-                                        : "text-gray-300"
-                                  )}>
-                                    {msg.reply_to_message.sender?.full_name?.split(' ')[0] || 'Someone'}
-                                  </span>
-                                  <span className={cn(
-                                    "truncate max-w-[250px]",
-                                    msg.sender_id === currentUserId
-                                      ? "text-white/70"
-                                      : theme === 'light'
-                                        ? "text-gray-600"
-                                        : "text-gray-400"
-                                  )}>
-                                    {msg.reply_to_message.content}
-                                  </span>
+                                  Replying to message
                                 </div>
                               )}
 
@@ -1171,14 +1139,7 @@ export default function MessagesPage() {
                         placeholder="Type a message..."
                         value={messageInput}
                         onChange={(e) => handleTyping(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendMessage(e as any);
-                          }
-                        }}
                         disabled={isSending}
-                        autoFocus
                         className={cn(
                           "rounded-lg backdrop-blur-sm",
                           theme === 'light'

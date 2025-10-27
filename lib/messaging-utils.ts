@@ -68,6 +68,36 @@ export async function getAcceptedConnections() {
       return [];
     }
 
+    // Get all conversations where current user is a participant
+    const { data: allConversations } = await supabase
+      .from('conversations')
+      .select('id, type, last_message_preview, last_message_at')
+      .eq('type', 'direct');
+
+    // Get all participants for these conversations
+    const { data: allParticipants } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id, user_id')
+      .eq('status', 'active');
+
+    // Create a map of user_id to last message
+    const lastMessageMap = new Map();
+    if (allConversations && allParticipants) {
+      allConversations.forEach((conv) => {
+        const participants = allParticipants.filter(p => p.conversation_id === conv.id);
+        const hasCurrentUser = participants.some(p => p.user_id === userId);
+        if (hasCurrentUser) {
+          const otherParticipant = participants.find(p => p.user_id !== userId);
+          if (otherParticipant) {
+            lastMessageMap.set(otherParticipant.user_id, {
+              message: conv.last_message_preview,
+              timestamp: conv.last_message_at,
+            });
+          }
+        }
+      });
+    }
+
     // Map connection IDs to users
     const userMap = new Map();
     (users || []).forEach((user) => {
@@ -79,6 +109,7 @@ export async function getAcceptedConnections() {
     allConnections.forEach((conn) => {
       const otherUserId = conn.from_user_id === userId ? conn.to_user_id : conn.from_user_id;
       const userData = userMap.get(otherUserId);
+      const lastMessageData = lastMessageMap.get(otherUserId);
 
       if (userData && !connections.has(otherUserId)) {
         connections.set(otherUserId, {
@@ -88,6 +119,8 @@ export async function getAcceptedConnections() {
           avatar_url: userData.avatar_url,
           username: userData.username,
           connection_id: conn.id,
+          last_message: lastMessageData?.message || null,
+          last_message_at: lastMessageData?.timestamp || null,
         });
       }
     });
@@ -220,7 +253,7 @@ export async function getConversationMessages(conversationId: string, limit = 50
     // Step 1: Get all messages (without nested select)
     const { data: messages, error: messagesError } = await supabase
       .from('messages')
-      .select('id, conversation_id, sender_id, content, message_type, is_edited, is_deleted, reactions, sent_at, created_at, updated_at')
+      .select('id, conversation_id, sender_id, content, message_type, is_edited, is_deleted, reactions, reply_to_message_id, sent_at, created_at, updated_at')
       .eq('conversation_id', conversationId)
       .eq('is_deleted', false)
       .order('sent_at', { ascending: true })
@@ -235,8 +268,9 @@ export async function getConversationMessages(conversationId: string, limit = 50
       return [];
     }
 
-    // Step 2: Get all sender IDs
+    // Step 2: Get all sender IDs and reply message IDs
     const senderIds = [...new Set(messages.map((m) => m.sender_id))];
+    const replyToIds = [...new Set(messages.map((m) => m.reply_to_message_id).filter(Boolean))];
 
     // Step 3: Get sender user data
     const { data: senders, error: sendersError } = await supabase
@@ -248,16 +282,40 @@ export async function getConversationMessages(conversationId: string, limit = 50
       console.error('Error fetching senders:', sendersError);
     }
 
-    // Step 4: Build sender map
+    // Step 4: Get parent messages for replies
+    let parentMessages = [];
+    if (replyToIds.length > 0) {
+      const { data: parents, error: parentsError } = await supabase
+        .from('messages')
+        .select('id, sender_id, content')
+        .in('id', replyToIds);
+
+      if (parentsError) {
+        console.error('Error fetching parent messages:', parentsError);
+      } else {
+        parentMessages = parents || [];
+      }
+    }
+
+    // Step 5: Build sender map and parent message map
     const senderMap = new Map();
     (senders || []).forEach((sender) => {
       senderMap.set(sender.user_id, sender);
     });
 
-    // Step 5: Enrich messages with sender data
+    const parentMap = new Map();
+    parentMessages.forEach((parent) => {
+      parentMap.set(parent.id, {
+        ...parent,
+        sender: senderMap.get(parent.sender_id) || null,
+      });
+    });
+
+    // Step 6: Enrich messages with sender data and parent message
     const enrichedMessages = messages.map((msg) => ({
       ...msg,
       sender: senderMap.get(msg.sender_id) || null,
+      reply_to_message: msg.reply_to_message_id ? parentMap.get(msg.reply_to_message_id) : null,
     }));
 
     return enrichedMessages;
@@ -270,7 +328,7 @@ export async function getConversationMessages(conversationId: string, limit = 50
 /**
  * Send a message
  */
-export async function sendMessage(conversationId: string, content: string) {
+export async function sendMessage(conversationId: string, content: string, replyToMessageId?: string) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user?.id) throw new Error('Not authenticated');
@@ -283,6 +341,7 @@ export async function sendMessage(conversationId: string, content: string) {
         content,
         message_type: 'text',
         reactions: {},
+        reply_to_message_id: replyToMessageId || null,
       })
       .select()
       .single();
@@ -441,6 +500,304 @@ export async function startConversation(userId: string) {
     return newConv.id;
   } catch (error) {
     console.error('Failed to start conversation:', error);
+    throw error;
+  }
+}
+
+/**
+ * Add reaction to a message
+ */
+export async function addReaction(messageId: string, emoji: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) throw new Error('Not authenticated');
+
+    const userId = session.user.id;
+
+    // Get current message
+    const { data: message, error: fetchError } = await supabase
+      .from('messages')
+      .select('reactions')
+      .eq('id', messageId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // Update reactions
+    const reactions = message.reactions || {};
+    if (!reactions[emoji]) {
+      reactions[emoji] = [];
+    }
+
+    // Toggle reaction
+    if (reactions[emoji].includes(userId)) {
+      reactions[emoji] = reactions[emoji].filter((id: string) => id !== userId);
+      if (reactions[emoji].length === 0) {
+        delete reactions[emoji];
+      }
+    } else {
+      reactions[emoji].push(userId);
+    }
+
+    // Update message
+    const { error: updateError } = await supabase
+      .from('messages')
+      .update({ reactions })
+      .eq('id', messageId);
+
+    if (updateError) throw updateError;
+
+    return reactions;
+  } catch (error) {
+    console.error('Failed to add reaction:', error);
+    throw error;
+  }
+}
+
+/**
+ * Delete a message (soft delete for user)
+ */
+export async function deleteMessage(messageId: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('messages')
+      .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        deleted_by: session.user.id,
+      })
+      .eq('id', messageId)
+      .eq('sender_id', session.user.id);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to delete message:', error);
+    throw error;
+  }
+}
+
+/**
+ * Archive a conversation
+ */
+export async function archiveConversation(conversationId: string) {
+  try {
+    const { error } = await supabase
+      .from('conversations')
+      .update({ is_archived: true })
+      .eq('id', conversationId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to archive conversation:', error);
+    throw error;
+  }
+}
+
+/**
+ * Unarchive a conversation
+ */
+export async function unarchiveConversation(conversationId: string) {
+  try {
+    const { error } = await supabase
+      .from('conversations')
+      .update({ is_archived: false })
+      .eq('id', conversationId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to unarchive conversation:', error);
+    throw error;
+  }
+}
+
+/**
+ * Mute a conversation
+ */
+export async function muteConversation(conversationId: string, duration?: number) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) throw new Error('Not authenticated');
+
+    const mutedUntil = duration
+      ? new Date(Date.now() + duration).toISOString()
+      : null;
+
+    const { error } = await supabase
+      .from('conversation_participants')
+      .update({
+        is_muted: true,
+        muted_until: mutedUntil,
+      })
+      .eq('conversation_id', conversationId)
+      .eq('user_id', session.user.id);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to mute conversation:', error);
+    throw error;
+  }
+}
+
+/**
+ * Unmute a conversation
+ */
+export async function unmuteConversation(conversationId: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('conversation_participants')
+      .update({
+        is_muted: false,
+        muted_until: null,
+      })
+      .eq('conversation_id', conversationId)
+      .eq('user_id', session.user.id);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to unmute conversation:', error);
+    throw error;
+  }
+}
+
+/**
+ * Leave a group chat
+ */
+export async function leaveGroupChat(conversationId: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('conversation_participants')
+      .update({
+        status: 'left',
+        left_at: new Date().toISOString(),
+      })
+      .eq('conversation_id', conversationId)
+      .eq('user_id', session.user.id);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to leave group chat:', error);
+    throw error;
+  }
+}
+
+/**
+ * Send typing indicator
+ */
+export async function sendTypingIndicator(conversationId: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) throw new Error('Not authenticated');
+
+    // Upsert typing indicator
+    const { error } = await supabase
+      .from('conversation_typing_indicators')
+      .upsert({
+        conversation_id: conversationId,
+        user_id: session.user.id,
+        started_typing_at: new Date().toISOString(),
+      }, {
+        onConflict: 'conversation_id,user_id'
+      });
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to send typing indicator:', error);
+  }
+}
+
+/**
+ * Clear typing indicator
+ */
+export async function clearTypingIndicator(conversationId: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('conversation_typing_indicators')
+      .delete()
+      .eq('conversation_id', conversationId)
+      .eq('user_id', session.user.id);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to clear typing indicator:', error);
+  }
+}
+
+/**
+ * Get typing users for a conversation
+ */
+export async function getTypingUsers(conversationId: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) return [];
+
+    const currentUserId = session.user.id;
+    const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
+
+    const { data, error } = await supabase
+      .from('conversation_typing_indicators')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .neq('user_id', currentUserId)
+      .gte('started_typing_at', fiveSecondsAgo);
+
+    if (error) {
+      console.error('Failed to get typing users:', error);
+      return [];
+    }
+
+    const userIds = data.map(d => d.user_id);
+    if (userIds.length === 0) return [];
+
+    // Get user data
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('user_id, full_name')
+      .in('user_id', userIds);
+
+    if (usersError) {
+      console.error('Failed to get user data:', usersError);
+      return [];
+    }
+
+    return users || [];
+  } catch (error) {
+    console.error('Failed to get typing users:', error);
+    return [];
+  }
+}
+
+/**
+ * Delete conversation for current user (sets participant status to left)
+ */
+export async function deleteConversationForUser(conversationId: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('conversation_participants')
+      .update({
+        status: 'left',
+        left_at: new Date().toISOString(),
+      })
+      .eq('conversation_id', conversationId)
+      .eq('user_id', session.user.id);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to delete conversation:', error);
     throw error;
   }
 }
