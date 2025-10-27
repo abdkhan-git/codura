@@ -1,9 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock, Cpu, HardDrive, Calendar, CheckCircle, XCircle, AlertCircle, Code, Copy } from 'lucide-react';
 
-export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEditor }) {
-  const [selectedSubmission, setSelectedSubmission] = useState(null);
-  const [copied, setCopied] = useState(false);
+// Type definitions
+interface Submission {
+  id: string;
+  problem_id: string;
+  problem_title: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  status: 'Accepted' | 'Wrong Answer' | string;
+  submitted_at: string;
+  runtime?: number;
+  memory?: number;
+  language?: string;
+  code?: string;
+}
+
+interface SubmissionWithNumber extends Submission {
+  number: number;
+}
+
+interface SubmissionHistoryProps {
+  allOfUsersSubmissions: Submission[];
+  onCopyToEditor?: (code: string) => void;
+}
+
+// Extend Window interface for Prism
+declare global {
+  interface Window {
+    Prism?: {
+      highlightAll: () => void;
+    };
+  }
+}
+
+export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEditor }: SubmissionHistoryProps) {
+  const [selectedSubmission, setSelectedSubmission] = useState<SubmissionWithNumber | null>(null);
+  const [copied, setCopied] = useState<boolean>(false);
 
   useEffect(() => {
     // Load Prism.js CSS and JS
@@ -45,19 +77,19 @@ export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEdito
     }
   };
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status: string): React.ReactElement => {
     if (status === "Accepted") return <CheckCircle className="w-5 h-5 text-green-400" />;
     if (status === "Wrong Answer") return <XCircle className="w-5 h-5 text-red-400" />;
     return <AlertCircle className="w-5 h-5 text-yellow-400" />;
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string): string => {
     if (status === "Accepted") return "text-green-400";
     if (status === "Wrong Answer") return "text-red-400";
     return "text-yellow-400";
   };
 
-  const getDifficultyColor = (difficulty) => {
+  const getDifficultyColor = (difficulty: string): string => {
     if (difficulty === "Easy") return "text-green-400";
     if (difficulty === "Medium") return "text-yellow-400";
     if (difficulty === "Hard") return "text-red-400";
@@ -239,7 +271,14 @@ export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEdito
   );
 }
 
-function StatCard({ icon, label, value, subtext }) {
+interface StatCardProps {
+  icon: React.ReactElement;
+  label: string;
+  value: string;
+  subtext?: string;
+}
+
+function StatCard({ icon, label, value, subtext }: StatCardProps) {
   return (
     <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-xl p-4 backdrop-blur-sm">
       <div className="flex items-center gap-3 mb-2">
