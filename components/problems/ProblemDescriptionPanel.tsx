@@ -11,11 +11,13 @@ import SubmissionHistory from './SubmissionHistory'
 interface ProblemDescriptionPanelProps {
     problem: any
     allOfUsersSubmissions: any[]
+    onCopyToEditor?: (code: string) => void 
 }
 
 export default function ProblemDescriptionPanel({ 
     problem, 
-    allOfUsersSubmissions 
+    allOfUsersSubmissions,
+    onCopyToEditor 
 }: ProblemDescriptionPanelProps) {
     const [showTags, setShowTags] = useState(false)
     const [showAcceptanceRate, setShowAcceptanceRate] = useState(false)
@@ -162,7 +164,10 @@ export default function ProblemDescriptionPanel({
 
                     <TabsContent value="submissions" className="p-4 mt-0 h-[100vh] overflow-y-scroll">
                         <h2 className="text-xl font-bold mb-3">My Submissions</h2>
-                        <SubmissionHistory allOfUsersSubmissions={allOfUsersSubmissions}></SubmissionHistory>
+                        <SubmissionHistory 
+                            allOfUsersSubmissions={allOfUsersSubmissions}
+                            onCopyToEditor={onCopyToEditor}  // Add this line
+                        />
                     </TabsContent>
                 </ScrollArea>
             </Tabs>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Cpu, HardDrive, Calendar, CheckCircle, XCircle, AlertCircle, Code } from 'lucide-react';
+import { X, Clock, Cpu, HardDrive, Calendar, CheckCircle, XCircle, AlertCircle, Code, Copy } from 'lucide-react';
 
-export default function SubmissionHistory({ allOfUsersSubmissions }) {
+export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEditor }) {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     // Load Prism.js CSS and JS
@@ -35,6 +36,14 @@ export default function SubmissionHistory({ allOfUsersSubmissions }) {
       window.Prism.highlightAll();
     }
   }, [selectedSubmission]);
+
+  const handleCopyToEditor = () => {
+    if (selectedSubmission?.code && onCopyToEditor) {
+      onCopyToEditor(selectedSubmission.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const getStatusIcon = (status) => {
     if (status === "Accepted") return <CheckCircle className="w-5 h-5 text-green-400" />;
@@ -139,7 +148,7 @@ export default function SubmissionHistory({ allOfUsersSubmissions }) {
                   onClick={() => setSelectedSubmission(null)}
                   className="p-2 hover:bg-zinc-800/50 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6 text-gray-400 hover:text-white cursor-pointer" />
+                  <X className="w-6 h-6 text-gray-400 hover:text-white" />
                 </button>
               </div>
             </div>
@@ -182,8 +191,24 @@ export default function SubmissionHistory({ allOfUsersSubmissions }) {
               {/* Code Section */}
               {selectedSubmission.code && (
                 <div className="border border-zinc-700/30 bg-zinc-800/30 rounded-xl overflow-hidden">
-                  <div className="bg-zinc-800/50 px-4 py-3 border-b border-zinc-700/30">
+                  <div className="bg-zinc-800/50 px-4 py-3 border-b border-zinc-700/30 flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-white">Submitted Code</h4>
+                    <button
+                      onClick={handleCopyToEditor}
+                      className="cursor-pointer flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 hover:border-purple-500/50 rounded-lg text-purple-400 hover:text-purple-300 text-sm font-medium transition-all duration-200"
+                    >
+                      {copied ? (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy to Editor
+                        </>
+                      )}
+                    </button>
                   </div>
                   <div className="p-4 overflow-x-auto">
                     <pre className="!bg-transparent !m-0 !p-0">

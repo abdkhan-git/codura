@@ -302,6 +302,7 @@ export default function ProblemPage() {
           <ProblemDescriptionPanel
             problem={problem}
             allOfUsersSubmissions={allOfUsersSubmissions}
+            onCopyToEditor={setUsersCode}  // Add this line
           />
         </ResizablePanel>
 
