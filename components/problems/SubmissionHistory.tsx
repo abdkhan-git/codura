@@ -49,23 +49,31 @@ export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEdito
     script.async = true;
     document.body.appendChild(script);
 
-    // Load Python language support
-    const pythonScript = document.createElement('script');
-    pythonScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js';
-    pythonScript.async = true;
-    document.body.appendChild(pythonScript);
+    // Load language components
+    const languages = ['python', 'javascript', 'typescript', 'java', 'c', 'cpp', 'csharp', 'go', 'rust'];
+    const languageScripts = languages.map(lang => {
+      const langScript = document.createElement('script');
+      langScript.src = `https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-${lang}.min.js`;
+      langScript.async = true;
+      document.body.appendChild(langScript);
+      return langScript;
+    });
 
     return () => {
       document.head.removeChild(link);
       document.body.removeChild(script);
-      document.body.removeChild(pythonScript);
+      languageScripts.forEach(s => document.body.removeChild(s));
     };
   }, []);
 
   useEffect(() => {
     // Highlight code when modal opens
     if (selectedSubmission && window.Prism) {
-      window.Prism.highlightAll();
+      
+      // Small delay to ensure Prism and language components are loaded
+      setTimeout(() => {
+        window.Prism?.highlightAll();
+      }, 100);
     }
   }, [selectedSubmission]);
 
