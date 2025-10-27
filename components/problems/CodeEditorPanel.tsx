@@ -313,6 +313,8 @@ const handleCodeSubmission = async () => {
     console.log('Label:', testcaseResults.label);
     console.log('Results:', testcaseResults);
     console.log('Stats:', `${testcaseResults.passed}/${testcaseResults.total} passed`);
+    console.log('passed:',testcaseResults.passed)
+    console.log('total:',testcaseResults.total)
 
     // bottom panel
     setSubmissionResultLabel(testcaseResults.label);
@@ -321,8 +323,8 @@ const handleCodeSubmission = async () => {
     onSavedSubmission?.(savedSubmission);
 
     // ---------- 3) Normalize for AI ----------
-    const testsPassed = testcaseResults.results.filter((r: any) => r.status === 'pass').length;
-    const totalTests = testcaseResults.results.length;
+    const testsPassed = testcaseResults.passed;
+    const totalTests = testcaseResults.total;
     const status =
       savedSubmission?.status ||
       (totalTests > 0 && testsPassed === totalTests ? 'Accepted' : 'Wrong Answer');
