@@ -1,31 +1,37 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button, ButtonProps } from "@/components/ui/button";
-import { MessageSquare } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { startConversation } from "@/lib/messaging-utils";
+import { useState } from 'react';
+import { Button, ButtonProps } from '@/components/ui/button';
+import { MessageSquare } from 'lucide-react';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+import { getOrCreateDirectConversation } from '@/lib/messaging-api';
 
-interface MessageUserButtonProps extends Omit<ButtonProps, "onClick"> {
+interface MessageUserButtonProps extends Omit<ButtonProps, 'onClick'> {
   userId: string;
   userName?: string;
-  showIcon?: boolean;
 }
 
 export function MessageUserButton({
   userId,
-  userName,
-  showIcon = true,
-  children,
-  className,
+  userName = 'User',
   ...props
 }: MessageUserButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
-  const handleClick = async () => {
+  const handleMessage = async () => {
     setIsLoading(true);
     try {
-      await startConversation(userId, userName);
+      // Get or create direct message conversation
+      const conversationId = await getOrCreateDirectConversation(userId);
+
+      // Navigate to messages page with conversation selected
+      router.push(`/messages?conversation=${conversationId}`);
+      toast.success(`Opening chat with ${userName}`);
+    } catch (error) {
+      console.error('Error starting conversation:', error);
+      toast.error('Failed to open conversation');
     } finally {
       setIsLoading(false);
     }
@@ -33,19 +39,14 @@ export function MessageUserButton({
 
   return (
     <Button
-      onClick={handleClick}
+      onClick={handleMessage}
       disabled={isLoading}
-      className={cn(className)}
+      variant="outline"
+      size="sm"
       {...props}
     >
-      {isLoading ? (
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
-      ) : (
-        <>
-          {showIcon && <MessageSquare className="w-4 h-4 mr-2" />}
-          {children || "Message"}
-        </>
-      )}
+      <MessageSquare className="w-4 h-4 mr-2" />
+      {isLoading ? 'Opening...' : 'Message'}
     </Button>
   );
 }
