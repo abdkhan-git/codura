@@ -357,10 +357,94 @@ export async function sendMessage(conversationId: string, content: string, reply
       })
       .eq('id', conversationId);
 
+    // Create notifications for other participants
+    await createMessageNotifications(conversationId, session.user.id, content);
+
     return data;
   } catch (error) {
     console.error('Failed to send message:', error);
     throw error;
+  }
+}
+
+/**
+ * Create notifications for new messages
+ */
+async function createMessageNotifications(conversationId: string, senderId: string, messageContent: string) {
+  try {
+    // Get all participants except the sender
+    const { data: participants } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .eq('status', 'active')
+      .neq('user_id', senderId);
+
+    if (!participants || participants.length === 0) return;
+
+    // Get conversation details
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('type, name, is_muted')
+      .eq('id', conversationId)
+      .single();
+
+    if (!conversation) return;
+
+    // Check if conversation is muted for each user
+    const { data: mutedConversations } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .eq('is_muted', true)
+      .in('user_id', participants.map(p => p.user_id));
+
+    const mutedUserIds = new Set((mutedConversations || []).map(c => c.user_id));
+
+    // Get sender info
+    const { data: sender } = await supabase
+      .from('users')
+      .select('full_name')
+      .eq('user_id', senderId)
+      .single();
+
+    const senderName = sender?.full_name || 'Someone';
+
+    // Get notification preferences for each user
+    const { data: preferences } = await supabase
+      .from('user_notification_preferences')
+      .select('user_id, message_notifications')
+      .in('user_id', participants.map(p => p.user_id));
+
+    const preferencesMap = new Map((preferences || []).map(p => [p.user_id, p.message_notifications]));
+
+    // Create notifications for non-muted participants who have message notifications enabled
+    const notificationsToCreate = participants
+      .filter(p => !mutedUserIds.has(p.user_id) && preferencesMap.get(p.user_id) !== false)
+      .map(p => ({
+        user_id: p.user_id,
+        actor_id: senderId,
+        type: 'message',
+        notification_type: 'message',
+        title: conversation.type === 'direct' ? `${senderName} sent you a message` : `New message in ${conversation.name}`,
+        message: messageContent.substring(0, 100),
+        link: `/messages?conversation=${conversationId}`,
+        read: false,
+        priority: 'normal',
+        metadata: {
+          conversation_id: conversationId,
+          conversation_type: conversation.type,
+        }
+      }));
+
+    if (notificationsToCreate.length > 0) {
+      await supabase
+        .from('notifications')
+        .insert(notificationsToCreate);
+    }
+  } catch (error) {
+    console.error('Failed to create message notifications:', error);
+    // Don't throw - notification failure shouldn't prevent message sending
   }
 }
 

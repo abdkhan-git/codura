@@ -10,14 +10,14 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
-import { 
-  Bell, 
-  Mail, 
-  Smartphone, 
-  Users, 
-  MessageSquare, 
-  BookOpen, 
-  Trophy, 
+import {
+  Bell,
+  Mail,
+  Smartphone,
+  Users,
+  MessageSquare,
+  BookOpen,
+  Trophy,
   Zap,
   Clock,
   Save,
@@ -36,6 +36,7 @@ interface NotificationPreferences {
   study_plan_shares: boolean;
   achievement_milestones: boolean;
   system_announcements: boolean;
+  message_notifications: boolean;
   digest_frequency: string;
   quiet_hours_start?: string;
   quiet_hours_end?: string;
@@ -57,6 +58,7 @@ export default function NotificationSettingsPage() {
     study_plan_shares: true,
     achievement_milestones: true,
     system_announcements: true,
+    message_notifications: true,
     digest_frequency: 'daily',
     quiet_hours_start: '',
     quiet_hours_end: ''
@@ -260,15 +262,15 @@ export default function NotificationSettingsPage() {
           {/* Activity Notifications */}
           <Card className={cn(
             "p-6 border-2 backdrop-blur-xl",
-            theme === 'light' 
-              ? "bg-white/80 border-black/5" 
+            theme === 'light'
+              ? "bg-white/80 border-black/5"
               : "bg-zinc-950/80 border-white/5"
           )}>
             <div className="flex items-center gap-3 mb-6">
               <MessageSquare className="w-5 h-5 text-brand" />
               <h2 className="text-xl font-semibold text-foreground">Activity Notifications</h2>
             </div>
-            
+
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -295,6 +297,20 @@ export default function NotificationSettingsPage() {
                 <Switch
                   checked={preferences.activity_comments}
                   onCheckedChange={(checked) => handlePreferenceChange('activity_comments', checked)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <MessageSquare className="w-5 h-5 text-muted-foreground" />
+                  <div>
+                    <Label className="text-sm font-medium">Message Notifications</Label>
+                    <p className="text-xs text-muted-foreground">When someone sends you a direct message</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={preferences.message_notifications}
+                  onCheckedChange={(checked) => handlePreferenceChange('message_notifications', checked)}
                 />
               </div>
             </div>

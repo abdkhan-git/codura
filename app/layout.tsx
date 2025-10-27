@@ -8,6 +8,7 @@ import { LoadingBar } from "@/components/loading-bar";
 import { FaviconAnimation } from "@/components/favicon-animation";
 import { Toaster } from "@/components/ui/sonner";
 import { Suspense } from "react";
+import FloatingMessageWidget from "@/components/messaging/floating-message-widget";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,6 +57,7 @@ export default function RootLayout({
                   <LoadingBar />
                   <FaviconAnimation />
                   {children}
+                  <FloatingMessageWidget />
                   <Toaster position="top-right" richColors />
                 </LoadingProvider>
               </Suspense>
