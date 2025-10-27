@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { initializeRealtimeAuth, updateRealtimeAuth } from "@/lib/realtime-auth";
 import { FloatingMessenger } from "@/components/messaging/floating-messenger";
 
 export function MessagingProvider() {
@@ -9,51 +10,49 @@ export function MessagingProvider() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const initializeAuth = async () => {
+    const initializeMessaging = async () => {
       const supabase = createClient();
 
-      // Get current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        // Get current user
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      setUserId(user?.id || null);
+        setUserId(user?.id || null);
 
-      // CRITICAL: Set up realtime auth with current session
-      if (user) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          supabase.realtime.setAuth(session.access_token);
+        // CRITICAL: Initialize global realtime auth FIRST
+        // This ensures all future subscriptions have auth context
+        if (user) {
+          await initializeRealtimeAuth();
           console.log("✅ Realtime auth initialized for user:", user.id);
         }
+
+        // Listen to auth changes and update realtime auth
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log("🔄 Auth state changed:", event);
+
+          if (session?.access_token) {
+            updateRealtimeAuth(session.access_token);
+            setUserId(session.user?.id || null);
+          } else {
+            setUserId(null);
+          }
+        });
+
+        return () => {
+          subscription?.unsubscribe();
+        };
+      } catch (error) {
+        console.error("❌ Failed to initialize messaging provider:", error);
+      } finally {
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
-
-      // Listen to auth changes and update realtime auth whenever user logs in/out
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log("🔄 Auth state changed:", event);
-
-        if (session?.access_token) {
-          // Update realtime connection with new access token
-          supabase.realtime.setAuth(session.access_token);
-          console.log("✅ Realtime auth updated");
-          setUserId(session.user?.id || null);
-        } else {
-          // User signed out
-          setUserId(null);
-          console.log("👋 User signed out");
-        }
-      });
-
-      return () => {
-        subscription?.unsubscribe();
-      };
     };
 
-    initializeAuth();
+    initializeMessaging();
   }, []);
 
   // Only render the messenger if user is authenticated

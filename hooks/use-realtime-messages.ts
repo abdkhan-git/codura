@@ -119,14 +119,13 @@ export function useRealtimeMessages({
     }
 
     const setupChannels = async () => {
-      // Ensure auth is set for realtime
+      // Wait for global realtime auth to be initialized
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          supabase.realtime.setAuth(session.access_token);
-        }
+        const { waitForRealtimeAuth } = await import("@/lib/realtime-auth");
+        await waitForRealtimeAuth();
+        console.log("📡 Realtime auth confirmed, creating subscriptions");
       } catch (err) {
-        console.error("⚠️  Could not set realtime auth:", err);
+        console.error("⚠️  Could not wait for realtime auth:", err);
       }
 
       // Subscribe to new messages
