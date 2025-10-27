@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
-import { useRealtimeMessaging } from "@/hooks/use-realtime-messaging";
+import { useRealtimeMessages } from "@/hooks/use-realtime-messages";
 import { useRealtimeConversations } from "@/hooks/use-realtime-conversations";
 import { useRealtimeTyping } from "@/hooks/use-realtime-typing";
 import { ConversationMenuModal } from "@/components/messaging/conversation-menu-modal";
@@ -72,7 +72,7 @@ export default function MessagesPage() {
     error: messagesError,
     sendMessage,
     markAsRead
-  } = useRealtimeMessaging({
+  } = useRealtimeMessages({
     conversationId: activeConversation,
     currentUserId
   });
