@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Play, RotateCcw, Loader2, CloudUploadIcon } from 'lucide-react'
+import { Play, RotateCcw, Loader2, CloudUploadIcon, CheckCircle2, X } from 'lucide-react'
 import Editor, { useMonaco } from '@monaco-editor/react'
 import { LANGUAGES } from '@/utils/languages'
 import TestCasesSection from './TestCasesSection'
@@ -83,6 +83,7 @@ export default function CodeEditorPanel({
   const [activeBottomTab, setActiveBottomTab] = useState<'testcases' | 'results'>('testcases')
   const [submissionResult, setSubmissionResult] = useState<SubmissionResult | undefined>()
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [hasSubmitted, setHasSubmitted] = useState(false)
   const [resultsVersion, setResultsVersion] = useState(0)
 
   useEffect(() => {
@@ -393,6 +394,7 @@ const handleCodeSubmission = async () => {
 
     setSubmissionResult(modalResult);
     setIsModalOpen(true);
+    setHasSubmitted(true);
 
     // ---------- 6) Call legacy hooks LAST (optional) ----------
     if (onAiChat) await onAiChat(usersCode, userLang.id);
@@ -513,6 +515,31 @@ const handleCodeSubmission = async () => {
                   </>
                 )}
               </Button>
+
+              {/* Show submission status button after first submission */}
+              {hasSubmitted && submissionResult && (
+                <Button
+                  size="sm"
+                  className={`cursor-pointer font-weight-300 text-sm ${
+                    submissionResult.status === 'Accepted'
+                      ? 'bg-green-600 hover:bg-green-500 text-white'
+                      : 'bg-red-600 hover:bg-red-500 text-white'
+                  }`}
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  {submissionResult.status === 'Accepted' ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Accepted
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4" />
+                      {submissionResult.status}
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
 
             {/* Right: reset */}
