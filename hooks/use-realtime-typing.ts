@@ -14,6 +14,17 @@ interface UseRealtimeTypingProps {
   currentUserId: string;
 }
 
+/**
+ * Bulletproof real-time typing indicators hook
+ *
+ * Implementation strategy: Postgres Changes + RLS
+ * - Server-side filter by conversation_id
+ * - Real-time sync of typing_indicators table
+ * - 3-second debounce on client send
+ * - 5-second auto-cleanup of received indicators
+ *
+ * RLS Policy allows users to see typing indicators in conversations they're in
+ */
 export function useRealtimeTyping({
   conversationId,
   currentUserId,
@@ -27,12 +38,20 @@ export function useRealtimeTyping({
     new Map()
   );
   const userTypingRef = useRef(false);
+  const lastSendTimeRef = useRef(0);
 
   // Send typing indicator
   const sendTypingIndicator = useCallback(async () => {
     if (!conversationId) return;
 
-    // Don't send too frequently
+    // Debounce: Don't send more than once per 1 second
+    const now = Date.now();
+    if (now - lastSendTimeRef.current < 1000) {
+      return;
+    }
+    lastSendTimeRef.current = now;
+
+    // Track typing state
     if (userTypingRef.current) {
       // Reset the auto-stop timeout
       if (typingTimeoutRef.current) {
@@ -48,12 +67,12 @@ export function useRealtimeTyping({
         headers: { "Content-Type": "application/json" },
       });
 
-      console.log("⌨️ Typing indicator sent");
+      console.log("⌨️  Typing indicator sent");
     } catch (err) {
-      console.error("Error sending typing indicator:", err);
+      console.error("❌ Error sending typing indicator:", err);
     }
 
-    // Auto-stop typing after 3 seconds of inactivity
+    // Auto-stop after 3 seconds of inactivity
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
@@ -77,12 +96,11 @@ export function useRealtimeTyping({
     try {
       await fetch(`/api/conversations/${conversationId}/typing`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
       });
 
-      console.log("⌨️ Typing indicator stopped");
+      console.log("⌨️  Typing indicator stopped");
     } catch (err) {
-      console.error("Error stopping typing indicator:", err);
+      console.error("❌ Error stopping typing indicator:", err);
     }
   }, [conversationId]);
 
@@ -99,127 +117,133 @@ export function useRealtimeTyping({
       typingChannelRef.current = null;
     }
 
-    // Subscribe to typing indicators using postgres_changes
-    // Note: No server-side filter because RLS policy might be restrictive
-    const typingChannel = supabase
-      .channel(`typing:${conversationId}`, { config: { private: true } })
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "conversation_typing_indicators",
-        },
-        async (payload: any) => {
-          const indicator = payload.new;
+    const setupTypingChannel = async () => {
+      // Ensure auth is set for realtime
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          supabase.realtime.setAuth(session.access_token);
+        }
+      } catch (err) {
+        console.error("⚠️  Could not set realtime auth:", err);
+      }
 
-          // Client-side filtering: Only process if from current conversation
-          if (indicator.conversation_id !== conversationId) {
-            return;
-          }
+      // Subscribe to typing indicators
+      const typingChannel = supabase
+        .channel(`typing-${conversationId}`, { config: { private: true } })
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "conversation_typing_indicators",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          async (payload: any) => {
+            const indicator = payload.new;
 
-          // Ignore own typing indicator
-          if (indicator.user_id === currentUserId) {
-            console.log("⏭️ Ignoring own typing indicator");
-            return;
-          }
-
-          console.log("⌨️ Typing indicator received from:", indicator.user_id);
-
-          // Fetch user info
-          const { data: user } = await supabase
-            .from("users")
-            .select("user_id, full_name, username")
-            .eq("user_id", indicator.user_id)
-            .single();
-
-          if (user) {
-            setTypingUsers((prev) => {
-              const exists = prev.some((u) => u.user_id === user.user_id);
-              if (exists) {
-                // Update timeout for existing typing user - reset it
-                const existingTimeout = typingUsersTimeoutRef.current.get(
-                  user.user_id
-                );
-                if (existingTimeout) {
-                  clearTimeout(existingTimeout);
-                }
-              } else {
-                // Add new typing user
-                return [
-                  ...prev,
-                  {
-                    user_id: user.user_id,
-                    name: user.full_name || user.username || "Someone",
-                  },
-                ];
-              }
-              return prev;
-            });
-
-            // Auto-remove typing indicator after 5 seconds of inactivity
-            const existingTimeout = typingUsersTimeoutRef.current.get(
-              user.user_id
-            );
-            if (existingTimeout) {
-              clearTimeout(existingTimeout);
+            // Ignore own typing indicator
+            if (indicator.user_id === currentUserId) {
+              return;
             }
 
-            const newTimeout = setTimeout(() => {
-              console.log("⏱️ Removing typing indicator for:", user.user_id);
-              setTypingUsers((prev) =>
-                prev.filter((u) => u.user_id !== user.user_id)
+            console.log("⌨️  User typing:", indicator.user_id);
+
+            // Fetch user info
+            const { data: user } = await supabase
+              .from("users")
+              .select("user_id, full_name, username")
+              .eq("user_id", indicator.user_id)
+              .single();
+
+            if (user) {
+              setTypingUsers((prev) => {
+                const exists = prev.some((u) => u.user_id === user.user_id);
+
+                // Clear existing timeout if user is already typing
+                if (exists) {
+                  const existingTimeout = typingUsersTimeoutRef.current.get(
+                    user.user_id
+                  );
+                  if (existingTimeout) {
+                    clearTimeout(existingTimeout);
+                  }
+                } else {
+                  // Add new typing user
+                  return [
+                    ...prev,
+                    {
+                      user_id: user.user_id,
+                      name: user.full_name || user.username || "Someone",
+                    },
+                  ];
+                }
+
+                return prev;
+              });
+
+              // Set 5-second timeout to remove typing indicator
+              const existingTimeout = typingUsersTimeoutRef.current.get(
+                user.user_id
               );
-              typingUsersTimeoutRef.current.delete(user.user_id);
-            }, 5000);
+              if (existingTimeout) {
+                clearTimeout(existingTimeout);
+              }
 
-            typingUsersTimeoutRef.current.set(user.user_id, newTimeout);
+              const newTimeout = setTimeout(() => {
+                console.log("⏱️  Typing timeout for:", user.user_id);
+                setTypingUsers((prev) =>
+                  prev.filter((u) => u.user_id !== user.user_id)
+                );
+                typingUsersTimeoutRef.current.delete(user.user_id);
+              }, 5000);
+
+              typingUsersTimeoutRef.current.set(user.user_id, newTimeout);
+            }
           }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "conversation_typing_indicators",
-        },
-        async (payload: any) => {
-          const indicator = payload.old;
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "conversation_typing_indicators",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload: any) => {
+            const indicator = payload.old;
 
-          // Client-side filtering: Only process if from current conversation
-          if (indicator.conversation_id !== conversationId) {
-            return;
+            if (indicator.user_id === currentUserId) {
+              return;
+            }
+
+            console.log("🛑 Typing stopped:", indicator.user_id);
+
+            // Clear timeout immediately
+            const timeout = typingUsersTimeoutRef.current.get(indicator.user_id);
+            if (timeout) {
+              clearTimeout(timeout);
+              typingUsersTimeoutRef.current.delete(indicator.user_id);
+            }
+
+            // Remove immediately
+            setTypingUsers((prev) =>
+              prev.filter((u) => u.user_id !== indicator.user_id)
+            );
           }
-
-          if (indicator.user_id === currentUserId) {
-            return;
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            console.log("✅ Subscribed to typing indicators:", conversationId);
+          } else if (status === "CHANNEL_ERROR") {
+            console.error("❌ Channel error subscribing to typing indicators");
           }
+        });
 
-          console.log("🛑 Typing stopped:", indicator.user_id);
+      typingChannelRef.current = typingChannel;
+    };
 
-          // Clear timeout immediately
-          const timeout = typingUsersTimeoutRef.current.get(indicator.user_id);
-          if (timeout) {
-            clearTimeout(timeout);
-            typingUsersTimeoutRef.current.delete(indicator.user_id);
-          }
-
-          // Remove immediately
-          setTypingUsers((prev) =>
-            prev.filter((u) => u.user_id !== indicator.user_id)
-          );
-        }
-      )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          console.log("✅ Subscribed to typing indicators for conversation:", conversationId);
-        } else if (status === "CHANNEL_ERROR") {
-          console.error("❌ Channel error subscribing to typing indicators");
-        }
-      });
-
-    typingChannelRef.current = typingChannel;
+    setupTypingChannel();
 
     // Cleanup on unmount or conversation change
     return () => {
@@ -227,32 +251,21 @@ export function useRealtimeTyping({
         supabase.removeChannel(typingChannelRef.current);
         typingChannelRef.current = null;
       }
+
+      // Clear all timeouts
+      typingUsersTimeoutRef.current.forEach((timeout) => {
+        clearTimeout(timeout);
+      });
+      typingUsersTimeoutRef.current.clear();
+
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-      typingUsersTimeoutRef.current.forEach((timeout) => clearTimeout(timeout));
-      typingUsersTimeoutRef.current.clear();
-    };
-  }, [conversationId, currentUserId, supabase]);
 
-  // Cleanup on component unmount
-  useEffect(() => {
-    return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      typingUsersTimeoutRef.current.forEach((timeout) => clearTimeout(timeout));
-      typingUsersTimeoutRef.current.clear();
-
-      // Notify server that user stopped typing on unmount
-      if (conversationId && userTypingRef.current) {
-        fetch(`/api/conversations/${conversationId}/typing`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-        }).catch(console.error);
-      }
+      // Stop typing when leaving conversation
+      stopTypingIndicator();
     };
-  }, [conversationId]);
+  }, [conversationId, currentUserId, supabase, stopTypingIndicator]);
 
   return {
     typingUsers,
