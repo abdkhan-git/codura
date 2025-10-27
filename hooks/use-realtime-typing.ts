@@ -99,7 +99,8 @@ export function useRealtimeTyping({
       typingChannelRef.current = null;
     }
 
-    // Subscribe to typing indicators using postgres_changes with server-side filter
+    // Subscribe to typing indicators using postgres_changes
+    // Note: No server-side filter because RLS policy might be restrictive
     const typingChannel = supabase
       .channel(`typing:${conversationId}`, { config: { private: true } })
       .on(
@@ -108,10 +109,14 @@ export function useRealtimeTyping({
           event: "INSERT",
           schema: "public",
           table: "conversation_typing_indicators",
-          filter: `conversation_id=eq.${conversationId}`,
         },
         async (payload: any) => {
           const indicator = payload.new;
+
+          // Client-side filtering: Only process if from current conversation
+          if (indicator.conversation_id !== conversationId) {
+            return;
+          }
 
           // Ignore own typing indicator
           if (indicator.user_id === currentUserId) {
@@ -178,10 +183,14 @@ export function useRealtimeTyping({
           event: "DELETE",
           schema: "public",
           table: "conversation_typing_indicators",
-          filter: `conversation_id=eq.${conversationId}`,
         },
         async (payload: any) => {
           const indicator = payload.old;
+
+          // Client-side filtering: Only process if from current conversation
+          if (indicator.conversation_id !== conversationId) {
+            return;
+          }
 
           if (indicator.user_id === currentUserId) {
             return;

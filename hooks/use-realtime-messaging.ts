@@ -112,6 +112,7 @@ export function useRealtimeMessaging({
     }
 
     // Subscribe to new messages and message updates
+    // Note: No server-side filter to avoid RLS policy restrictions with filtering
     const messageChannel = supabase
       .channel(`conversation:${conversationId}:messages`, { config: { private: true } })
       .on(
@@ -120,10 +121,14 @@ export function useRealtimeMessaging({
           event: "INSERT",
           schema: "public",
           table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
         },
         async (payload: any) => {
           const newMessage = payload.new as Message;
+
+          // Client-side filtering: Only process if from current conversation
+          if (newMessage.conversation_id !== conversationId) {
+            return;
+          }
 
           // Skip if we already processed this message
           if (processedMessageIdsRef.current.has(newMessage.id)) {
@@ -168,10 +173,14 @@ export function useRealtimeMessaging({
           event: "UPDATE",
           schema: "public",
           table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
         },
         (payload: any) => {
           const updatedMessage = payload.new as Message;
+
+          // Client-side filtering: Only process if from current conversation
+          if (updatedMessage.conversation_id !== conversationId) {
+            return;
+          }
 
           console.log("🔄 Message updated (reactions/edit):", updatedMessage.id);
 
