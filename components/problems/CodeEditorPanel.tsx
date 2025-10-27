@@ -9,6 +9,7 @@ import { Play, RotateCcw, Loader2, CloudUploadIcon } from 'lucide-react'
 import Editor, { useMonaco } from '@monaco-editor/react'
 import { LANGUAGES } from '@/utils/languages'
 import TestCasesSection from './TestCasesSection'
+import SubmissionResultModal from './SubmissionResultModal'
 import { createClient } from '@/utils/supabase/client'
 
 // ============================================
@@ -78,10 +79,10 @@ export default function CodeEditorPanel({
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
-  const [submissionResultLabel, setSubmissionResultLabel] = useState('')
   const [testcaseResults, setTestcaseResults] = useState<any[] | undefined>(undefined)
   const [activeBottomTab, setActiveBottomTab] = useState<'testcases' | 'results'>('testcases')
   const [submissionResult, setSubmissionResult] = useState<SubmissionResult | undefined>()
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const [resultsVersion, setResultsVersion] = useState(0)
 
   useEffect(() => {
@@ -149,13 +150,11 @@ const handleCodeRunning = async () => {
     // ---------- DEV path: if judge is disabled, don't call /run ----------
     if (judgeDisabled()) {
       console.warn('[DEV] Judge disabled — skipping /run')
-      const label = 'Judge offline in dev'
       const results = (testcases || []).map((_, i) => ({
         status: 'error',
         message: 'Judge unavailable',
         testNumber: i + 1,
       }))
-      setSubmissionResultLabel(label)
       setTestcaseResults(results)
       setResultsVersion(v => v + 1); setActiveBottomTab('results');
       setIsRunning(false)
@@ -179,17 +178,13 @@ const handleCodeRunning = async () => {
     const data = await response.json()
 
     let results: any[] = []
-    let label = ''
 
     if (data?.testcaseResults) {
       results = data.testcaseResults.results || []
-      label = data.testcaseResults.label || ''
     } else if (data?.results) {
       results = data.results
-      label = data.label || ''
     }
 
-    setSubmissionResultLabel(label)
     setTestcaseResults(results)
     setResultsVersion(v => v + 1); setActiveBottomTab('results');
   } catch (e) {
@@ -219,8 +214,7 @@ const handleCodeSubmission = async () => {
       const totalTests = testcases?.length || 0;
       const status = 'Judge Offline';
 
-      // bottom panel
-      setSubmissionResultLabel('Judge offline in dev');
+      // bottom panel - keep showing test case results
       setTestcaseResults((testcases || []).map((_, i) => ({
         status: 'error',
         message: 'Judge unavailable',
@@ -316,8 +310,7 @@ const handleCodeSubmission = async () => {
     console.log('passed:',testcaseResults.passed)
     console.log('total:',testcaseResults.total)
 
-    // bottom panel
-    setSubmissionResultLabel(testcaseResults.label);
+    // bottom panel - keep showing test case results from run
     setTestcaseResults(testcaseResults.results);
     setResultsVersion(v => v + 1); setActiveBottomTab('results');
     onSavedSubmission?.(savedSubmission);
@@ -387,8 +380,8 @@ const handleCodeSubmission = async () => {
       console.warn('AI initial-analysis POST failed (non-fatal):', e);
     }
 
-    // compact display object
-    setSubmissionResult({
+    // Create submission result for modal
+    const modalResult: SubmissionResult = {
       status,
       description: testcaseResults.label || '',
       testResults: testcaseResults.results,
@@ -396,7 +389,10 @@ const handleCodeSubmission = async () => {
       passedTests: testsPassed,
       runtime,
       memory,
-    });
+    };
+
+    setSubmissionResult(modalResult);
+    setIsModalOpen(true);
 
     // ---------- 6) Call legacy hooks LAST (optional) ----------
     if (onAiChat) await onAiChat(usersCode, userLang.id);
@@ -415,12 +411,24 @@ const handleCodeSubmission = async () => {
       status: 'Error',
     });
 
-    setSubmissionResultLabel('Submit failed');
-    setTestcaseResults([{
-      status: 'error',
+    const errorResults = [{
+      status: 'error' as const,
       message: error instanceof Error ? error.message : 'Unknown error',
       testNumber: 1,
-    }]);
+    }];
+
+    setTestcaseResults(errorResults);
+
+    // Show error in modal too
+    setSubmissionResult({
+      status: 'Error',
+      description: 'Submit failed',
+      testResults: errorResults,
+      totalTests: testcases?.length || 0,
+      passedTests: 0,
+    });
+    setIsModalOpen(true);
+
     setResultsVersion(v => v + 1); setActiveBottomTab('results');
   } finally {
     setIsSubmitting(false);
@@ -438,10 +446,20 @@ const handleCodeSubmission = async () => {
   }
 
   return (
-    <ResizablePanelGroup direction="vertical">
-      {/* Code Editor */}
-      <ResizablePanel defaultSize={60} minSize={30}>
-        <div className="h-full flex flex-col">
+    <>
+      {/* Submission Result Modal */}
+      {submissionResult && (
+        <SubmissionResultModal
+          submissionResult={submissionResult}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
+
+      <ResizablePanelGroup direction="vertical">
+        {/* Code Editor */}
+        <ResizablePanel defaultSize={60} minSize={30}>
+          <div className="h-full flex flex-col">
           <div className="flex justify-between">
             {/* Left: language + actions */}
             <div className="border-b p-2 flex items-center gap-3">
@@ -555,22 +573,22 @@ const handleCodeSubmission = async () => {
               />
             </div>
           </div>
-        </div>
-      </ResizablePanel>
+          </div>
+        </ResizablePanel>
 
-      <ResizableHandle withHandle />
+        <ResizableHandle withHandle />
 
-      {/* Bottom: Test Cases & Results */}
-      <ResizablePanel defaultSize={60} minSize={20}>
-        <TestCasesSection
-          key={resultsVersion}
-          testcases={testcases}
-          testcaseResults={testcaseResults}
-          activeBottomTab={activeBottomTab}
-          setActiveBottomTab={setActiveBottomTab}
-          submissionResult={submissionResult}
-        />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+        {/* Bottom: Test Cases & Results */}
+        <ResizablePanel defaultSize={60} minSize={20}>
+          <TestCasesSection
+            key={resultsVersion}
+            testcases={testcases}
+            testcaseResults={testcaseResults}
+            activeBottomTab={activeBottomTab}
+            setActiveBottomTab={setActiveBottomTab}
+          />
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </>
   )
 }

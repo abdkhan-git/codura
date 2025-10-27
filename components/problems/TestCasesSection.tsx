@@ -44,7 +44,6 @@ interface TestCasesSectionProps {
   testcaseResults?: TestcaseResult[] | undefined
   activeBottomTab: BottomTab
   setActiveBottomTab: (tab: BottomTab) => void
-  submissionResult?: SubmissionResult
 }
 
 export default function TestCasesSection({
@@ -52,7 +51,6 @@ export default function TestCasesSection({
   testcaseResults,
   activeBottomTab,
   setActiveBottomTab,
-  submissionResult,
 }: TestCasesSectionProps) {
   return (
     <div className="h-full border-t flex flex-col">
@@ -108,10 +106,8 @@ export default function TestCasesSection({
 
         {/* Results Tab */}
         <TabsContent value="results" className="flex-1 overflow-y-auto flex flex-col m-0 min-h-0">
-          {/* Priority: submissionResult > testcaseResults > empty */}
-          {submissionResult ? (
-            <SubmissionResultDisplay submissionResult={submissionResult} />
-          ) : testcaseResults && testcaseResults.length > 0 ? (
+          {/* Show testcaseResults from run, or empty state */}
+          {testcaseResults && testcaseResults.length > 0 ? (
             <TestcaseResultsDisplay testcaseResults={testcaseResults} />
           ) : (
             <div className="p-4">
@@ -278,66 +274,6 @@ function TestcaseResultsDisplay({ testcaseResults }: { testcaseResults: Testcase
 }
 
 // ============================================
-// SUBMISSION RESULT DISPLAY (normalized AI format)
-// ============================================
-
-function SubmissionResultDisplay({ submissionResult }: { submissionResult: SubmissionResult }) {
-  const isSuccess =
-    submissionResult.status === 'Accepted' ||
-    submissionResult.passedTests === submissionResult.totalTests
-
-  return (
-    <div className="p-4 space-y-4 overflow-y-auto h-full">
-      {/* Overall */}
-      <div
-        className={`p-4 rounded-lg border ${
-          isSuccess ? 'bg-green-950/30 border-green-900' : 'bg-red-950/30 border-red-900'
-        }`}
-      >
-        <div className="flex items-center gap-3 mb-2">
-          {isSuccess ? <CheckCircle2 className="w-6 h-6 text-green-500" /> : <XCircle className="w-6 h-6 text-red-500" />}
-          <h3 className={`text-lg font-bold ${isSuccess ? 'text-green-400' : 'text-red-400'}`}>{submissionResult.status}</h3>
-        </div>
-
-        {submissionResult.description && (
-          <p className="text-sm text-muted-foreground mb-2">{submissionResult.description}</p>
-        )}
-
-        {typeof submissionResult.totalTests !== 'undefined' && (
-          <div className="flex items-center gap-2">
-            <Badge variant={isSuccess ? 'default' : 'destructive'}>
-              {submissionResult.passedTests || 0} / {submissionResult.totalTests} test cases passed
-            </Badge>
-          </div>
-        )}
-      </div>
-
-      {/* Perf */}
-      {(submissionResult.runtime || submissionResult.memory) && (
-        <div className="grid grid-cols-2 gap-3">
-          {submissionResult.runtime && (
-            <MetricCard label="Runtime" value={submissionResult.runtime} />
-          )}
-          {submissionResult.memory && (
-            <MetricCard label="Memory" value={submissionResult.memory} />
-          )}
-        </div>
-      )}
-
-      {/* Per-case */}
-      {submissionResult.testResults?.length ? (
-        <div className="space-y-3">
-          <h4 className="font-semibold text-sm">Test Case Results:</h4>
-          {submissionResult.testResults.map((r, i) => (
-            <TestResultCard key={i} result={r} index={i} />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-// ============================================
 // SMALL UI HELPERS
 // ============================================
 
@@ -367,18 +303,6 @@ function StatusPill({ result }: { result: TestcaseResult }) {
   )
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-muted p-3 rounded-lg border">
-      <div className="flex items-center gap-2 mb-1">
-        {label.toLowerCase() === 'runtime' && <Clock className="w-4 h-4 text-blue-400" />}
-        <span className="text-xs text-zinc-400">{label}</span>
-      </div>
-      <p className="text-sm font-mono font-semibold">{value}</p>
-    </div>
-  )
-}
-
 function KVLine({
   label,
   value,
@@ -404,75 +328,6 @@ function KVLine({
         ].join(' ')}
       >
         {typeof value === 'string' ? value : JSON.stringify(value)}
-      </div>
-    </div>
-  )
-}
-
-function TestResultCard({ result, index }: { result: TestcaseResult; index: number }) {
-  const passed = isPassed(result)
-  return (
-    <div
-      className={`p-3 rounded-lg border ${
-        passed ? 'bg-green-950/20 border-green-900/50' : 'bg-red-950/20 border-red-900/50'
-      }`}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          {passed ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />}
-          <span className="text-sm font-semibold">Test Case {index + 1}</span>
-        </div>
-        {result.executionTime && (
-          <span className="text-xs text-muted-foreground">{result.executionTime}ms</span>
-        )}
-      </div>
-
-      <div className="space-y-2 text-xs">
-        {result.input && (
-          <div>
-            <span className="text-zinc-400">Input: </span>
-            <span className="font-mono">{JSON.stringify(result.input)}</span>
-          </div>
-        )}
-
-        {(result.expectedOutput || result.expected) && (
-          <div>
-            <span className="text-zinc-400">Expected: </span>
-            <span className="font-mono text-green-400">
-              {JSON.stringify(result.expectedOutput ?? result.expected)}
-            </span>
-          </div>
-        )}
-
-        {(result.actualOutput || result.actual) && (
-          <div>
-            <span className="text-zinc-400">Got: </span>
-            <span className={`font-mono ${passed ? 'text-green-400' : 'text-red-400'}`}>
-              {JSON.stringify(result.actualOutput ?? result.actual)}
-            </span>
-          </div>
-        )}
-
-        {result.stdout && (
-          <div>
-            <span className="text-zinc-400">Stdout: </span>
-            <span className="font-mono">{result.stdout}</span>
-          </div>
-        )}
-
-        {result.stderr && (
-          <div>
-            <span className="text-zinc-400">Stderr: </span>
-            <span className="font-mono">{result.stderr}</span>
-          </div>
-        )}
-
-        {result.error && (
-          <div className="mt-2 p-2 bg-red-950/30 rounded text-red-400">
-            <span className="font-semibold">Error: </span>
-            {result.error}
-          </div>
-        )}
       </div>
     </div>
   )
