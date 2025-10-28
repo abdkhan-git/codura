@@ -5,9 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import Image from "next/image";
-import CoduraLogo from "@/components/logos/codura-logo.svg";
-import CoduraLogoDark from "@/components/logos/codura-logo-dark.svg";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import {
@@ -26,10 +23,8 @@ import {
   X,
   Plus,
   MoreVertical,
-  Settings,
-  ChevronDown,
   BarChart3,
-  User
+  Settings,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import {
@@ -38,40 +33,12 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"; // Ensure this file exists or update the path to the correct location
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { PlanDialog } from "@/components/study-plans/plan-dialog";
 import { StudyPlanDetailDialog } from "@/components/study-plans/study-plan-detail-dialog";
 import QuestionnaireModal from "@/components/QuestionnaireModal";
 import OnboardingModal from "@/components/OnboardingModal";
-
-// Theme-aware user name component
-function UserNameText({ name, email }: { name: string; email: string }) {
-  const { theme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const isDark = mounted ? (resolvedTheme === 'dark' || theme === 'dark') : false;
-
-  return (
-    <div className="flex-1 min-w-0">
-      <p className="text-sm font-semibold truncate" style={{ color: isDark ? '#F4F4F5' : '#18181B' }}>
-        {name}
-      </p>
-      <p className="text-xs truncate" style={{ color: isDark ? '#A1A1AA' : '#71717A' }}>
-        {email}
-      </p>
-    </div>
-  );
-}
+import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 
 // User data type
 interface UserData {
@@ -387,7 +354,6 @@ export default function DashboardPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showBorder, setShowBorder] = useState(false);
   const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
@@ -538,7 +504,11 @@ export default function DashboardPage() {
 
       if (!response.ok) throw new Error('Failed to delete event');
 
-      await refetchDashboard(); // OPTIMIZED: Use unified refetch
+      // Update state immediately without refetch
+      setUpcomingEvents(prev => prev.filter(event => event.id !== eventId));
+      setRecentActivity(prev => prev.filter(activity => 
+        !(activity.type === 'event_created' && activity.metadata?.event_id === eventId)
+      ));
     } catch (error) {
       console.error('Error deleting event:', error);
       alert('Failed to delete event');
@@ -569,14 +539,6 @@ export default function DashboardPage() {
     }
   };
 
-  React.useEffect(() => {
-    const evaluateScrollPosition = () => {
-      setShowBorder(window.pageYOffset >= 24);
-    };
-    window.addEventListener("scroll", evaluateScrollPosition);
-    evaluateScrollPosition();
-    return () => window.removeEventListener("scroll", evaluateScrollPosition);
-  }, []);
 
   // Show loading state
   if (isLoading) {
@@ -669,149 +631,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Navbar matching landing page */}
-      <header
-        className={cn(
-          "fixed inset-x-0 top-0 z-50 border-b border-b-transparent bg-gradient-to-b shadow-none backdrop-blur-none transition-all duration-500",
-          showBorder
-            ? "border-b-border/50 shadow-xl backdrop-blur-md from-background/80 to-background/50"
-            : ""
-        )}
-      >
-        <div className="flex items-center justify-between py-4 max-w-7xl mx-auto px-6">
-          <Link href="/" aria-label="Codura homepage" className="flex items-center group">
-            <Image
-              src={currentTheme === 'light' ? CoduraLogoDark : CoduraLogo}
-              alt="Codura logo"
-              width={90}
-              height={40}
-              priority
-              className="transition-all duration-200 group-hover:opacity-80"
-            />
-          </Link>
-
-          <nav className="hidden items-center gap-6 text-base leading-7 font-light text-muted-foreground lg:flex">
-            <Link className="hover:text-foreground transition-colors" href="/problems">
-              Problems
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/mock-interview">
-              Interview
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/study-pods">
-              Study Pods
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/leaderboards">
-              Leaderboards
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/discuss">
-              Discuss
-            </Link>
-          </nav>
-
-
-          {/* User Menu */}
-          <div className="flex items-center gap-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 hover:bg-muted/50 rounded-lg">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white font-semibold text-sm overflow-hidden relative ring-1 ring-border/50">
-                    {user.avatar && user.avatar.startsWith('http') ? (
-                      <img
-                        src={user.avatar}
-                        alt="Avatar"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-sm">{user.avatar}</span>
-                    )}
-                  </div>
-                  <span className="hidden sm:inline text-sm text-foreground font-medium">
-                    {user.name.split(' ')[0]}
-                  </span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-[280px] border border-border/50 bg-card/95 backdrop-blur-sm shadow-lg rounded-xl"
-              >
-                {/* Profile Header - Modern & Elegant */}
-                <div className="px-4 py-4 mb-1">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white font-semibold overflow-hidden ring-1 ring-border/50">
-                        {user.avatar && user.avatar.startsWith('http') ? (
-                          <img
-                            src={user.avatar}
-                            alt="Avatar"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-sm">{user.avatar}</span>
-                        )}
-                      </div>
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full ring-2 ring-background" />
-                    </div>
-                    <UserNameText name={user.name} email={user.email} />
-                  </div>
-                </div>
-
-                {/* Divider */}
-                <div className="h-px bg-border/30 my-2" />
-
-                {/* Menu Items - Balanced Design */}
-                <div className="py-1 space-y-0.5">
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href={`/profile/${user?.username || ''}`}
-                      className="flex items-center gap-3 px-4 py-2.5 cursor-pointer text-sm font-medium group hover:bg-muted/50 rounded-lg mx-2"
-                    >
-                      <div className="w-5 h-5 rounded-md bg-gradient-to-br from-brand to-blue-600 dark:from-brand dark:to-orange-400 flex items-center justify-center group-hover:from-blue-600 group-hover:to-blue-700 dark:group-hover:from-orange-500 dark:group-hover:to-orange-600 transition-all shadow-sm">
-                        <User className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-                      </div>
-                      <span className="text-foreground">Profile</span>
-                    </Link>
-                  </DropdownMenuItem>
-
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href="/settings"
-                      className="flex items-center gap-3 px-4 py-2.5 cursor-pointer text-sm font-medium group hover:bg-muted/50 rounded-lg mx-2"
-                    >
-                      <div className="w-5 h-5 rounded-md bg-gradient-to-br from-slate-500 to-slate-600 dark:from-brand dark:to-orange-400 flex items-center justify-center group-hover:from-slate-600 group-hover:to-slate-700 dark:group-hover:from-orange-500 dark:group-hover:to-orange-600 transition-all shadow-sm">
-                        <Settings className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-                      </div>
-                      <span className="text-foreground">Settings</span>
-                    </Link>
-                  </DropdownMenuItem>
-                </div>
-
-                {/* Divider */}
-                <div className="h-px bg-border/30 my-2" />
-
-                {/* Sign Out - Professional Emphasis */}
-                <div className="py-1">
-                  <DropdownMenuItem
-                    variant="destructive"
-                    className="flex items-center gap-3 px-4 py-2.5 cursor-pointer text-sm font-medium group hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg mx-2"
-                    onClick={async () => {
-                      await fetch('/auth/signout', { method: 'POST' });
-                      window.location.href = '/';
-                    }}
-                  >
-                    <div className="w-5 h-5 rounded-md bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center group-hover:from-red-600 group-hover:to-red-700 transition-all shadow-sm">
-                      <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                    </div>
-                    <span className="text-red-600">Sign out</span>
-                  </DropdownMenuItem>
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
+      {/* New Liquid Glass Navbar */}
+      <DashboardNavbar user={user} />
 
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-16">

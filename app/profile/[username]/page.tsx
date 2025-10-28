@@ -6,8 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
-import CoduraLogo from "@/components/logos/codura-logo.svg";
-import CoduraLogoDark from "@/components/logos/codura-logo-dark.svg";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import {
@@ -24,9 +22,12 @@ import {
   Github,
   Linkedin,
   Globe,
-  CheckCircle2
+  CheckCircle2,
+  Users
 } from "lucide-react";
 import { EditProfileDialog } from "@/components/edit-profile-dialog";
+import { MessageUserButton } from "@/components/messaging/message-user-button";
+import { ConnectionStatusButton } from "@/components/connections/connection-status-button";
 import { UserProfile, UserStats, Submission } from "@/types/database";
 import RecentSubmissions from "@/components/RecentSubmissions";
 import ActivityCalendar from "react-activity-calendar";
@@ -40,6 +41,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import DashboardNavbar from "@/components/navigation/dashboard-navbar";
+import { RecentActivityCard } from "@/components/social/recent-activity-card";
+import { ConnectionsModal } from "@/components/connections/connections-modal";
 
 interface Achievement {
   achievement_id: string;
@@ -71,6 +75,7 @@ interface ProfileData {
   achievementSummary: AchievementSummary;
   publicLists?: any[];
   isPrivate?: boolean;
+  connectionStatus?: 'none' | 'pending_sent' | 'pending_received' | 'connected';
 }
 
 const generateContributionData = (submissions: Submission[]) => {
@@ -126,7 +131,6 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
   const username = resolvedParams.username;
   const { theme } = useTheme();
 
-  const [showBorder, setShowBorder] = useState(false);
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -134,21 +138,36 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
   const [userLists, setUserLists] = useState<any[]>([]);
   const [selectedList, setSelectedList] = useState<any | null>(null);
   const [showListDialog, setShowListDialog] = useState(false);
+  const [connectionCount, setConnectionCount] = useState<number | null>(null);
+  const [canViewConnections, setCanViewConnections] = useState(false);
+  const [showConnectionsModal, setShowConnectionsModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
-
-  useEffect(() => {
-    const evaluateScrollPosition = () => {
-      setShowBorder(window.pageYOffset >= 24);
-    };
-    window.addEventListener("scroll", evaluateScrollPosition);
-    evaluateScrollPosition();
-    return () => window.removeEventListener("scroll", evaluateScrollPosition);
-  }, []);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     fetchProfile();
   }, [username]);
+
+  // Fetch connection count when profile is loaded
+  useEffect(() => {
+    async function fetchConnectionCount() {
+      if (!profileData?.profile?.user_id) return;
+
+      try {
+        const response = await fetch(`/api/users/${profileData.profile.user_id}/connections/count`);
+        if (response.ok) {
+          const data = await response.json();
+          setConnectionCount(data.count);
+          setCanViewConnections(data.can_view_list);
+        }
+      } catch (error) {
+        console.error('Error fetching connection count:', error);
+      }
+    }
+
+    fetchConnectionCount();
+  }, [profileData?.profile?.user_id]);
 
   const fetchProfile = async () => {
     try {
@@ -162,6 +181,14 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
         const currentUserData = await currentUserResponse.json();
         isOwn = currentUserData?.profile?.username === username;
         setIsOwnProfile(isOwn);
+
+        // Set current user for navbar
+        setCurrentUser({
+          name: currentUserData.profile?.full_name || currentUserData.user?.email?.split('@')[0] || 'User',
+          email: currentUserData.user?.email || '',
+          avatar: currentUserData.profile?.avatar_url || currentUserData.profile?.full_name?.charAt(0).toUpperCase() || 'U',
+          username: currentUserData.profile?.username || '',
+        });
 
         if (isOwn) {
           // Viewing own profile - get all lists
@@ -287,48 +314,7 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
       </div>
 
       {/* Navbar */}
-      <header
-        className={cn(
-          "fixed inset-x-0 top-0 z-50 border-b border-b-transparent bg-gradient-to-b shadow-none backdrop-blur-none transition-all duration-500",
-          showBorder
-            ? "border-b-border/50 shadow-xl backdrop-blur-md from-background/80 to-background/50"
-            : ""
-        )}
-      >
-        <div className="flex items-center justify-between py-4 max-w-7xl mx-auto px-6">
-          <Link href="/" aria-label="Codura homepage" className="flex items-center group">
-            <Image
-              src={theme === 'light' ? CoduraLogoDark : CoduraLogo}
-              alt="Codura logo"
-              width={90}
-              height={40}
-              priority
-              className="transition-all duration-200 group-hover:opacity-80"
-            />
-          </Link>
-
-          <nav className="hidden items-center gap-6 text-base leading-7 font-light text-muted-foreground lg:flex">
-            <Link className="hover:text-foreground transition-colors" href="/dashboard">
-              Dashboard
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/problems">
-              Problems
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/mock-interview">
-              Interview
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/leaderboards">
-              Leaderboards
-            </Link>
-          </nav>
-
-          <Link href="/dashboard">
-            <Button variant="ghost" className="text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50">
-              Back to Dashboard
-            </Button>
-          </Link>
-        </div>
-      </header>
+      {currentUser && <DashboardNavbar user={currentUser} />}
 
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-16">
@@ -377,6 +363,24 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
                   )}
                 </div>
                 <div className="flex gap-2">
+                  {!isOwnProfile && profileData.user?.id && (
+                    <>
+                      <ConnectionStatusButton
+                        userId={profileData.user.id}
+                        connectionStatus={profileData.connectionStatus || 'none'}
+                        onStatusChange={fetchProfile}
+                        size="sm"
+                      />
+                      {profileData.connectionStatus === 'connected' && (
+                        <MessageUserButton
+                          userId={profileData.user.id}
+                          userName={profile?.full_name || profile?.username || undefined}
+                          size="sm"
+                          variant="outline"
+                        />
+                      )}
+                    </>
+                  )}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button size="sm" variant="outline" className="gap-2 cursor-pointer" onClick={handleCopyProfileLink}>
@@ -421,6 +425,18 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
                       <a href={profile.website} target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors">
                         Portfolio
                       </a>
+                    </div>
+                  )}
+                  {connectionCount !== null && (
+                    <div
+                      className={cn(
+                        "flex items-center gap-2 text-sm transition-colors",
+                        canViewConnections ? "cursor-pointer hover:text-brand" : "cursor-default"
+                      )}
+                      onClick={() => canViewConnections && setShowConnectionsModal(true)}
+                    >
+                      <Users className="w-4 h-4 text-brand" />
+                      <span>{connectionCount} connection{connectionCount !== 1 ? 's' : ''}</span>
                     </div>
                   )}
                 </div>
@@ -625,6 +641,15 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
                 </div>
               </CardContent>
             </Card>
+
+            {/* Recent Activity Card */}
+            {profile?.user_id && (
+              <RecentActivityCard
+                userId={profile.user_id}
+                username={profile.username || undefined}
+                className="mt-6"
+              />
+            )}
 
             {/* Tabbed Section: Recent Submissions & Lists */}
             <Card 
@@ -915,6 +940,17 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
           isPublic={selectedList.is_public}
           isReadOnly={!isOwnProfile}
           onListUpdated={fetchProfile}
+        />
+      )}
+
+      {/* Connections Modal */}
+      {profile && (
+        <ConnectionsModal
+          open={showConnectionsModal}
+          onOpenChange={setShowConnectionsModal}
+          userId={profile.user_id}
+          username={profile.username || undefined}
+          isOwnProfile={isOwnProfile}
         />
       )}
     </div>

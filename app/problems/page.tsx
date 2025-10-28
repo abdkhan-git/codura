@@ -10,46 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import Image from "next/image";
-import CoduraLogo from "@/components/logos/codura-logo.svg";
-import CoduraLogoDark from "@/components/logos/codura-logo-dark.svg";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import { AddToListDialog } from "@/components/problems/add-to-list-dialog";
 import dynamic from 'next/dynamic';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  ChevronDown,
-  X,
-} from "lucide-react";
-
-// Theme-aware user name component
-function UserNameText({ name, email }: { name: string; email: string }) {
-  const { theme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const isDark = mounted ? (resolvedTheme === 'dark' || theme === 'dark') : false;
-
-  return (
-    <div className="flex-1 min-w-0">
-      <p className="text-sm font-semibold truncate" style={{ color: isDark ? '#F4F4F5' : '#18181B' }}>
-        {name}
-      </p>
-      <p className="text-xs truncate" style={{ color: isDark ? '#A1A1AA' : '#71717A' }}>
-        {email}
-      </p>
-    </div>
-  );
-}
+import { X } from "lucide-react";
+import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 
 // Use dynamic imports to avoid build-time type issues with lucide-react
 // @ts-ignore
@@ -106,7 +72,6 @@ interface UserData {
 
 export default function ProblemsPage() {
   const { theme: currentTheme } = useTheme();
-  const [showBorder, setShowBorder] = useState(false);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [stats, setStats] = useState<ProblemStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,15 +85,6 @@ export default function ProblemsPage() {
   const [showAddToList, setShowAddToList] = useState(false);
   const [selectedProblem, setSelectedProblem] = useState<{ id: number; title: string } | null>(null);
   const [user, setUser] = useState<UserData | null>(null);
-
-  useEffect(() => {
-    const evaluateScrollPosition = () => {
-      setShowBorder(window.pageYOffset >= 24);
-    };
-    window.addEventListener("scroll", evaluateScrollPosition);
-    evaluateScrollPosition();
-    return () => window.removeEventListener("scroll", evaluateScrollPosition);
-  }, []);
 
   useEffect(() => {
     fetchProblems();
@@ -264,154 +220,7 @@ export default function ProblemsPage() {
       </div>
 
       {/* Navbar */}
-      <header
-        className={cn(
-          "fixed inset-x-0 top-0 z-50 border-b border-b-transparent bg-gradient-to-b shadow-none backdrop-blur-none transition-all duration-500",
-          showBorder
-            ? "border-b-border/50 shadow-xl backdrop-blur-md from-background/80 to-background/50"
-            : ""
-        )}
-      >
-        <div className="flex items-center justify-between py-4 max-w-7xl mx-auto px-6">
-          <Link href="/" aria-label="Codura homepage" className="flex items-center group">
-            <Image
-              src={currentTheme === 'light' ? CoduraLogoDark : CoduraLogo}
-              alt="Codura logo"
-              width={90}
-              height={40}
-              priority
-              className="transition-all duration-200 group-hover:opacity-80"
-            />
-          </Link>
-
-          <nav className="hidden items-center gap-6 text-base leading-7 font-light text-neutral-400 lg:flex">
-            <Link className="hover:text-neutral-200 transition-colors" href="/dashboard">
-              Dashboard
-            </Link>
-            <Link className="text-brand transition-colors" href="/problems">
-              Problems
-            </Link>
-            <Link className="hover:text-neutral-200 transition-colors" href="/mock-interview">
-              Interview
-            </Link>
-            <Link className="hover:text-neutral-200 transition-colors" href="/leaderboards">
-              Leaderboards
-            </Link>
-          </nav>
-
-          {/* User Menu */}
-          <div className="flex items-center gap-3">
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2 hover:bg-white/5">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand to-orange-300 flex items-center justify-center text-white font-semibold text-sm overflow-hidden relative">
-                      {user.avatar && user.avatar.startsWith('http') ? (
-                        <img
-                          src={user.avatar}
-                          alt="Avatar"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-sm">{user.avatar}</span>
-                      )}
-                    </div>
-                    <span className="hidden sm:inline text-sm text-neutral-400">
-                      {user.name.split(' ')[0]}
-                    </span>
-                    <ChevronDown className="h-4 w-4 text-neutral-400" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-[280px]"
-                >
-                  {/* Profile Header - Modern & Elegant */}
-                  <div className="px-3 py-3.5 mb-1">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand to-orange-300 flex items-center justify-center text-white font-semibold overflow-hidden ring-1 ring-border/50">
-                          {user.avatar && user.avatar.startsWith('http') ? (
-                            <img
-                              src={user.avatar}
-                              alt="Avatar"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-sm">{user.avatar}</span>
-                          )}
-                        </div>
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full ring-2 ring-card" />
-                      </div>
-                      <UserNameText name={user.name} email={user.email} />
-                    </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="h-px bg-gradient-to-r from-transparent via-border/60 to-transparent my-1.5" />
-
-                  {/* Menu Items - Balanced Design */}
-                  <div className="py-1 space-y-0.5">
-                    <DropdownMenuItem asChild>
-                      <Link
-                        href={`/profile/${user?.username || ''}`}
-                        className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-sm font-medium group"
-                      >
-                        <div className="w-5 h-5 rounded-md bg-gradient-to-br from-blue-500 to-blue-600 dark:from-brand dark:to-orange-400 flex items-center justify-center group-hover:from-blue-600 group-hover:to-blue-700 dark:group-hover:from-brand/90 dark:group-hover:to-orange-500 transition-all shadow-sm">
-                          {/* @ts-ignore */}
-                          <User className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-                        </div>
-                        <span>Profile</span>
-                      </Link>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem asChild>
-                      <Link
-                        href="/settings"
-                        className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-sm font-medium group"
-                      >
-                        <div className="w-5 h-5 rounded-md bg-gradient-to-br from-slate-500 to-slate-600 dark:from-brand dark:to-orange-400 flex items-center justify-center group-hover:from-slate-600 group-hover:to-slate-700 dark:group-hover:from-brand/90 dark:group-hover:to-orange-500 transition-all shadow-sm">
-                          {/* @ts-ignore */}
-                          <Settings className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-                        </div>
-                        <span>Settings</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="h-px bg-gradient-to-r from-transparent via-border/60 to-transparent my-1.5" />
-
-                  {/* Sign Out - Professional Emphasis */}
-                  <div className="py-1">
-                    <DropdownMenuItem
-                      variant="destructive"
-                      className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-sm font-medium group"
-                      onClick={async () => {
-                        await fetch('/auth/signout', { method: 'POST' });
-                        window.location.href = '/';
-                      }}
-                    >
-                      <div className="w-5 h-5 rounded-md bg-gradient-to-br from-red-500 to-red-600 dark:from-red-500/80 dark:to-red-600/80 flex items-center justify-center group-hover:from-red-600 group-hover:to-red-700 dark:group-hover:from-red-500 dark:group-hover:to-red-600 transition-all shadow-sm">
-                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
-                      </div>
-                      <span className="text-red-600 dark:text-red-400">Sign out</span>
-                    </DropdownMenuItem>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Link href="/login">
-                <Button variant="ghost" className="text-sm text-neutral-400 hover:text-neutral-200 hover:bg-white/5">
-                  Sign In
-                </Button>
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
+      {user && <DashboardNavbar user={user} />}
 
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-16">

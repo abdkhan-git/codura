@@ -8,43 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
-import Image from "next/image";
-import CoduraLogo from "@/components/logos/codura-logo.svg";
-import CoduraLogoDark from "@/components/logos/codura-logo-dark.svg";
 import { cn } from "@/lib/utils";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ChevronDown, X } from "lucide-react";
+import { X, Bell, Mail, Smartphone, Users, MessageSquare, BookOpen, Trophy, Zap, Clock, Save, Check, Shield } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import dynamic from 'next/dynamic';
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
-
-// Theme-aware user name component
-function UserNameText({ name, email }: { name: string; email: string }) {
-  const { theme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const isDark = mounted ? (resolvedTheme === 'dark' || theme === 'dark') : false;
-
-  return (
-    <div className="flex-1 min-w-0">
-      <p className="text-sm font-semibold truncate" style={{ color: isDark ? '#F4F4F5' : '#18181B' }}>
-        {name}
-      </p>
-      <p className="text-xs truncate" style={{ color: isDark ? '#A1A1AA' : '#71717A' }}>
-        {email}
-      </p>
-    </div>
-  );
-}
+import DashboardNavbar from "@/components/navigation/dashboard-navbar";
+import { PrivacySettings } from "@/components/settings/privacy-settings";
+import { NotificationSettings } from "@/components/notifications/notification-settings";
 
 // Dynamic imports for icons
 // @ts-ignore
@@ -62,11 +34,26 @@ interface UserData {
   bio?: string;
 }
 
-type TabType = 'appearance' | 'profile' | 'account';
+interface NotificationPreferences {
+  user_id: string;
+  email_notifications: boolean;
+  push_notifications: boolean;
+  connection_requests: boolean;
+  connection_accepted: boolean;
+  activity_reactions: boolean;
+  activity_comments: boolean;
+  study_plan_shares: boolean;
+  achievement_milestones: boolean;
+  system_announcements: boolean;
+  digest_frequency: string;
+  quiet_hours_start?: string;
+  quiet_hours_end?: string;
+}
+
+type TabType = 'appearance' | 'profile' | 'account' | 'notifications' | 'privacy';
 
 export default function SettingsPage() {
   const { theme: currentTheme, setTheme: setAppTheme } = useTheme();
-  const [showBorder, setShowBorder] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('appearance');
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,18 +70,40 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  useEffect(() => {
-    const evaluateScrollPosition = () => {
-      setShowBorder(window.pageYOffset >= 24);
-    };
-    window.addEventListener("scroll", evaluateScrollPosition);
-    evaluateScrollPosition();
-    return () => window.removeEventListener("scroll", evaluateScrollPosition);
-  }, []);
+  // Notification preferences state
+  const [notifPreferences, setNotifPreferences] = useState<NotificationPreferences>({
+    user_id: '',
+    email_notifications: true,
+    push_notifications: true,
+    connection_requests: true,
+    connection_accepted: true,
+    activity_reactions: true,
+    activity_comments: true,
+    study_plan_shares: true,
+    achievement_milestones: true,
+    system_announcements: true,
+    digest_frequency: 'daily',
+    quiet_hours_start: '',
+    quiet_hours_end: ''
+  });
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
 
   useEffect(() => {
     fetchUserData();
+    fetchNotificationPreferences();
   }, []);
+
+  const fetchNotificationPreferences = async () => {
+    try {
+      const response = await fetch('/api/notifications/preferences');
+      if (response.ok) {
+        const data = await response.json();
+        setNotifPreferences(data.preferences);
+      }
+    } catch (error) {
+      console.error('Error fetching notification preferences:', error);
+    }
+  };
 
   const fetchUserData = async () => {
     try {
@@ -251,6 +260,33 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveNotifications = async () => {
+    try {
+      setIsSavingNotifications(true);
+      const response = await fetch('/api/notifications/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notifPreferences)
+      });
+
+      if (response.ok) {
+        toast.success('Notification preferences saved!');
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to save preferences');
+      }
+    } catch (error) {
+      console.error('Error saving preferences:', error);
+      toast.error('Failed to save preferences');
+    } finally {
+      setIsSavingNotifications(false);
+    }
+  };
+
+  const handleNotificationChange = (key: keyof NotificationPreferences, value: any) => {
+    setNotifPreferences(prev => ({ ...prev, [key]: value }));
+  };
+
   return (
     <div className="caffeine-theme min-h-screen bg-background relative">
       {/* Animated Background */}
@@ -261,143 +297,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Navbar */}
-      <header
-        className={cn(
-          "fixed inset-x-0 top-0 z-50 border-b border-b-transparent bg-gradient-to-b shadow-none backdrop-blur-none transition-all duration-500",
-          showBorder
-            ? "border-b-border/50 shadow-xl backdrop-blur-md from-background/80 to-background/50"
-            : ""
-        )}
-      >
-        <div className="flex items-center justify-between py-4 max-w-7xl mx-auto px-6">
-          <Link href="/" aria-label="Codura homepage" className="flex items-center group">
-            <Image
-              src={currentTheme === 'light' ? CoduraLogoDark : CoduraLogo}
-              alt="Codura logo"
-              width={90}
-              height={40}
-              priority
-              className="transition-all duration-200 group-hover:opacity-80"
-            />
-          </Link>
-
-          <nav className="hidden items-center gap-6 text-base leading-7 font-light text-muted-foreground lg:flex">
-            <Link className="hover:text-foreground transition-colors" href="/dashboard">
-              Dashboard
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/problems">
-              Problems
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/mock-interview">
-              Interview
-            </Link>
-            <Link className="hover:text-foreground transition-colors" href="/leaderboards">
-              Leaderboards
-            </Link>
-          </nav>
-
-          {/* User Menu */}
-          <div className="flex items-center gap-3">
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2 hover:bg-accent">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand to-orange-300 flex items-center justify-center text-white font-semibold text-sm overflow-hidden relative">
-                      {user.avatar && user.avatar.startsWith('http') ? (
-                        <img
-                          src={user.avatar}
-                          alt="Avatar"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-sm">{user.avatar}</span>
-                      )}
-                    </div>
-                    <span className="hidden sm:inline text-sm text-muted-foreground">
-                      {user.name.split(' ')[0]}
-                    </span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-[280px]"
-                >
-                  <div className="px-3 py-3.5 mb-1">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand to-blue-600 dark:from-brand dark:to-orange-400 flex items-center justify-center text-white font-semibold overflow-hidden ring-1 ring-border/50">
-                          {user.avatar && user.avatar.startsWith('http') ? (
-                            <img
-                              src={user.avatar}
-                              alt="Avatar"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-sm">{user.avatar}</span>
-                          )}
-                        </div>
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full ring-2 ring-card" />
-                      </div>
-                      <UserNameText name={user.name} email={user.email} />
-                    </div>
-                  </div>
-
-                  <div className="h-px bg-gradient-to-r from-transparent via-border/60 to-transparent my-1.5" />
-
-                  <div className="py-1 space-y-0.5">
-                    <DropdownMenuItem asChild>
-                      <Link
-                        href={`/profile/${user?.username || ''}`}
-                        className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-sm font-medium group"
-                      >
-                        <div className="w-5 h-5 rounded-md bg-gradient-to-br from-blue-500 to-blue-600 dark:from-brand dark:to-orange-400 flex items-center justify-center group-hover:from-blue-600 group-hover:to-blue-700 dark:group-hover:from-brand/90 dark:group-hover:to-orange-500 transition-all shadow-sm">
-                          {/* @ts-ignore */}
-                          <User className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-                        </div>
-                        <span>Profile</span>
-                      </Link>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem asChild>
-                      <Link
-                        href="/settings"
-                        className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-sm font-medium group"
-                      >
-                        <div className="w-5 h-5 rounded-md bg-gradient-to-br from-slate-500 to-slate-600 dark:from-brand dark:to-orange-400 flex items-center justify-center group-hover:from-slate-600 group-hover:to-slate-700 dark:group-hover:from-brand/90 dark:group-hover:to-orange-500 transition-all shadow-sm">
-                          {/* @ts-ignore */}
-                          <Settings className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-                        </div>
-                        <span>Settings</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  </div>
-
-                  <div className="h-px bg-gradient-to-r from-transparent via-border/60 to-transparent my-1.5" />
-
-                  <div className="py-1">
-                    <DropdownMenuItem
-                      variant="destructive"
-                      className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-sm font-medium group"
-                      onClick={async () => {
-                        await fetch('/auth/signout', { method: 'POST' });
-                        window.location.href = '/';
-                      }}
-                    >
-                      <div className="w-5 h-5 rounded-md bg-gradient-to-br from-red-500 to-red-600 dark:from-red-500/80 dark:to-red-600/80 flex items-center justify-center group-hover:from-red-600 group-hover:to-red-700 dark:group-hover:from-red-500 dark:group-hover:to-red-600 transition-all shadow-sm">
-                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
-                      </div>
-                      <span className="text-red-600 dark:text-red-400">Sign out</span>
-                    </DropdownMenuItem>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </div>
-        </div>
-      </header>
+      {user && <DashboardNavbar user={user} />}
 
       {/* Main Content */}
       <main className="relative z-10 max-w-5xl mx-auto px-6 pt-24 pb-16">
@@ -487,6 +387,28 @@ export default function SettingsPage() {
                     )}
                   >
                     Account
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('notifications')}
+                    className={cn(
+                      "w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200",
+                      activeTab === 'notifications'
+                        ? "bg-brand text-brand-foreground shadow-lg shadow-brand/30"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    Notifications
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('privacy')}
+                    className={cn(
+                      "w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200",
+                      activeTab === 'privacy'
+                        ? "bg-brand text-brand-foreground shadow-lg shadow-brand/30"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    Privacy
                   </button>
                 </nav>
               </CardContent>
@@ -804,6 +726,282 @@ export default function SettingsPage() {
                   </CardContent>
                 </Card>
               </div>
+            )}
+
+            {/* Notifications Tab */}
+            {activeTab === 'notifications' && (
+              <div className="space-y-6">
+                {/* General Notifications */}
+                <Card 
+                  className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden shadow-xl shine-effect group hover:border-brand/30 transition-all duration-500 hover:scale-[1.01]"
+                  style={{ '--glow-color': 'var(--brand)' } as React.CSSProperties}
+                >
+                  <CardHeader>
+                    <CardTitle className="text-2xl flex items-center gap-3">
+                      <Bell className="w-6 h-6 text-brand" />
+                      General Notifications
+                    </CardTitle>
+                    <CardDescription>
+                      Manage your notification preferences
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Mail className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm font-medium">Email Notifications</Label>
+                          <p className="text-xs text-muted-foreground">Receive notifications via email</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={notifPreferences.email_notifications}
+                        onCheckedChange={(checked) => handleNotificationChange('email_notifications', checked)}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Smartphone className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm font-medium">Push Notifications</Label>
+                          <p className="text-xs text-muted-foreground">Receive push notifications in browser</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={notifPreferences.push_notifications}
+                        onCheckedChange={(checked) => handleNotificationChange('push_notifications', checked)}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Connection Notifications */}
+                <Card 
+                  className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden shadow-xl shine-effect group hover:border-blue-500/30 transition-all duration-500 hover:scale-[1.01]"
+                  style={{ '--glow-color': '#3b82f6' } as React.CSSProperties}
+                >
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-3">
+                      <Users className="w-5 h-5 text-brand" />
+                      Connection Notifications
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Users className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm font-medium">Connection Requests</Label>
+                          <p className="text-xs text-muted-foreground">When someone sends you a connection request</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={notifPreferences.connection_requests}
+                        onCheckedChange={(checked) => handleNotificationChange('connection_requests', checked)}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Check className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm font-medium">Connection Accepted</Label>
+                          <p className="text-xs text-muted-foreground">When someone accepts your connection request</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={notifPreferences.connection_accepted}
+                        onCheckedChange={(checked) => handleNotificationChange('connection_accepted', checked)}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Activity Notifications */}
+                <Card 
+                  className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden shadow-xl shine-effect group hover:border-purple-500/30 transition-all duration-500 hover:scale-[1.01]"
+                  style={{ '--glow-color': '#a855f7' } as React.CSSProperties}
+                >
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-3">
+                      <MessageSquare className="w-5 h-5 text-brand" />
+                      Activity Notifications
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <MessageSquare className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm font-medium">Activity Reactions</Label>
+                          <p className="text-xs text-muted-foreground">When someone reacts to your activities</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={notifPreferences.activity_reactions}
+                        onCheckedChange={(checked) => handleNotificationChange('activity_reactions', checked)}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <MessageSquare className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm font-medium">Activity Comments</Label>
+                          <p className="text-xs text-muted-foreground">When someone comments on your activities</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={notifPreferences.activity_comments}
+                        onCheckedChange={(checked) => handleNotificationChange('activity_comments', checked)}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Content Notifications */}
+                <Card 
+                  className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden shadow-xl shine-effect group hover:border-green-500/30 transition-all duration-500 hover:scale-[1.01]"
+                  style={{ '--glow-color': '#22c55e' } as React.CSSProperties}
+                >
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-3">
+                      <BookOpen className="w-5 h-5 text-brand" />
+                      Content Notifications
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <BookOpen className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm font-medium">Study Plan Shares</Label>
+                          <p className="text-xs text-muted-foreground">When someone shares a study plan with you</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={notifPreferences.study_plan_shares}
+                        onCheckedChange={(checked) => handleNotificationChange('study_plan_shares', checked)}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Trophy className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm font-medium">Achievement Milestones</Label>
+                          <p className="text-xs text-muted-foreground">When you or your connections reach milestones</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={notifPreferences.achievement_milestones}
+                        onCheckedChange={(checked) => handleNotificationChange('achievement_milestones', checked)}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Zap className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm font-medium">System Announcements</Label>
+                          <p className="text-xs text-muted-foreground">Important platform updates and announcements</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={notifPreferences.system_announcements}
+                        onCheckedChange={(checked) => handleNotificationChange('system_announcements', checked)}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Frequency Settings */}
+                <Card 
+                  className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden shadow-xl shine-effect group hover:border-orange-500/30 transition-all duration-500 hover:scale-[1.01]"
+                  style={{ '--glow-color': '#f97316' } as React.CSSProperties}
+                >
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-3">
+                      <Clock className="w-5 h-5 text-brand" />
+                      Frequency Settings
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Digest Frequency</Label>
+                      <Select
+                        value={notifPreferences.digest_frequency}
+                        onValueChange={(value) => handleNotificationChange('digest_frequency', value)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select frequency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="realtime">Real-time</SelectItem>
+                          <SelectItem value="hourly">Hourly</SelectItem>
+                          <SelectItem value="daily">Daily</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="never">Never</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        How often to receive notification digests
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Quiet Hours Start</Label>
+                        <Input
+                          type="time"
+                          value={notifPreferences.quiet_hours_start || ''}
+                          onChange={(e) => handleNotificationChange('quiet_hours_start', e.target.value)}
+                          placeholder="HH:MM"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Quiet Hours End</Label>
+                        <Input
+                          type="time"
+                          value={notifPreferences.quiet_hours_end || ''}
+                          onChange={(e) => handleNotificationChange('quiet_hours_end', e.target.value)}
+                          placeholder="HH:MM"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Set quiet hours to reduce notifications during specific times
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Save Button */}
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleSaveNotifications}
+                    disabled={isSavingNotifications}
+                    className="gap-2 bg-gradient-to-r from-brand to-purple-600 hover:from-brand/90 hover:to-purple-600/90 text-white shadow-lg"
+                  >
+                    {isSavingNotifications ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Preferences
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Privacy Tab */}
+            {activeTab === 'privacy' && (
+              <PrivacySettings />
             )}
           </div>
         </div>
