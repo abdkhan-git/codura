@@ -471,6 +471,7 @@ export default function DiscoverPage() {
                     onCancel={handleCancel}
                     onAccept={handleAccept}
                     onDecline={handleDecline}
+                    showSuggestionReasons={true}
                   />
                 </div>
               ))}
