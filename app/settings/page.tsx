@@ -87,7 +87,6 @@ export default function SettingsPage() {
     quiet_hours_end: ''
   });
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
-  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -410,12 +409,6 @@ export default function SettingsPage() {
                     )}
                   >
                     Privacy
-                  </button>
-                  <button
-                    onClick={() => setShowNotificationSettings(true)}
-                    className="w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  >
-                    Notification Settings
                   </button>
                 </nav>
               </CardContent>
@@ -1013,31 +1006,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </main>
-
-      {/* Notification Settings Modal */}
-      {showNotificationSettings && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-background rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">Notification Settings</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowNotificationSettings(false)}
-                  className="h-8 w-8 p-0"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              <NotificationSettings
-                isOpen={showNotificationSettings}
-                onClose={() => setShowNotificationSettings(false)}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
