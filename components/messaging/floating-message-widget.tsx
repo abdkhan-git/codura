@@ -32,6 +32,7 @@ import {
   getTypingUsers,
   archiveConversation,
   muteConversation,
+  markLatestMessageAsRead,
 } from "@/lib/messaging-utils";
 import { toast } from "sonner";
 import { DefaultAvatar } from "@/components/ui/default-avatar";
@@ -65,6 +66,7 @@ export default function FloatingMessageWidget() {
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
 
   // Read receipts
@@ -73,6 +75,7 @@ export default function FloatingMessageWidget() {
     messages,
     currentUserId,
     enabled: !!selectedConversationId,
+    scrollContainerRef: messagesContainerRef,
   });
 
   // Get current user
@@ -166,6 +169,10 @@ export default function FloatingMessageWidget() {
       try {
         const msgs = await getConversationMessages(selectedConversationId);
         setMessages(msgs);
+
+        // Mark latest message as read when opening conversation
+        markLatestMessageAsRead(selectedConversationId);
+
         setTimeout(() => scrollToBottom(), 100);
       } catch (error) {
         console.error("Error fetching messages:", error);
@@ -554,10 +561,12 @@ export default function FloatingMessageWidget() {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
                   {messages.map((msg) => (
                     <div
                       key={msg.id}
+                      data-message-id={msg.id}
+                      data-sender-id={msg.sender_id}
                       className={cn(
                         "flex gap-2 group",
                         msg.sender_id === currentUserId && "justify-end"
@@ -713,7 +722,17 @@ export default function FloatingMessageWidget() {
                               </div>
                             )}
 
-                            <p className="break-words text-xs">{msg.content}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="break-words text-xs flex-1">{msg.content}</p>
+                              <ReadReceipt
+                                messageId={msg.id}
+                                senderId={msg.sender_id}
+                                currentUserId={currentUserId || ''}
+                                readReceipts={readReceipts[msg.id] || []}
+                                conversationType={selectedConversation?.type || 'direct'}
+                                totalParticipants={2}
+                              />
+                            </div>
 
                             {/* Reactions */}
                             {msg.reactions &&

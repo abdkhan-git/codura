@@ -44,21 +44,37 @@ export function ReadReceipt({
   const readCount = readReceipts.length;
   const isRead = readCount > 0;
 
-  // Format read time
-  const formatReadTime = (readAt: string) => {
+  // Format read time for tooltip - shows actual time in user's timezone
+  const formatReadTimeForTooltip = (readAt: string) => {
     const date = new Date(readAt);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
 
-    if (seconds < 60) return "Just now";
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days < 7) return `${days}d ago`;
-    return date.toLocaleDateString();
+    // Format as: "2:45 PM" or "14:45" depending on user's locale
+    const timeFormatter = new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+
+    const dateFormatter = new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+
+    const time = timeFormatter.format(date);
+    const dateStr = dateFormatter.format(date);
+
+    // If same day, just show time. Otherwise show date and time
+    const today = new Date();
+    const isSameDay =
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear();
+
+    return isSameDay ? time : `${dateStr} at ${time}`;
   };
 
   // Build tooltip content
@@ -67,14 +83,10 @@ export function ReadReceipt({
 
     if (conversationType === "direct") {
       const receipt = readReceipts[0];
-      return `Read ${formatReadTime(receipt.read_at)}`;
+      return `Read at ${formatReadTimeForTooltip(receipt.read_at)}`;
     }
 
-    // Group chat - show list of readers
-    const readers = readReceipts
-      .map((r) => `${r.user.full_name} - ${formatReadTime(r.read_at)}`)
-      .join("\n");
-
+    // Group chat - show list of readers with read times
     return (
       <div className="space-y-1">
         <div className="font-semibold text-xs">
@@ -83,7 +95,7 @@ export function ReadReceipt({
         <div className="text-xs space-y-0.5">
           {readReceipts.map((receipt) => (
             <div key={receipt.user_id}>
-              {receipt.user.full_name} - {formatReadTime(receipt.read_at)}
+              {receipt.user.full_name} - {formatReadTimeForTooltip(receipt.read_at)}
             </div>
           ))}
         </div>

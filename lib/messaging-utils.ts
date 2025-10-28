@@ -887,122 +887,121 @@ export async function deleteConversationForUser(conversationId: string) {
 }
 
 /**
- * Mark a message as read
+ * Mark a message as read - OPTIMIZED (fire and forget, DB handles duplicates)
  */
 export async function markMessageAsRead(messageId: string) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) throw new Error('Not authenticated');
+    if (!session?.user?.id) return;
 
-    // Check if already marked as read
-    const { data: existing } = await supabase
+    // Fire and forget - don't await, let upsert handle duplicates
+    supabase
       .from('message_read_receipts')
-      .select('id')
-      .eq('message_id', messageId)
-      .eq('user_id', session.user.id)
-      .single();
-
-    if (existing) return; // Already marked as read
-
-    // Insert read receipt
-    const { error } = await supabase
-      .from('message_read_receipts')
-      .insert({
+      .upsert({
         message_id: messageId,
         user_id: session.user.id,
         read_at: new Date().toISOString(),
+      })
+      .then(() => {
+        // Success - read receipt inserted
+      })
+      .catch(error => {
+        // Silently catch - duplicates are expected and OK
+        if (error?.code !== 'PGRST116') {
+          console.error('Error marking message as read:', error);
+        }
       });
-
-    if (error) throw error;
   } catch (error) {
-    // Silently fail - read receipts shouldn't break the app
-    console.error('Failed to mark message as read:', error);
+    console.error('Failed to initiate read marking:', error);
   }
 }
 
 /**
- * Mark multiple messages as read (batch operation)
+ * Mark multiple messages as read (batch operation) - OPTIMIZED
  */
 export async function markMessagesAsRead(messageIds: string[]) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) throw new Error('Not authenticated');
+    if (!session?.user?.id) return;
 
     if (messageIds.length === 0) return;
 
-    // Get existing read receipts
-    const { data: existing } = await supabase
-      .from('message_read_receipts')
-      .select('message_id')
-      .in('message_id', messageIds)
-      .eq('user_id', session.user.id);
-
-    const existingIds = new Set((existing || []).map(r => r.message_id));
-    const newMessageIds = messageIds.filter(id => !existingIds.has(id));
-
-    if (newMessageIds.length === 0) return;
-
-    // Insert read receipts for new messages
-    const receipts = newMessageIds.map(messageId => ({
+    // Build receipts without checking existing ones - upsert handles duplicates
+    const receipts = messageIds.map(messageId => ({
       message_id: messageId,
       user_id: session.user.id,
       read_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase
+    // Fire and forget - don't await for instant UX
+    supabase
       .from('message_read_receipts')
-      .insert(receipts);
-
-    if (error) throw error;
+      .upsert(receipts)
+      .then(() => {
+        // Success
+      })
+      .catch(error => {
+        // Silently catch - duplicate key errors are expected and OK
+        if (error?.code !== 'PGRST116') {
+          console.error('Error marking messages as read:', error);
+        }
+      });
   } catch (error) {
-    console.error('Failed to mark messages as read:', error);
+    console.error('Failed to initiate batch read marking:', error);
   }
 }
 
 /**
- * Get read receipts for messages
+ * Get read receipts for messages - OPTIMIZED (2-query approach for Supabase compatibility)
  */
 export async function getReadReceipts(messageIds: string[]) {
   try {
     if (messageIds.length === 0) return {};
 
-    // Step 1: Get all read receipts for these messages
+    // Query 1: Get all read receipts for these messages
     const { data: receipts, error: receiptsError } = await supabase
       .from('message_read_receipts')
       .select('message_id, user_id, read_at')
       .in('message_id', messageIds)
       .order('read_at', { ascending: true });
 
-    if (receiptsError) throw receiptsError;
+    if (receiptsError) {
+      console.error('Error fetching read receipts:', receiptsError);
+      return {};
+    }
+
     if (!receipts || receipts.length === 0) return {};
 
-    // Step 2: Get unique user IDs
+    // Get unique user IDs
     const userIds = [...new Set(receipts.map(r => r.user_id))];
 
-    // Step 3: Fetch user data
+    // Query 2: Get user data for all users who read messages
     const { data: users, error: usersError } = await supabase
       .from('users')
       .select('user_id, full_name, avatar_url')
       .in('user_id', userIds);
 
-    if (usersError) throw usersError;
+    if (usersError) {
+      console.error('Error fetching user data:', usersError);
+    }
 
-    // Step 4: Build user map
+    // Build user map
     const userMap = new Map();
     (users || []).forEach(u => {
       userMap.set(u.user_id, u);
     });
 
-    // Step 5: Group receipts by message_id with user data
+    // Group receipts by message_id with user data
     const grouped: Record<string, any[]> = {};
     receipts.forEach(receipt => {
       if (!grouped[receipt.message_id]) {
         grouped[receipt.message_id] = [];
       }
+      const userData = userMap.get(receipt.user_id);
       grouped[receipt.message_id].push({
         user_id: receipt.user_id,
         read_at: receipt.read_at,
-        user: userMap.get(receipt.user_id) || { user_id: receipt.user_id, full_name: 'Unknown', avatar_url: null },
+        user: userData || { user_id: receipt.user_id, full_name: 'Unknown', avatar_url: null },
       });
     });
 
@@ -1028,5 +1027,33 @@ export async function getReadReceiptCount(messageId: string): Promise<number> {
   } catch (error) {
     console.error('Failed to get read receipt count:', error);
     return 0;
+  }
+}
+
+/**
+ * Mark the latest unread message in a conversation as read
+ * Used when opening a conversation or widget
+ */
+export async function markLatestMessageAsRead(conversationId: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) return;
+
+    // Get the latest message from someone else
+    const { data: latestMessage } = await supabase
+      .from('messages')
+      .select('id, sender_id')
+      .eq('conversation_id', conversationId)
+      .neq('sender_id', session.user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (latestMessage) {
+      // Mark it as read
+      markMessageAsRead(latestMessage.id);
+    }
+  } catch (error) {
+    console.error('Failed to mark latest message as read:', error);
   }
 }

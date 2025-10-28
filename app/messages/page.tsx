@@ -44,6 +44,7 @@ import {
   clearTypingIndicator,
   getTypingUsers,
   deleteConversationForUser,
+  markLatestMessageAsRead,
 } from '@/lib/messaging-utils';
 import { useReadReceipts } from '@/hooks/use-read-receipts';
 import { ReadReceipt } from '@/components/messaging/read-receipt';
@@ -88,11 +89,13 @@ export default function MessagesPage() {
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
 
   // Read receipts
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const { readReceipts } = useReadReceipts({
     conversationId: selectedConversationId,
     messages,
     currentUserId,
     enabled: !!selectedConversationId,
+    scrollContainerRef: messagesContainerRef,
   });
 
   // Get current user
@@ -159,6 +162,9 @@ export default function MessagesPage() {
       try {
         const msgs = await getConversationMessages(selectedConversationId);
         setMessages(msgs);
+
+        // Mark latest message as read when opening conversation
+        markLatestMessageAsRead(selectedConversationId);
       } catch (error) {
         console.error('Failed to load messages:', error);
       }
@@ -933,7 +939,10 @@ export default function MessagesPage() {
                   </div>
 
                   {/* Messages with Glassmorphic Bubbles */}
-                  <div className={cn("flex-1 overflow-y-auto p-4 space-y-4", theme === 'light' ? "bg-white/40" : "bg-zinc-900/20")}>
+                  <div
+                    ref={messagesContainerRef}
+                    className={cn("flex-1 overflow-y-auto p-4 space-y-4", theme === 'light' ? "bg-white/40" : "bg-zinc-900/20")}
+                  >
                     {messages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <div className="text-center">
