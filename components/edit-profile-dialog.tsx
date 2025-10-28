@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,11 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Settings } from "lucide-react";
+import { Settings, CheckCircle2 } from "lucide-react";
 import { UserProfile } from "@/types/database";
 import Image from "next/image";
 import { AvatarCropDialog } from "@/components/avatar-crop-dialog";
 import { useRouter } from "next/navigation";
+import { CompanyAutocomplete } from "@/components/ui/company-autocomplete";
+import { LocationAutocomplete } from "@/components/ui/location-autocomplete";
 
 const profileSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(30).optional().or(z.literal("")),
@@ -28,6 +30,7 @@ const profileSchema = z.object({
   bio: z.string().max(500).optional().or(z.literal("")),
   university: z.string().max(100).optional().or(z.literal("")),
   graduation_year: z.string().max(4).optional().or(z.literal("")),
+  company: z.string().max(100).optional().or(z.literal("")),
   location: z.string().max(100).optional().or(z.literal("")),
   job_title: z.string().max(100).optional().or(z.literal("")),
   website: z.string().url("Must be a valid URL").optional().or(z.literal("")),
@@ -42,6 +45,13 @@ interface EditProfileDialogProps {
   onProfileUpdate: (profile: UserProfile) => void;
 }
 
+type School = {
+  code: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+};
+
 export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -52,6 +62,20 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
   const [showCropDialog, setShowCropDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // University search state
+  const [universityQuery, setUniversityQuery] = useState("");
+  const [universityResults, setUniversityResults] = useState<School[]>([]);
+  const [showUniversityDropdown, setShowUniversityDropdown] = useState(false);
+  const [universityLoading, setUniversityLoading] = useState(false);
+  const [selectedUniversity, setSelectedUniversity] = useState<School | null>(null);
+  const universityAbortRef = useRef<AbortController | null>(null);
+
+  // Company state
+  const [company, setCompany] = useState(profile?.company || "");
+
+  // Location state
+  const [location, setLocation] = useState(profile?.location || "");
 
   const {
     register,
@@ -66,6 +90,7 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
       bio: profile?.bio || "",
       university: profile?.university || "",
       graduation_year: profile?.graduation_year || "",
+      company: profile?.company || "",
       location: profile?.location || "",
       job_title: profile?.job_title || "",
       website: profile?.website || "",
@@ -73,6 +98,50 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
       linkedin_username: profile?.linkedin_username || "",
     },
   });
+
+  // University search effect
+  useEffect(() => {
+    if (!universityQuery.trim() || universityQuery.trim().length < 2) {
+      setUniversityResults([]);
+      setShowUniversityDropdown(false);
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      try {
+        setUniversityLoading(true);
+        universityAbortRef.current?.abort();
+        const ctrl = new AbortController();
+        universityAbortRef.current = ctrl;
+
+        const response = await fetch(
+          `/api/schools?q=${encodeURIComponent(universityQuery)}`,
+          { signal: ctrl.signal }
+        );
+
+        if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+        const data = await response.json();
+        const schools: School[] = Array.isArray(data) ? data : [];
+
+        setUniversityResults(schools);
+        setShowUniversityDropdown(schools.length > 0);
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          console.error("University search error:", error);
+          setUniversityResults([]);
+          setShowUniversityDropdown(false);
+        }
+      } finally {
+        setUniversityLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timeout);
+      universityAbortRef.current?.abort();
+    };
+  }, [universityQuery]);
 
   // Reset form when profile changes or dialog opens
   React.useEffect(() => {
@@ -83,14 +152,36 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
         bio: profile.bio || "",
         university: profile.university || "",
         graduation_year: profile.graduation_year || "",
+        company: profile.company || "",
         location: profile.location || "",
         job_title: profile.job_title || "",
         website: profile.website || "",
         github_username: profile.github_username || "",
         linkedin_username: profile.linkedin_username || "",
       });
+      setUniversityQuery(profile.university || "");
+      setCompany(profile.company || "");
+      setLocation(profile.location || "");
     }
   }, [open, profile, reset]);
+
+  const handleUniversitySelect = (school: School) => {
+    setSelectedUniversity(school);
+    setUniversityQuery(school.name);
+    setShowUniversityDropdown(false);
+    // Update the form value
+    reset({
+      ...reset.getValues(),
+      university: school.name,
+    });
+  };
+
+  const handleUniversityInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setUniversityQuery(value);
+    setSelectedUniversity(null);
+    setShowUniversityDropdown(value.length >= 2);
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -173,6 +264,9 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
         },
         body: JSON.stringify({
           ...data,
+          university: selectedUniversity ? selectedUniversity.name : universityQuery,
+          company: company,
+          location: location,
           avatar_url: avatarUrl,
         }),
       });
@@ -188,9 +282,8 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
       setAvatarPreview(null);
       setOpen(false);
 
-      // Refresh the page to show updated avatar everywhere
-      router.refresh();
-      window.location.reload();
+      // Profile updated successfully - no need for page reload
+      toast.success("Profile updated successfully!");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -327,12 +420,50 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="university">University</Label>
-                <Input
-                  id="university"
-                  placeholder="Stanford University"
-                  {...register("university")}
-                  className="bg-zinc-950 border-zinc-800"
-                />
+                <div className="relative">
+                  <Input
+                    id="university"
+                    placeholder="Search for your university..."
+                    value={universityQuery}
+                    onChange={handleUniversityInputChange}
+                    className="bg-zinc-950 border-zinc-800"
+                  />
+                  
+                  {/* University Dropdown */}
+                  {showUniversityDropdown && (
+                    <div className="absolute z-50 w-full mt-1 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {universityLoading ? (
+                        <div className="p-3 text-center text-zinc-400">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand mx-auto"></div>
+                          <span className="ml-2">Searching...</span>
+                        </div>
+                      ) : universityResults.length > 0 ? (
+                        universityResults.map((school) => (
+                          <button
+                            key={school.code}
+                            type="button"
+                            onClick={() => handleUniversitySelect(school)}
+                            className="w-full px-3 py-2 text-left hover:bg-zinc-800 transition-colors flex items-center justify-between"
+                          >
+                            <div>
+                              <div className="font-medium text-white">{school.name}</div>
+                              {school.city && school.state && (
+                                <div className="text-sm text-zinc-400">
+                                  {school.city}, {school.state}
+                                </div>
+                              )}
+                            </div>
+                            <CheckCircle2 className="w-4 h-4 text-brand" />
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-3 text-center text-zinc-400">
+                          No universities found
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {errors.university && (
                   <p className="text-sm text-red-500">{errors.university.message}</p>
                 )}
@@ -367,17 +498,30 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  placeholder="San Francisco, CA"
-                  {...register("location")}
+                <Label htmlFor="company">Company</Label>
+                <CompanyAutocomplete
+                  value={company}
+                  onValueChange={setCompany}
+                  placeholder="Search for your company..."
                   className="bg-zinc-950 border-zinc-800"
                 />
-                {errors.location && (
-                  <p className="text-sm text-red-500">{errors.location.message}</p>
+                {errors.company && (
+                  <p className="text-sm text-red-500">{errors.company.message}</p>
                 )}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <LocationAutocomplete
+                value={location}
+                onValueChange={setLocation}
+                placeholder="Search worldwide locations..."
+                className="bg-zinc-950 border-zinc-800"
+              />
+              {errors.location && (
+                <p className="text-sm text-red-500">{errors.location.message}</p>
+              )}
             </div>
           </div>
 
