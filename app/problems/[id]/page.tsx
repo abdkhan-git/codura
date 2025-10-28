@@ -294,7 +294,7 @@ export default function ProblemPage() {
 
   // Render
   return (
-    <div className="caffeine-theme min-h-screen w-full bg-background p-2 pt-0 overflow-y-auto">
+    <div className="caffeine-theme h-screen w-full bg-background p-2 pt-0 overflow-hidden">
       <style jsx global>{tabScrollStyles}</style>
       <ResizablePanelGroup direction="horizontal" className="min-h-screen">
         {/* LEFT: Problem Description & history */}
