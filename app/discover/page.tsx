@@ -59,6 +59,13 @@ export default function DiscoverPage() {
 
   // Debounce timer ref
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  // Track if initial load is done to prevent unnecessary refetches
+  const initialLoadDone = useRef(false);
+  // Track last fetch params to avoid duplicate fetches
+  const lastFetchParams = useRef<string>('');
+  // Track in-flight request to prevent duplicate simultaneous fetches
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isSearchInFlight = useRef(false);
 
   // Fetch current user
   useEffect(() => {
@@ -84,28 +91,37 @@ export default function DiscoverPage() {
     fetchUser();
   }, []);
 
-  // Fetch suggestions and users on mount (only if no URL params)
+  // Initial data fetch on mount
   useEffect(() => {
-    if (!searchParams.toString()) {
-      fetchSuggestions();
-      // Always fetch users on mount to show them immediately
-      handleSearch(1, false);
-    }
-  }, []);
+    const hasParams = searchParams.toString();
+    const page = hasParams ? parseInt(searchParams.get('page') || '1') : 1;
 
-  // Auto-search on mount if URL has params
-  useEffect(() => {
-    if (searchParams.toString()) {
-      handleSearch(parseInt(searchParams.get('page') || '1'), false);
+    // Fetch suggestions only if no params
+    if (!hasParams) {
+      fetchSuggestions();
     }
-  }, []);
+
+    // Fetch users once on mount
+    handleSearch(page, false);
+    initialLoadDone.current = true;
+  }, []); // Empty deps - only run once on mount
 
   // Refresh connection status when page becomes visible (handles navigation back)
+  // Only refresh if initial load is done and page was hidden for more than 5 seconds
   useEffect(() => {
+    let lastHiddenTime = 0;
+
     const handleVisibilityChange = () => {
-      if (!document.hidden && users.length > 0) {
-        // Page became visible and we have users, refresh their connection status
-        refreshConnectionStatus();
+      if (document.hidden) {
+        // Track when page was hidden
+        lastHiddenTime = Date.now();
+      } else if (initialLoadDone.current && users.length > 0 && lastHiddenTime > 0) {
+        // Only refresh if page was hidden for more than 5 seconds
+        const hiddenDuration = Date.now() - lastHiddenTime;
+        if (hiddenDuration > 5000) {
+          refreshConnectionStatus();
+        }
+        lastHiddenTime = 0;
       }
     };
 
@@ -150,8 +166,6 @@ export default function DiscoverPage() {
 
   const handleSearch = async (page = 1, updateUrl = true) => {
     try {
-      setSearchLoading(true);
-
       const params = new URLSearchParams({
         page: page.toString(),
         limit: pagination.limit.toString(),
@@ -167,7 +181,36 @@ export default function DiscoverPage() {
       if (maxRating < 3000) params.append('max_rating', maxRating.toString());
       if (sortBy) params.append('sort', sortBy);
 
-      const response = await fetch(`/api/users/search?${params}`);
+      const paramsString = params.toString();
+
+      // Skip fetch if params haven't changed (prevents duplicate requests)
+      if (paramsString === lastFetchParams.current && initialLoadDone.current) {
+        console.log('Skipping duplicate fetch with same params');
+        return;
+      }
+
+      // Skip if a search is already in flight
+      if (isSearchInFlight.current) {
+        console.log('Skipping fetch - search already in flight');
+        return;
+      }
+
+      // Abort any pending request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // Create new abort controller for this request
+      abortControllerRef.current = new AbortController();
+
+      lastFetchParams.current = paramsString;
+      isSearchInFlight.current = true;
+      setSearchLoading(true);
+
+      const response = await fetch(`/api/users/search?${params}`, {
+        signal: abortControllerRef.current.signal
+      });
+
       if (response.ok) {
         const data = await response.json();
         console.log('Search results with connection status:', data.users?.map((u: any) => ({
@@ -177,9 +220,10 @@ export default function DiscoverPage() {
         setUsers(data.users || []);
         setPagination(data.pagination || pagination);
 
-        // Update URL with current filters
+        // Update URL with current filters after results are loaded
+        // Use setTimeout to avoid triggering Next.js loading state
         if (updateUrl) {
-          updateURL(page);
+          setTimeout(() => updateURL(page), 0);
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -187,29 +231,36 @@ export default function DiscoverPage() {
         toast.error(errorData.error || 'Failed to search users');
         setUsers([]);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Don't show error for aborted requests
+      if (error.name === 'AbortError') {
+        console.log('Search request was aborted');
+        return;
+      }
       console.error('Error searching users:', error);
       toast.error('An error occurred while searching');
     } finally {
+      isSearchInFlight.current = false;
       setSearchLoading(false);
     }
   };
 
-  // Debounced search - triggers 500ms after user stops typing
-  const debouncedSearch = useCallback(() => {
+  // Trigger search when filters change with debounce
+  useEffect(() => {
+    // Skip if initial load hasn't happened yet
+    if (!initialLoadDone.current) {
+      return;
+    }
+
+    // Clear existing timeout
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
 
+    // Set new timeout for search
     debounceTimer.current = setTimeout(() => {
       handleSearch(1);
     }, 500);
-  }, [searchQuery, university, graduationYear, company, minSolved, maxSolved, minRating, maxRating, sortBy]);
-
-  // Trigger search when filters change (including when clearing filters)
-  useEffect(() => {
-    // Always trigger search when any filter changes, including when clearing them
-    debouncedSearch();
 
     // Cleanup
     return () => {
@@ -219,7 +270,24 @@ export default function DiscoverPage() {
     };
   }, [searchQuery, university, graduationYear, company, minSolved, maxSolved, minRating, maxRating, sortBy]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Cancel any pending debounce
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+      // Abort any in-flight request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const handleReset = () => {
+    // Clear the last fetch params so the next search will run
+    lastFetchParams.current = '';
+
     setSearchQuery("");
     setUniversity("");
     setGraduationYear("");
@@ -240,7 +308,8 @@ export default function DiscoverPage() {
     router.replace('/discover', { scroll: false });
     // Fetch both suggestions and basic users when resetting
     fetchSuggestions();
-    handleSearch(1, false);
+    // Small delay to ensure state updates before fetching
+    setTimeout(() => handleSearch(1, false), 0);
   };
 
   // Function to refresh connection status for all users
