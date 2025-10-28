@@ -45,6 +45,8 @@ import {
   getTypingUsers,
   deleteConversationForUser,
 } from '@/lib/messaging-utils';
+import { useReadReceipts } from '@/hooks/use-read-receipts';
+import { ReadReceipt } from '@/components/messaging/read-receipt';
 
 interface DashboardUserData {
   name: string;
@@ -84,6 +86,14 @@ export default function MessagesPage() {
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [showArchivedConversations, setShowArchivedConversations] = useState(false);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+
+  // Read receipts
+  const { readReceipts } = useReadReceipts({
+    conversationId: selectedConversationId,
+    messages,
+    currentUserId,
+    enabled: !!selectedConversationId,
+  });
 
   // Get current user
   useEffect(() => {
@@ -939,6 +949,8 @@ export default function MessagesPage() {
                         {messages.map((msg) => (
                           <div
                             key={msg.id}
+                            data-message-id={msg.id}
+                            data-sender-id={msg.sender_id}
                             className={cn('flex gap-2 group', msg.sender_id === currentUserId && 'justify-end')}
                             onMouseEnter={() => setHoveredMessageId(msg.id)}
                             onMouseLeave={() => setHoveredMessageId(null)}
@@ -1055,12 +1067,22 @@ export default function MessagesPage() {
                                   )}
 
                                   <p className="text-sm">{msg.content}</p>
-                                  <p className={cn("text-xs opacity-70 mt-1", msg.sender_id === currentUserId ? "text-white" : theme === 'light' ? "text-gray-600" : "text-gray-400")}>
-                                    {new Date(msg.sent_at).toLocaleTimeString([], {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}
-                                  </p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <p className={cn("text-xs opacity-70", msg.sender_id === currentUserId ? "text-white" : theme === 'light' ? "text-gray-600" : "text-gray-400")}>
+                                      {new Date(msg.sent_at).toLocaleTimeString([], {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })}
+                                    </p>
+                                    <ReadReceipt
+                                      messageId={msg.id}
+                                      senderId={msg.sender_id}
+                                      currentUserId={currentUserId || ''}
+                                      readReceipts={readReceipts[msg.id] || []}
+                                      conversationType={selectedConversation?.type || 'direct'}
+                                      totalParticipants={groupMemberCount || 2}
+                                    />
+                                  </div>
                                 </div>
 
                                 {/* Reactions */}

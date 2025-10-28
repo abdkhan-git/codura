@@ -12,14 +12,7 @@ import {
   Send,
   X,
   MoreVertical,
-  Smile,
-  Reply,
-  Trash2,
-  Archive,
-  BellOff,
-  Minimize,
-  Maximize,
-  MessageCircle,
+  Check,
 } from "lucide-react";
 import {
   getUserConversations,
