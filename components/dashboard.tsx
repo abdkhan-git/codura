@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/ui/mode-toggle"
+import { DefaultAvatar } from "@/components/ui/default-avatar"
 
 type DashboardProps = {
   userData: {
@@ -45,23 +46,13 @@ export function Dashboard({
 
         {/* User Profile Section */}
         <div className="flex flex-col items-center gap-2">
-          <div className="w-20 h-20 rounded-full border-2 border-brand/20 shadow-lg overflow-hidden relative bg-gradient-to-br from-brand to-orange-300 flex items-center justify-center">
-            {userData.avatar_url ? (
-              <img
-                src={userData.avatar_url}
-                alt="User Avatar"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  console.error('Image failed to load:', userData.avatar_url);
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            ) : (
-              <span className="text-white font-bold text-xl">
-                {userData.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'}
-              </span>
-            )}
-          </div>
+          <DefaultAvatar
+            src={userData.avatar_url}
+            name={userData.full_name}
+            username={userData.username}
+            size="xl"
+            className="w-20 h-20 border-2 border-brand/20 shadow-lg"
+          />
           <p className="text-sm font-semibold">{userData.full_name}</p>
           <p className="text-xs opacity-70">{userData.email}</p>
         </div>

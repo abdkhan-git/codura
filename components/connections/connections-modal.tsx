@@ -234,7 +234,7 @@ export function ConnectionsModal({
                             {connection.mutual_connections_count > 0 && (
                               <Badge
                                 variant="outline"
-                                className="text-xs bg-brand/10 text-brand border-brand/30"
+                                className="text-xs bg-blue-100 text-blue-700 border-blue-300"
                               >
                                 {connection.mutual_connections_count} mutual
                               </Badge>

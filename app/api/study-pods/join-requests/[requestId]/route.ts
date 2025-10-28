@@ -132,6 +132,25 @@ export async function PATCH(
         title: 'New member joined',
         description: 'Join request was approved',
       });
+
+      // Add user to group chat if it exists
+      if (joinRequest.pod.group_chat_id) {
+        console.log('Adding approved user to group chat:', joinRequest.pod.group_chat_id);
+        const { error: chatError } = await supabase
+          .from('conversation_participants')
+          .insert({
+            conversation_id: joinRequest.pod.group_chat_id,
+            user_id: joinRequest.user_id,
+            role: 'member',
+            added_by: user.id,
+            status: 'active',
+          });
+
+        if (chatError) {
+          console.error('Error adding user to group chat:', chatError);
+          // Don't fail the approval if chat addition fails
+        }
+      }
     }
 
     // Update join request status

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import Link from "next/link";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
 import {
   Users,
   MapPin,
@@ -203,27 +204,16 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, onFee
           <div className="flex items-start gap-4 mb-4">
           {/* Avatar */}
           <Link href={`/profile/${user.username}`} className="flex-shrink-0 group/avatar">
-            <div
+            <DefaultAvatar
+              src={user.avatar_url}
+              name={user.full_name}
+              username={user.username}
+              size="lg"
               className={cn(
-                "w-16 h-16 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-xl overflow-hidden relative transition-all duration-300 group-hover/avatar:scale-110",
-                "from-brand to-orange-300 shadow-lg shadow-brand/20 ring-2",
+                "w-16 h-16 shadow-lg shadow-brand/20 ring-2 transition-all duration-300 group-hover/avatar:scale-110",
                 currentTheme === 'light' ? "ring-white/50" : "ring-zinc-900/50"
               )}
-            >
-              {user.avatar_url && !imageError ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.full_name || user.username || 'User'}
-                  className="w-full h-full object-cover"
-                  onError={() => {
-                    console.log('Avatar image failed to load:', user.avatar_url);
-                    setImageError(true);
-                  }}
-                />
-              ) : (
-                getInitials()
-              )}
-            </div>
+            />
           </Link>
 
           {/* Name + Username */}

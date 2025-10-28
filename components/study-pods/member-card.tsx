@@ -5,6 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +42,7 @@ interface MemberCardProps {
 }
 
 export function MemberCard({ member, podId, currentUserRole, onMemberUpdate }: MemberCardProps) {
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
 
   const canManage = currentUserRole === 'owner' ||
@@ -147,23 +151,35 @@ export function MemberCard({ member, podId, currentUserRole, onMemberUpdate }: M
   };
 
   return (
-    <Card className="p-4 border-2 border-white/5 bg-zinc-950/80 backdrop-blur-xl hover:border-emerald-500/20 transition-all duration-300">
+    <Card className={cn(
+      "p-4 border-2 backdrop-blur-xl hover:border-emerald-500/20 transition-all duration-300",
+      theme === 'light'
+        ? "bg-white border-gray-200 hover:border-emerald-500/30"
+        : "border-white/5 bg-zinc-950/80"
+    )}>
       <div className="flex items-center gap-4">
-        <Avatar className="w-12 h-12">
-          <AvatarImage src={member.users.avatar_url || ""} />
-          <AvatarFallback className="bg-gradient-to-br from-brand to-purple-600">
-            {member.users.full_name?.charAt(0) || "?"}
-          </AvatarFallback>
-        </Avatar>
+        <DefaultAvatar
+          src={member.users.avatar_url}
+          name={member.users.full_name}
+          username={member.users.username}
+          size="lg"
+          className="w-12 h-12"
+        />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h4 className="font-semibold truncate">
+            <h4 className={cn(
+              "font-semibold truncate",
+              theme === 'light' ? "text-gray-900" : "text-white"
+            )}>
               {member.users.full_name}
             </h4>
             {getRoleIcon(member.role)}
           </div>
-          <p className="text-sm text-muted-foreground truncate">
+          <p className={cn(
+            "text-sm truncate",
+            theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+          )}>
             @{member.users.username}
           </p>
           {member.user_stats && (
@@ -194,7 +210,11 @@ export function MemberCard({ member, podId, currentUserRole, onMemberUpdate }: M
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10">
+              <DropdownMenuContent align="end" className={cn(
+                theme === 'light'
+                  ? "bg-white border-gray-200"
+                  : "bg-zinc-900 border-white/10"
+              )}>
                 {currentUserRole === 'owner' && (
                   <>
                     {member.role === 'member' && (
@@ -209,7 +229,7 @@ export function MemberCard({ member, podId, currentUserRole, onMemberUpdate }: M
                         Demote to Member
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuSeparator className="bg-white/10" />
+                    <DropdownMenuSeparator className={theme === 'light' ? "bg-gray-200" : "bg-white/10"} />
                   </>
                 )}
                 <DropdownMenuItem

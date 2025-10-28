@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -27,6 +29,7 @@ interface EditPodModalProps {
 }
 
 export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: EditPodModalProps) {
+  const { theme } = useTheme();
   const isOwner = userRole === 'owner';
   const isModerator = userRole === 'moderator';
   const canEdit = isOwner || isModerator;
@@ -192,13 +195,24 @@ export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: Edit
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-zinc-950 border-2 border-white/10">
+      <DialogContent className={cn(
+        "sm:max-w-[600px] max-h-[90vh] overflow-y-auto border-2",
+        theme === 'light'
+          ? "bg-white border-gray-200"
+          : "bg-zinc-950 border-white/10"
+      )}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
+          <DialogTitle className={cn(
+            "flex items-center gap-2 text-xl",
+            theme === 'light' ? "text-gray-900" : "text-white"
+          )}>
             <Settings className="w-5 h-5 text-emerald-500" />
             Edit Study Pod
             {isModerator && !isOwner && (
-              <span className="text-xs text-muted-foreground font-normal ml-2">
+              <span className={cn(
+                "text-xs font-normal ml-2",
+                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+              )}>
                 (Moderator - Limited Access)
               </span>
             )}
@@ -215,7 +229,11 @@ export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: Edit
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="bg-zinc-900 border-white/10"
+                  className={cn(
+                    theme === 'light'
+                      ? "bg-white border-gray-300"
+                      : "bg-zinc-900 border-white/10"
+                  )}
                   placeholder="e.g., Dynamic Programming Masters"
                 />
               </div>
@@ -226,7 +244,12 @@ export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: Edit
                   id="description"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="bg-zinc-900 border-white/10 min-h-[80px]"
+                  className={cn(
+                    "min-h-[80px]",
+                    theme === 'light'
+                      ? "bg-white border-gray-300"
+                      : "bg-zinc-900 border-white/10"
+                  )}
                   placeholder="What's this pod about?"
                 />
               </div>
@@ -238,7 +261,11 @@ export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: Edit
                     value={formData.subject}
                     onValueChange={(value) => setFormData({ ...formData, subject: value })}
                   >
-                    <SelectTrigger className="bg-zinc-900 border-white/10">
+                    <SelectTrigger className={cn(
+                      theme === 'light'
+                        ? "bg-white border-gray-300"
+                        : "bg-zinc-900 border-white/10"
+                    )}>
                       <SelectValue placeholder="Select subject" />
                     </SelectTrigger>
                     <SelectContent>
@@ -257,7 +284,11 @@ export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: Edit
                     value={formData.skill_level}
                     onValueChange={(value) => setFormData({ ...formData, skill_level: value })}
                   >
-                    <SelectTrigger className="bg-zinc-900 border-white/10">
+                    <SelectTrigger className={cn(
+                      theme === 'light'
+                        ? "bg-white border-gray-300"
+                        : "bg-zinc-900 border-white/10"
+                    )}>
                       <SelectValue placeholder="Select level" />
                     </SelectTrigger>
                     <SelectContent>
@@ -284,15 +315,27 @@ export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: Edit
                   max={20}
                   value={formData.max_members}
                   onChange={(e) => setFormData({ ...formData, max_members: parseInt(e.target.value) || 2 })}
-                  className="bg-zinc-900 border-white/10"
+                  className={cn(
+                    theme === 'light'
+                      ? "bg-white border-gray-300"
+                      : "bg-zinc-900 border-white/10"
+                  )}
                 />
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50 border border-white/5">
+                <div className={cn(
+                  "flex items-center justify-between p-3 rounded-lg",
+                  theme === 'light'
+                    ? "bg-gray-50 border border-gray-200"
+                    : "bg-zinc-900/50 border border-white/5"
+                )}>
                   <div>
                     <Label htmlFor="is_public" className="cursor-pointer">Public Pod</Label>
-                    <p className="text-xs text-muted-foreground">
+                    <p className={cn(
+                      "text-xs",
+                      theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                    )}>
                       Anyone can discover and join
                     </p>
                   </div>
@@ -303,10 +346,18 @@ export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: Edit
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50 border border-white/5">
+                <div className={cn(
+                  "flex items-center justify-between p-3 rounded-lg",
+                  theme === 'light'
+                    ? "bg-gray-50 border border-gray-200"
+                    : "bg-zinc-900/50 border border-white/5"
+                )}>
                   <div>
                     <Label htmlFor="requires_approval" className="cursor-pointer">Require Approval</Label>
-                    <p className="text-xs text-muted-foreground">
+                    <p className={cn(
+                      "text-xs",
+                      theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                    )}>
                       Review join requests before accepting
                     </p>
                   </div>
@@ -328,7 +379,11 @@ export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: Edit
                 value={topicInput}
                 onChange={(e) => setTopicInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTopic())}
-                className="bg-zinc-900 border-white/10"
+                className={cn(
+                  theme === 'light'
+                    ? "bg-white border-gray-300"
+                    : "bg-zinc-900 border-white/10"
+                )}
                 placeholder="Add a topic..."
               />
               <Button type="button" onClick={addTopic} variant="outline">
@@ -361,7 +416,12 @@ export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: Edit
               id="goals"
               value={formData.goals}
               onChange={(e) => setFormData({ ...formData, goals: e.target.value })}
-              className="bg-zinc-900 border-white/10 min-h-[80px]"
+              className={cn(
+                "min-h-[80px]",
+                theme === 'light'
+                  ? "bg-white border-gray-300"
+                  : "bg-zinc-900 border-white/10"
+              )}
               placeholder="What do you want to achieve?"
             />
           </div>
@@ -374,7 +434,11 @@ export function EditPodModal({ isOpen, onClose, pod, userRole, onSuccess }: Edit
               min={0}
               value={formData.target_problems_count}
               onChange={(e) => setFormData({ ...formData, target_problems_count: parseInt(e.target.value) || 0 })}
-              className="bg-zinc-900 border-white/10"
+              className={cn(
+                theme === 'light'
+                  ? "bg-white border-gray-300"
+                  : "bg-zinc-900 border-white/10"
+              )}
             />
           </div>
         </div>

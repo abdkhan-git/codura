@@ -282,9 +282,8 @@ export function EditProfileDialog({ profile, onProfileUpdate }: EditProfileDialo
       setAvatarPreview(null);
       setOpen(false);
 
-      // Refresh the page to show updated avatar everywhere
-      router.refresh();
-      window.location.reload();
+      // Profile updated successfully - no need for page reload
+      toast.success("Profile updated successfully!");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {

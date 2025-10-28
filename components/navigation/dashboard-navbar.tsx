@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { NotificationsDropdown } from "@/components/social/notifications-dropdown";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
 
 interface UserData {
   name: string;
@@ -109,13 +110,13 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
         </Link>
 
         {/* Navigation */}
-        <nav className="hidden items-center gap-2 lg:flex">
+        <nav className="flex items-center gap-1 sm:gap-2">
           {/* Problems - Direct Link */}
           <Link href="/problems">
             <Button
               variant="ghost"
               className={cn(
-                "relative group px-4 h-9 text-sm font-medium transition-all duration-300",
+                "relative group px-2 sm:px-4 h-9 text-xs sm:text-sm font-medium transition-all duration-300",
                 "hover:bg-gradient-to-b",
                 currentTheme === 'light'
                   ? "text-zinc-700 hover:text-zinc-900 hover:from-zinc-100 hover:to-zinc-50"
@@ -139,16 +140,16 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               <Button
                 variant="ghost"
                 className={cn(
-                  "relative group px-4 h-9 text-sm font-medium transition-all duration-300 gap-1",
+                  "relative group px-2 sm:px-4 h-9 text-xs sm:text-sm font-medium transition-all duration-300 gap-1",
                   "hover:bg-gradient-to-b",
                   currentTheme === 'light'
                     ? "text-zinc-700 hover:text-zinc-900 hover:from-zinc-100 hover:to-zinc-50"
                     : "text-zinc-300 hover:text-white hover:from-zinc-800 hover:to-zinc-900"
                 )}
               >
-                <Users className="w-4 h-4" />
-                <span className="relative z-10">Network</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="relative z-10 hidden sm:inline">Network</span>
+                <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-50" />
                 {/* Underglow effect */}
                 <div className={cn(
                   "absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl",
@@ -281,16 +282,16 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               <Button
                 variant="ghost"
                 className={cn(
-                  "relative group px-4 h-9 text-sm font-medium transition-all duration-300 gap-1",
+                  "relative group px-2 sm:px-4 h-9 text-xs sm:text-sm font-medium transition-all duration-300 gap-1",
                   "hover:bg-gradient-to-b",
                   currentTheme === 'light'
                     ? "text-zinc-700 hover:text-zinc-900 hover:from-zinc-100 hover:to-zinc-50"
                     : "text-zinc-300 hover:text-white hover:from-zinc-800 hover:to-zinc-900"
                 )}
               >
-                <Trophy className="w-4 h-4" />
-                <span className="relative z-10">Compete</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="relative z-10 hidden sm:inline">Compete</span>
+                <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-50" />
                 {/* Underglow effect */}
                 <div className={cn(
                   "absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl",
@@ -363,16 +364,16 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               <Button
                 variant="ghost"
                 className={cn(
-                  "relative group px-4 h-9 text-sm font-medium transition-all duration-300 gap-1",
+                  "relative group px-2 sm:px-4 h-9 text-xs sm:text-sm font-medium transition-all duration-300 gap-1",
                   "hover:bg-gradient-to-b",
                   currentTheme === 'light'
                     ? "text-zinc-700 hover:text-zinc-900 hover:from-zinc-100 hover:to-zinc-50"
                     : "text-zinc-300 hover:text-white hover:from-zinc-800 hover:to-zinc-900"
                 )}
               >
-                <MessageSquare className="w-4 h-4" />
-                <span className="relative z-10">Community</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="relative z-10 hidden sm:inline">Community</span>
+                <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-50" />
                 {/* Underglow effect */}
                 <div className={cn(
                   "absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl",
@@ -441,7 +442,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
         </nav>
 
         {/* Right Side - Notifications & User Menu */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 sm:gap-3">
           {/* Messenger Toggle */}
           <Button
             variant="ghost"
@@ -475,18 +476,14 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                     : "hover:bg-zinc-800"
                 )}
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white font-semibold text-xs overflow-hidden relative ring-2 ring-background">
-                  {user?.avatar && typeof user.avatar === 'string' && user.avatar.startsWith('http') ? (
-                    <img
-                      src={user.avatar}
-                      alt="Avatar"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-xs">{user?.avatar || user?.name?.charAt(0).toUpperCase() || 'U'}</span>
-                  )}
-                </div>
-                <span className="hidden sm:inline text-sm font-medium">
+                <DefaultAvatar
+                  src={user?.avatar}
+                  name={user?.name}
+                  username={user?.username}
+                  size="sm"
+                  className="ring-2 ring-background"
+                />
+                <span className="hidden md:inline text-sm font-medium">
                   {user?.name?.split(' ')[0] || 'User'}
                 </span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-50" />
@@ -513,17 +510,13 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               <div className="px-3 py-3 mb-1 relative z-10">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white font-semibold overflow-hidden ring-2 ring-border/50">
-                      {user?.avatar && typeof user.avatar === 'string' && user.avatar.startsWith('http') ? (
-                        <img
-                          src={user.avatar}
-                          alt="Avatar"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-sm">{user?.avatar || user?.name?.charAt(0).toUpperCase() || 'U'}</span>
-                      )}
-                    </div>
+                    <DefaultAvatar
+                      src={user?.avatar}
+                      name={user?.name}
+                      username={user?.username}
+                      size="lg"
+                      className="ring-2 ring-border/50"
+                    />
                     <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full ring-2 ring-background" />
                   </div>
                   <UserNameText name={user?.name || 'User'} email={user?.email || ''} />

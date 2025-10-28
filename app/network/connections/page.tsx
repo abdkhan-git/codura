@@ -11,6 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanyAutocomplete } from "@/components/ui/company-autocomplete";
 import { LocationAutocomplete } from "@/components/ui/location-autocomplete";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Users,
   Plus,
@@ -18,13 +25,17 @@ import {
   Clock,
   X,
   Settings,
+  Users as Grid,
+  Users as ListIcon,
+  Send as MessageIcon,
   GraduationCap,
   Briefcase,
   MapPin,
   Calendar,
   ChevronDown,
   Sparkles,
-  Trophy
+  Trophy,
+  ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
 import { ActivityFeed } from "@/components/social/activity-feed";
@@ -73,10 +84,12 @@ export default function ConnectionsPage() {
   const [filteredConnections, setFilteredConnections] = useState<ConnectionData[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("connections");
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Advanced Filters
   const [filterSchool, setFilterSchool] = useState("");
@@ -92,6 +105,19 @@ export default function ConnectionsPage() {
   // Bulk selection state
   const [selectedRequests, setSelectedRequests] = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+
+  // Handle request selection
+  const handleRequestSelect = (requestId: string) => {
+    setSelectedRequests(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(requestId)) {
+        newSet.delete(requestId);
+      } else {
+        newSet.add(requestId);
+      }
+      return newSet;
+    });
+  };
 
   // Debounce timer ref
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
@@ -123,6 +149,35 @@ export default function ConnectionsPage() {
     fetchUser();
   }, []);
 
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + K to focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[placeholder*="Search by name"]') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }
+      // Escape to clear search
+      if (e.key === 'Escape' && searchQuery) {
+        setSearchQuery('');
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [searchQuery]);
+
   // Fetch connections and pending requests
   useEffect(() => {
     fetchConnections();
@@ -133,8 +188,8 @@ export default function ConnectionsPage() {
   useEffect(() => {
     let filtered = connections;
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearchQuery) {
+      const query = debouncedSearchQuery.toLowerCase();
       filtered = filtered.filter(conn =>
         conn.user.full_name?.toLowerCase().includes(query) ||
         conn.user.username?.toLowerCase().includes(query) ||
@@ -167,7 +222,7 @@ export default function ConnectionsPage() {
     }
 
     setFilteredConnections(filtered);
-  }, [connections, searchQuery, filterSchool, filterCompany, filterGradYear, filterLocation]);
+  }, [connections, debouncedSearchQuery, filterSchool, filterCompany, filterGradYear, filterLocation]);
 
   // School search
   useEffect(() => {
@@ -198,6 +253,7 @@ export default function ConnectionsPage() {
       const response = await fetch(`/api/connections/my-connections`);
       if (response.ok) {
         const data = await response.json();
+        console.log('Fetched connections data:', data);
         setConnections(data.connections || []);
         setFilteredConnections(data.connections || []);
       }
@@ -229,8 +285,22 @@ export default function ConnectionsPage() {
 
       if (response.ok) {
         toast.success('Connection request accepted!');
+        // Remove from pending requests
         setPendingRequests(prev => prev.filter(req => req.id !== requestId));
-        fetchConnections();
+        // Add to connections immediately
+        const acceptedUser = pendingRequests.find(req => req.id === requestId)?.user;
+        if (acceptedUser) {
+          setConnections(prev => [...prev, {
+            user: acceptedUser,
+            connected_at: new Date().toISOString(),
+            mutual_connections: 0 // Will be updated on next fetch
+          }]);
+          setFilteredConnections(prev => [...prev, {
+            user: acceptedUser,
+            connected_at: new Date().toISOString(),
+            mutual_connections: 0
+          }]);
+        }
       } else {
         const data = await response.json();
         toast.error(data.error || 'Failed to accept request');
@@ -334,13 +404,13 @@ export default function ConnectionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* iOS 26 Liquid Glass Background */}
+    <TooltipProvider>
+      <div className="min-h-screen bg-background relative z-0">
+        {/* Subtle ambient background like Connection Suggestions */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute inset-0 bg-background" />
-        <div className="absolute top-[-20%] right-[10%] w-[800px] h-[800px] bg-gradient-to-br from-brand/8 via-purple-500/6 to-cyan-500/4 rounded-full blur-[120px] animate-pulse-slow" />
-        <div className="absolute bottom-[-10%] left-[5%] w-[600px] h-[600px] bg-gradient-to-tr from-purple-500/5 via-pink-500/4 to-brand/6 rounded-full blur-[100px] animate-float-slow" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-[40%] left-[50%] w-[500px] h-[500px] bg-gradient-to-bl from-cyan-500/3 via-blue-500/4 to-purple-500/3 rounded-full blur-[90px] animate-pulse-slow" style={{ animationDelay: '4s' }} />
+          <div className="absolute inset-0 bg-background" />
+          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-[800px] h-[600px] bg-gradient-to-b from-cyan-500/8 via-blue-500/5 to-transparent rounded-full blur-[200px]" />
+          <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-gradient-to-t from-rose-500/6 to-transparent rounded-full blur-[150px]" />
       </div>
 
       {/* Navbar */}
@@ -350,38 +420,85 @@ export default function ConnectionsPage() {
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-16">
         {/* Page Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br from-brand via-purple-500 to-cyan-500 shadow-lg shadow-brand/25">
-              <Users className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="absolute -inset-2 bg-gradient-to-br from-cyan-500/30 via-blue-500/20 to-rose-500/30 rounded-2xl blur-lg" />
+                <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-br from-cyan-500/10 via-blue-500/8 to-rose-500/10 border border-cyan-500/20 backdrop-blur-sm">
+                  <Users className="w-6 h-6 text-cyan-400" />
+                </div>
             </div>
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
-                My Network
+                <h1 className="text-4xl font-bold">
+                  <span className="bg-gradient-to-r from-foreground to-foreground bg-clip-text text-transparent">My</span> <span className="bg-gradient-to-r from-cyan-400 to-rose-400 bg-clip-text text-transparent">Network</span>
               </h1>
-              <p className="text-muted-foreground">Grow and manage your professional connections</p>
+                <p className="text-slate-400 text-lg">Grow and manage your professional connections</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-slate-700/50 hover:border-cyan-500/30 hover:bg-cyan-500/10 transition-all duration-200"
+                disabled={isRefreshing}
+                onClick={async () => {
+                  setIsRefreshing(true);
+                  try {
+                    await Promise.all([fetchConnections(), fetchPendingRequests()]);
+                    toast.success('Network refreshed');
+                  } catch (error) {
+                    toast.error('Failed to refresh network');
+                  } finally {
+                    setIsRefreshing(false);
+                  }
+                }}
+              >
+                {isRefreshing ? (
+                  <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                ) : (
+                  <Settings className="w-4 h-4 mr-2" />
+                )}
+                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className={cn(
+                  "border-slate-700/50 transition-all duration-200",
+                  showFilters 
+                    ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-400" 
+                    : "hover:border-cyan-500/30"
+                )}
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Filters
+                {activeFiltersCount > 0 && (
+                  <Badge className="ml-2 bg-cyan-500/20 text-cyan-300 border-cyan-500/30 text-xs">
+                    {activeFiltersCount}
+                  </Badge>
+                )}
+              </Button>
             </div>
           </div>
         </div>
 
         <div className="flex gap-6">
-          {/* Filter Sidebar - iOS 26 Style */}
+          {/* Filter Sidebar - Clean Style */}
           <div className={cn(
             "transition-all duration-500 ease-out",
             showFilters ? "w-80 opacity-100" : "w-0 opacity-0 overflow-hidden"
           )}>
             <div className="sticky top-24">
-              <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/80 via-card/60 to-transparent backdrop-blur-2xl overflow-hidden shadow-2xl">
-                {/* Glassmorphic glow effects */}
-                <div className="absolute inset-0 bg-gradient-to-br from-brand/5 via-purple-500/5 to-transparent opacity-50" />
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-brand/20 to-transparent rounded-full blur-3xl" />
-
+              <Card className="relative border border-cyan-500/20 bg-gradient-to-br from-[#1a1f2e]/95 via-[#1e2430]/90 to-[#1a1f2e]/95 backdrop-blur-xl overflow-hidden shadow-2xl shadow-cyan-500/10">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-blue-500/3 to-transparent" />
                 <div className="relative p-6 space-y-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Settings className="w-5 h-5 text-brand" />
-                      <h3 className="text-lg font-semibold">Filters</h3>
+                      <Settings className="w-5 h-5 text-cyan-400" />
+                      <h3 className="text-lg font-semibold text-white">Filters</h3>
                       {activeFiltersCount > 0 && (
-                        <Badge className="bg-brand/20 text-brand border-brand/30">
+                        <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
                           {activeFiltersCount}
                         </Badge>
                       )}
@@ -391,7 +508,7 @@ export default function ConnectionsPage() {
                         variant="ghost"
                         size="sm"
                         onClick={clearAllFilters}
-                        className="text-xs h-7 text-muted-foreground hover:text-foreground"
+                        className="text-xs h-7 text-slate-400 hover:text-white"
                       >
                         Clear all
                       </Button>
@@ -400,8 +517,8 @@ export default function ConnectionsPage() {
 
                   {/* School Filter */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4 text-brand" />
+                    <label className="text-sm font-medium flex items-center gap-2 text-slate-300">
+                      <GraduationCap className="w-4 h-4 text-rose-400" />
                       School
                     </label>
                     <div className="relative">
@@ -409,10 +526,10 @@ export default function ConnectionsPage() {
                         placeholder="Search universities..."
                         value={schoolQuery}
                         onChange={(e) => setSchoolQuery(e.target.value)}
-                        className="bg-muted/30 border-border/40 focus:border-brand/50 backdrop-blur-sm"
+                        className="bg-slate-800/50 border-slate-700/50 focus:border-cyan-500/50 text-white placeholder:text-slate-500"
                       />
                       {showSchoolDropdown && (
-                        <div className="absolute z-50 w-full mt-1 bg-card/95 border-2 border-border/20 rounded-lg shadow-2xl backdrop-blur-xl max-h-48 overflow-y-auto">
+                        <div className="absolute z-50 w-full mt-1 bg-[#1a1f2e] border border-slate-700/50 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                           {schoolResults.map((school) => (
                             <button
                               key={school.code}
@@ -421,11 +538,11 @@ export default function ConnectionsPage() {
                                 setSchoolQuery(school.name);
                                 setShowSchoolDropdown(false);
                               }}
-                              className="w-full px-3 py-2 text-left hover:bg-muted/30 transition-colors border-b border-border/10 last:border-b-0"
+                              className="w-full px-3 py-2 text-left hover:bg-slate-800/50 transition-colors border-b border-slate-700/30 last:border-b-0"
                             >
-                              <div className="font-medium text-sm">{school.name}</div>
+                              <div className="font-medium text-sm text-white">{school.name}</div>
                               {school.city && school.state && (
-                                <div className="text-xs text-muted-foreground">{school.city}, {school.state}</div>
+                                <div className="text-xs text-slate-400">{school.city}, {school.state}</div>
                               )}
                             </button>
                           ))}
@@ -434,7 +551,7 @@ export default function ConnectionsPage() {
                       {filterSchool && (
                         <button
                           onClick={() => { setFilterSchool(""); setSchoolQuery(""); }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -444,28 +561,28 @@ export default function ConnectionsPage() {
 
                   {/* Company Filter */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      <Briefcase className="w-4 h-4 text-brand" />
+                    <label className="text-sm font-medium flex items-center gap-2 text-slate-300">
+                      <Briefcase className="w-4 h-4 text-purple-400" />
                       Company
                     </label>
                     <CompanyAutocomplete
                       value={filterCompany}
                       onValueChange={setFilterCompany}
                       placeholder="Search companies..."
-                      className="bg-muted/30 border-border/40 focus:border-brand/50"
+                      className="bg-slate-800/50 border-slate-700/50 focus:border-purple-500/50"
                     />
                   </div>
 
                   {/* Graduation Year Filter */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-brand" />
+                    <label className="text-sm font-medium flex items-center gap-2 text-slate-300">
+                      <Calendar className="w-4 h-4 text-purple-400" />
                       Graduation Year
                     </label>
                     <select
                       value={filterGradYear}
                       onChange={(e) => setFilterGradYear(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-muted/30 border-2 border-border/40 focus:border-brand/50 backdrop-blur-sm transition-all outline-none"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 focus:border-purple-500/50 transition-all outline-none text-white"
                     >
                       <option value="">All years</option>
                       {gradYears.map(year => (
@@ -476,15 +593,15 @@ export default function ConnectionsPage() {
 
                   {/* Location Filter */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-brand" />
+                    <label className="text-sm font-medium flex items-center gap-2 text-slate-300">
+                      <MapPin className="w-4 h-4 text-orange-400" />
                       Location
                     </label>
                     <LocationAutocomplete
                       value={filterLocation}
                       onValueChange={setFilterLocation}
                       placeholder="Search locations worldwide..."
-                      className="bg-muted/30 border-border/40 focus:border-brand/50"
+                      className="bg-slate-800/50 border-slate-700/50 focus:border-purple-500/50"
                     />
                   </div>
                 </div>
@@ -494,96 +611,93 @@ export default function ConnectionsPage() {
 
           {/* Main Content Area */}
           <div className="flex-1 space-y-6">
-            {/* Search and Controls - Glassmorphic */}
-            <Card className="relative p-6 border-2 border-border/20 bg-gradient-to-br from-card/80 via-card/60 to-transparent backdrop-blur-2xl overflow-hidden shadow-xl animate-in fade-in-0 slide-in-from-top-4 duration-700" style={{ animationDelay: '100ms' }}>
-              <div className="absolute inset-0 bg-gradient-to-r from-brand/5 via-purple-500/5 to-cyan-500/5 opacity-30" />
-
+            {/* Search and Controls - Glassmorphism Design */}
+            <Card className="relative p-6 border border-slate-700/50 bg-card/90 backdrop-blur-xl overflow-hidden hover:border-cyan-500/30 transition-all duration-300">
               <div className="relative flex flex-col lg:flex-row gap-4 items-center justify-between">
-                {/* Search Bar with gradient border */}
-                <div className="relative flex-1 max-w-md group">
-                  <div className="absolute inset-0 bg-gradient-to-r from-brand via-purple-500 to-cyan-500 rounded-xl blur-sm opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
-                  <div className="relative">
-                    <Settings className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
-                    <Input
-                      type="text"
-                      placeholder="Search by name, username, bio..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 h-11 bg-muted/30 border-2 border-border/40 focus:border-brand/50 backdrop-blur-sm transition-all"
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-muted transition-all"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
+                {/* Search Bar */}
+                <div className="relative flex-1 max-w-md">
+                  <Settings className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                  <Input
+                    type="text"
+                    placeholder="Search by name, username, bio..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-20 h-11 bg-slate-800/50 border-slate-700/50 focus:border-purple-500/50 text-white placeholder:text-slate-500 transition-all"
+                  />
+                  {searchQuery ? (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-slate-700 transition-all"
+                    >
+                      <X className="w-3.5 h-3.5 text-slate-400" />
+                    </button>
+                  ) : (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-slate-500">
+                      <kbd className="px-1.5 py-0.5 bg-slate-700/50 rounded text-slate-400">⌘</kbd>
+                      <kbd className="px-1.5 py-0.5 bg-slate-700/50 rounded text-slate-400">K</kbd>
+                    </div>
+                  )}
                 </div>
 
                 {/* Controls */}
                 <div className="flex items-center gap-3">
-                  {/* Filter Toggle */}
-                  <Button
-                    onClick={() => setShowFilters(!showFilters)}
-                    variant="outline"
-                    className={cn(
-                      "gap-2 transition-all duration-300",
-                      showFilters && "bg-brand/10 border-brand/50 text-brand"
-                    )}
-                  >
-                    <Settings className="w-4 h-4" />
-                    Filters
-                    {activeFiltersCount > 0 && (
-                      <Badge className="ml-1 bg-brand text-white">
-                        {activeFiltersCount}
-                      </Badge>
-                    )}
-                  </Button>
 
-                  {/* View Mode Toggle - iOS style */}
-                  <div className="flex rounded-xl border-2 border-border/20 overflow-hidden bg-muted/20 backdrop-blur-sm">
-                    <button
-                      onClick={() => setViewMode('grid')}
-                      className={cn(
-                        "p-2.5 transition-all duration-300",
-                        viewMode === 'grid'
-                          ? 'bg-gradient-to-r from-brand to-purple-500 text-white shadow-lg'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
-                      )}
-                    >
-                      <Users className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setViewMode('list')}
-                      className={cn(
-                        "p-2.5 transition-all duration-300",
-                        viewMode === 'list'
-                          ? 'bg-gradient-to-r from-brand to-purple-500 text-white shadow-lg'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
-                      )}
-                    >
-                      <Users className="w-4 h-4" />
-                    </button>
+                  {/* View Mode Toggle - Clean style with proper z-index */}
+                  <div className="flex rounded-lg border border-slate-300/50 overflow-hidden bg-slate-100/50">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setViewMode('grid')}
+                          className={cn(
+                            "p-2.5 transition-all duration-200 relative z-10",
+                            viewMode === 'grid'
+                              ? 'bg-cyan-500/20 text-cyan-600'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                          )}
+                        >
+                          <Grid className="w-4 h-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="z-50">
+                        <p>Grid view</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setViewMode('list')}
+                          className={cn(
+                            "p-2.5 transition-all duration-200 relative z-10",
+                            viewMode === 'list'
+                              ? 'bg-cyan-500/20 text-cyan-600'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                          )}
+                        >
+                          <ListIcon className="w-4 h-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="z-50">
+                        <p>List view</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               </div>
 
               {/* Active Filters Pills */}
               {activeFiltersCount > 0 && (
-                <div className="relative mt-4 pt-4 border-t border-border/20 flex flex-wrap gap-2">
+                <div className="relative mt-4 pt-4 border-t border-slate-700/50 flex flex-wrap gap-2">
                   {filterSchool && (
-                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-brand/10 border-brand/30 text-brand">
+                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-orange-500/10 border-orange-500/30 text-orange-400">
                       <GraduationCap className="w-3 h-3" />
                       {filterSchool}
-                      <button onClick={() => { setFilterSchool(""); setSchoolQuery(""); }} className="hover:bg-brand/20 rounded-full p-0.5">
+                      <button onClick={() => { setFilterSchool(""); setSchoolQuery(""); }} className="hover:bg-orange-500/20 rounded-full p-0.5">
                         <X className="w-3 h-3" />
                       </button>
                     </Badge>
                   )}
                   {filterCompany && (
-                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400">
+                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-purple-500/10 border-purple-500/30 text-purple-400">
                       <Briefcase className="w-3 h-3" />
                       {filterCompany}
                       <button onClick={() => setFilterCompany("")} className="hover:bg-purple-500/20 rounded-full p-0.5">
@@ -592,19 +706,19 @@ export default function ConnectionsPage() {
                     </Badge>
                   )}
                   {filterGradYear && (
-                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-cyan-500/10 border-cyan-500/30 text-cyan-600 dark:text-cyan-400">
+                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-purple-500/10 border-purple-500/30 text-purple-400">
                       <Calendar className="w-3 h-3" />
                       Class of {filterGradYear}
-                      <button onClick={() => setFilterGradYear("")} className="hover:bg-cyan-500/20 rounded-full p-0.5">
+                      <button onClick={() => setFilterGradYear("")} className="hover:bg-purple-500/20 rounded-full p-0.5">
                         <X className="w-3 h-3" />
                       </button>
                     </Badge>
                   )}
                   {filterLocation && (
-                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-pink-500/10 border-pink-500/30 text-pink-600 dark:text-pink-400">
+                    <Badge variant="secondary" className="gap-2 pl-3 pr-2 py-1.5 bg-orange-500/10 border-orange-500/30 text-orange-400">
                       <MapPin className="w-3 h-3" />
                       {filterLocation}
-                      <button onClick={() => setFilterLocation("")} className="hover:bg-pink-500/20 rounded-full p-0.5">
+                      <button onClick={() => setFilterLocation("")} className="hover:bg-orange-500/20 rounded-full p-0.5">
                         <X className="w-3 h-3" />
                       </button>
                     </Badge>
@@ -613,45 +727,38 @@ export default function ConnectionsPage() {
               )}
             </Card>
 
-            {/* Tabs - Glassmorphic */}
+            {/* Tabs - Glassmorphism Design */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-4 border-2 border-border/20 bg-gradient-to-r from-card/80 via-card/60 to-card/80 backdrop-blur-2xl p-1 h-auto">
+              <TabsList className="grid w-full grid-cols-3 border border-slate-700/50 bg-card/90 backdrop-blur-xl p-1 h-auto">
                 <TabsTrigger
                   value="connections"
-                  className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 rounded-lg py-3"
+                  className="gap-2 data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:shadow-lg data-[state=active]:shadow-cyan-500/20 transition-all duration-300 rounded-lg py-3 hover:bg-cyan-500/10"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span className="hidden sm:inline">Connections</span>
-                  <Badge variant="secondary" className="ml-1 bg-background/50">
+                  <Badge variant="secondary" className="ml-1 bg-cyan-500/20 text-cyan-700 border-cyan-500/30">
                     {filteredConnections.length}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger
                   value="pending"
-                  className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 rounded-lg py-3"
+                  className="gap-2 data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:shadow-lg data-[state=active]:shadow-cyan-500/20 transition-all duration-300 rounded-lg py-3 hover:bg-cyan-500/10"
                 >
                   <Clock className="w-4 h-4" />
                   <span className="hidden sm:inline">Pending</span>
-                  <Badge variant="secondary" className="ml-1 bg-background/50">
+                  <Badge variant="secondary" className="ml-1 bg-cyan-500/20 text-cyan-700 border-cyan-500/30">
                     {pendingRequests.filter(req => req.type === 'received').length}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger
                   value="sent"
-                  className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 rounded-lg py-3"
+                  className="gap-2 data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:shadow-lg data-[state=active]:shadow-cyan-500/20 transition-all duration-300 rounded-lg py-3 hover:bg-cyan-500/10"
                 >
                   <Plus className="w-4 h-4" />
                   <span className="hidden sm:inline">Sent</span>
-                  <Badge variant="secondary" className="ml-1 bg-background/50">
+                  <Badge variant="secondary" className="ml-1 bg-cyan-500/20 text-cyan-700 border-cyan-500/30">
                     {pendingRequests.filter(req => req.type === 'sent').length}
                   </Badge>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="activity"
-                  className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 rounded-lg py-3"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span className="hidden sm:inline">Activity</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -684,12 +791,12 @@ export default function ConnectionsPage() {
                       : "Start building your network by discovering and connecting with other developers"
                     }
                     action={activeFiltersCount > 0 ? (
-                      <Button onClick={clearAllFilters} className="gap-2">
+                      <Button onClick={clearAllFilters} className="gap-2 bg-slate-800 hover:bg-slate-700 border-slate-700">
                         <X className="w-4 h-4" />
                         Clear Filters
                       </Button>
                     ) : (
-                      <Button onClick={() => router.push('/discover')} className="gap-2 bg-gradient-to-r from-brand to-purple-500 hover:opacity-90">
+                      <Button onClick={() => router.push('/discover')} className="gap-2 bg-blue-500 hover:bg-blue-600 text-white">
                         <Plus className="w-4 h-4" />
                         Discover Developers
                       </Button>
@@ -741,8 +848,8 @@ export default function ConnectionsPage() {
                           key={request.id}
                           request={request}
                           onCancel={handleCancelRequest}
-                          onSelect={() => {}}
-                          isSelected={false}
+                          onSelect={handleRequestSelect}
+                          isSelected={selectedRequests.has(request.id)}
                           actionLoading={actionLoading}
                           viewMode={viewMode}
                           theme="dark"
@@ -756,7 +863,7 @@ export default function ConnectionsPage() {
                     title="No sent requests"
                     description="You haven't sent any connection requests yet"
                     action={
-                      <Button onClick={() => router.push('/discover')} className="gap-2 bg-gradient-to-r from-brand to-purple-500 hover:opacity-90">
+                      <Button onClick={() => router.push('/discover')} className="gap-2 bg-blue-500 hover:bg-blue-600 text-white">
                         <Plus className="w-4 h-4" />
                         Find People to Connect With
                       </Button>
@@ -765,19 +872,16 @@ export default function ConnectionsPage() {
                 )}
               </TabsContent>
 
-              {/* Activity Tab */}
-              <TabsContent value="activity" className="space-y-6 mt-6">
-                <ActivityFeed />
-              </TabsContent>
             </Tabs>
           </div>
         </div>
       </main>
     </div>
+    </TooltipProvider>
   );
 }
 
-// iOS 26-Style Connection Card
+// Clean Connection Card
 function ConnectionCard({
   connection,
   onUnfriend,
@@ -799,92 +903,144 @@ function ConnectionCard({
 
   return (
     <Card className={cn(
-      "group relative p-5 border-2 border-border/20 bg-gradient-to-br from-card/70 via-card/50 to-transparent backdrop-blur-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 animate-in fade-in-0 slide-in-from-bottom-4",
+      "group relative p-4 border border-slate-700/50 bg-card/90 backdrop-blur-xl overflow-hidden hover:border-cyan-500/30 hover:shadow-lg hover:shadow-cyan-500/10 transition-all duration-300 hover:scale-[1.005] animate-in slide-in-from-bottom-4 fade-in-0",
       viewMode === 'list' && "flex items-center gap-4"
-    )} style={{ animationDelay: `${index * 50}ms` }}>
-      {/* Hover gradient effect */}
-      <div className="absolute inset-0 bg-gradient-to-br from-brand/10 via-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl" />
-
+    )} style={{ animationDelay: `${index * 100}ms` }}>
       <div className={cn("relative flex items-start gap-4", viewMode === 'list' && "flex-1")}>
         <Link href={`/profile/${connection.user.username}`} className="contents">
-          {/* Avatar with glassmorphic border */}
-          <div className="relative flex-shrink-0 cursor-pointer hover:scale-105 transition-transform">
-            <div className="absolute inset-0 bg-gradient-to-br from-brand via-purple-500 to-cyan-500 rounded-2xl blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
-            <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl">
-              {connection.user.avatar_url ? (
-                <Image
-                  src={connection.user.avatar_url}
-                  alt={connection.user.full_name || 'User'}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-brand to-purple-500 flex items-center justify-center text-white font-bold text-lg">
-                  {getInitials(connection.user.full_name || connection.user.username || 'U')}
-                </div>
-              )}
+          {/* Avatar - Glassmorphism Design */}
+          <div className="relative flex-shrink-0 cursor-pointer group-hover:scale-105 transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-blue-500/15 to-rose-500/20 rounded-2xl blur-lg group-hover:blur-xl transition-all duration-500" />
+            <div className="relative">
+              <DefaultAvatar
+                src={connection.user.avatar_url}
+                name={connection.user.full_name}
+                username={connection.user.username}
+                size="lg"
+                className="w-14 h-14 rounded-2xl border border-cyan-500/30"
+              />
             </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-background shadow-lg" />
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-br from-cyan-500 to-rose-500 rounded-full border-2 border-[#1a1f2e] shadow-lg shadow-cyan-500/30" />
           </div>
 
           {/* User Info */}
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-lg truncate group-hover:text-brand transition-colors">
+            <h3 className="font-bold text-lg truncate bg-gradient-to-r from-foreground via-cyan-400 to-rose-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:via-rose-300 group-hover:to-blue-300 transition-all duration-500">
               {connection.user.full_name || connection.user.username || 'Anonymous'}
             </h3>
-            <p className="text-sm text-muted-foreground truncate">
+            <p className="text-sm text-slate-600 truncate group-hover:text-cyan-600 transition-colors duration-300">
               @{connection.user.username || 'user'}
             </p>
 
             {/* Metadata Pills */}
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-2 mt-4">
               {connection.user.university && (
-                <Badge variant="secondary" className="text-xs bg-brand/10 text-brand border-brand/30">
+                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-rose-500/20 to-pink-500/20 text-rose-300 border border-rose-500/30 backdrop-blur-sm shadow-lg shadow-rose-500/10">
                   <GraduationCap className="w-3 h-3 mr-1" />
                   {connection.user.university}
                   {connection.user.graduation_year && ` '${connection.user.graduation_year.slice(-2)}`}
                 </Badge>
               )}
               {connection.user.company && (
-                <Badge variant="secondary" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-500/30 backdrop-blur-sm shadow-lg shadow-cyan-500/10">
                   <Briefcase className="w-3 h-3 mr-1" />
                   {connection.user.company}
                 </Badge>
               )}
               {connection.user.location && (
-                <Badge variant="secondary" className="text-xs bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30">
+                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-slate-600/20 to-slate-700/20 text-slate-300 border border-slate-600/30 backdrop-blur-sm">
                   <MapPin className="w-3 h-3 mr-1" />
                   {connection.user.location}
                 </Badge>
               )}
             </div>
 
-            {/* Stats */}
-            <div className="flex items-center gap-4 mt-3 text-sm">
-              {connection.mutual_connections > 0 && (
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Users className="w-4 h-4" />
-                  <span>{connection.mutual_connections} mutual</span>
-                </div>
-              )}
-              {connection.user.total_solved && (
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Trophy className="w-4 h-4" />
-                  <span>{connection.user.total_solved} solved</span>
-                </div>
-              )}
+            {/* Connection Info */}
+            <div className="mt-3 space-y-3">
+              {/* Stats Row */}
+              <div className="flex items-center gap-4 text-sm">
+                {/* Problems Solved */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 text-slate-600 hover:text-cyan-600 transition-colors cursor-help">
+                      <Trophy className="w-4 h-4" />
+                      <span>{connection.user.total_solved || 0}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Problems solved</p>
+                  </TooltipContent>
+                </Tooltip>
+                
+                {/* Current Streak */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 text-slate-600 hover:text-cyan-600 transition-colors cursor-help">
+                      <Calendar className="w-4 h-4" />
+                      <span>{connection.user.current_streak || 0}d</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Current study streak</p>
+                  </TooltipContent>
+                </Tooltip>
+                
+                {/* Mutual Connections */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 text-slate-600 hover:text-cyan-600 transition-colors cursor-help">
+                      <Users className="w-4 h-4" />
+                      <span>{connection.mutual_connections || 0}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Mutual connections</p>
+                  </TooltipContent>
+                </Tooltip>
             </div>
 
-            {/* Message Button */}
-            <div className="mt-3">
-              <MessageUserButton
-                userId={connection.user.user_id}
-                userName={connection.user.full_name || connection.user.username || undefined}
-                size="sm"
-                variant="outline"
-                className="w-full"
-              />
+              {/* Connection Date */}
+              <div className="text-xs text-slate-600">
+                Connected {connection.connected_at ? new Date(connection.connected_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Recently'}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 mt-4">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-8 border-cyan-500/30 hover:border-cyan-500/60 hover:bg-gradient-to-r hover:from-cyan-500/10 hover:to-rose-500/10 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/20"
+                    onClick={() => {
+                      // Open messaging widget or navigate to messages
+                      window.open(`/messages?user=${connection.user.user_id}`, '_blank');
+                    }}
+                  >
+                    <MessageIcon className="w-4 h-4 mr-1" />
+                    Message
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Send a message</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="w-8 h-8 p-0 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
+                    onClick={() => window.open(`/profile/${connection.user.username}`, '_blank')}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>View profile</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </Link>
@@ -893,7 +1049,7 @@ function ConnectionCard({
   );
 }
 
-// iOS 26-Style Pending Request Card
+// Clean Pending Request Card
 function PendingRequestCard({
   request,
   onAccept,
@@ -914,81 +1070,104 @@ function PendingRequestCard({
   };
 
   return (
-    <Card className="group relative p-5 border-2 border-border/20 bg-gradient-to-br from-card/70 via-card/50 to-transparent backdrop-blur-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 animate-in fade-in-0 slide-in-from-bottom-4" style={{ animationDelay: `${index * 50}ms` }}>
-      <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
+    <Card className="group relative p-4 border border-slate-700/50 bg-card/90 backdrop-blur-xl overflow-hidden hover:border-cyan-500/30 hover:shadow-lg hover:shadow-cyan-500/10 transition-all duration-300 hover:scale-[1.01] animate-in slide-in-from-bottom-4 fade-in-0" style={{ animationDelay: `${index * 100}ms` }}>
       <div className="relative flex items-center gap-4">
         {/* Avatar */}
-        <div className="relative flex-shrink-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 rounded-2xl blur-md opacity-50" />
-          <div className="relative w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl">
-            {request.user.avatar_url ? (
-              <Image
-                src={request.user.avatar_url}
-                alt={request.user.full_name || 'User'}
-                fill
-                className="object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white font-bold text-base">
-                {getInitials(request.user.full_name || request.user.username || 'U')}
-              </div>
-            )}
+        <div className="relative flex-shrink-0 group-hover:scale-110 transition-all duration-500">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-blue-500/15 to-rose-500/20 rounded-2xl blur-lg group-hover:blur-xl transition-all duration-500" />
+          <div className="relative">
+            <DefaultAvatar
+              src={request.user.avatar_url}
+              name={request.user.full_name}
+              username={request.user.username}
+              size="lg"
+              className="w-14 h-14 rounded-2xl border border-cyan-500/30"
+            />
           </div>
-          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-amber-500 rounded-full border-2 border-background shadow-lg animate-pulse" />
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-br from-cyan-500 to-rose-500 rounded-full border-2 border-[#1a1f2e] shadow-lg shadow-cyan-500/30" />
         </div>
 
         {/* User Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-base truncate">
+            <h3 className="font-bold text-lg truncate bg-gradient-to-r from-foreground via-cyan-400 to-rose-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:via-rose-300 group-hover:to-blue-300 transition-all duration-500">
               {request.user.full_name || request.user.username || 'Anonymous'}
             </h3>
+            {request.type === 'received' && (
+              <Badge variant="secondary" className="text-xs bg-cyan-500/20 text-cyan-700 border-cyan-500/30">
+                New
+              </Badge>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground truncate">
+          <p className="text-sm text-slate-600 truncate group-hover:text-cyan-600 transition-colors duration-300">
             @{request.user.username || 'user'}
           </p>
           {request.message && (
-            <p className="text-sm mt-2 italic text-muted-foreground line-clamp-2">
+            <p className="text-sm mt-2 italic text-slate-600 line-clamp-2 group-hover:text-cyan-600 transition-colors duration-300">
               "{request.message}"
             </p>
           )}
+          <div className="text-xs text-slate-600 mt-1">
+            {request.type === 'received' ? 'Received' : 'Sent'} {new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </div>
         </div>
 
         {/* Actions */}
         <div className="flex items-center gap-2">
           {request.type === 'received' ? (
             <>
-              <Button
-                size="sm"
-                onClick={(e) => { e.stopPropagation(); onAccept(request.id, request.user.user_id); }}
-                disabled={actionLoading === request.id}
-                className="gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                Accept
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={(e) => { e.stopPropagation(); onDecline(request.id, request.user.user_id); }}
-                disabled={actionLoading === request.id}
-                className="gap-2 border-red-500/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
-              >
-                <X className="w-4 h-4" />
-                Decline
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onAccept(request.id, request.user.user_id); }}
+                    disabled={actionLoading === request.id}
+                        className="gap-2 bg-gradient-to-r from-cyan-500 to-rose-500 hover:from-cyan-600 hover:to-rose-600 text-white shadow-lg shadow-cyan-500/30 hover:shadow-xl hover:shadow-cyan-500/40 transition-all duration-300"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Accept
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Accept connection request</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => { e.stopPropagation(); onDecline(request.id, request.user.user_id); }}
+                    disabled={actionLoading === request.id}
+                        className="gap-2 border-cyan-500/30 text-cyan-300 hover:bg-gradient-to-r hover:from-red-500/10 hover:to-pink-500/10 hover:border-red-500/50 hover:text-red-400 transition-all duration-300"
+                  >
+                    <X className="w-4 h-4" />
+                    Decline
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Decline connection request</p>
+                </TooltipContent>
+              </Tooltip>
             </>
           ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => { e.stopPropagation(); onCancel(request.id); }}
-              disabled={actionLoading === request.id}
-            >
-              <X className="w-4 h-4" />
-              Cancel
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={(e) => { e.stopPropagation(); onCancel(request.id); }}
+                  disabled={actionLoading === request.id}
+                  className="border-cyan-500/30 text-cyan-300 hover:bg-gradient-to-r hover:from-red-500/10 hover:to-pink-500/10 hover:border-red-500/50 hover:text-red-400 transition-all duration-300"
+                >
+                  <X className="w-4 h-4" />
+                  Cancel
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Cancel connection request</p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -1009,14 +1188,14 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <Card className="relative p-12 text-center border-2 border-border/20 bg-gradient-to-br from-card/70 via-card/50 to-transparent backdrop-blur-xl overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-muted/10 to-transparent" />
+        <Card className="relative p-12 text-center border border-slate-700/50 bg-card/90 backdrop-blur-xl overflow-hidden">
       <div className="relative">
-        <div className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-muted/30 to-muted/10 backdrop-blur-sm">
-          <Icon className="w-10 h-10 text-muted-foreground/50" />
+        <div className="relative w-24 h-24 rounded-full mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-cyan-500/20 via-blue-500/15 to-rose-500/20 border border-cyan-500/30 backdrop-blur-sm shadow-2xl shadow-cyan-500/20">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-blue-500/15 to-rose-500/20 rounded-full blur-xl" />
+          <Icon className="w-12 h-12 text-cyan-400 relative z-10" />
         </div>
-        <h3 className="text-xl font-semibold mb-3">{title}</h3>
-        <p className="text-muted-foreground mb-6 max-w-md mx-auto">{description}</p>
+        <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-white via-cyan-400 to-rose-400 bg-clip-text text-transparent">{title}</h3>
+        <p className="text-slate-400 mb-6 max-w-md mx-auto text-lg">{description}</p>
         {action}
       </div>
     </Card>

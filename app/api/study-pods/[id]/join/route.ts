@@ -25,7 +25,7 @@ export async function POST(
     // Get pod details
     const { data: pod, error: podError } = await supabase
       .from('study_pods')
-      .select('*, current_member_count, max_members, requires_approval, is_public, status')
+      .select('*, current_member_count, max_members, requires_approval, is_public, status, group_chat_id')
       .eq('id', podId)
       .single();
 
@@ -133,6 +133,27 @@ export async function POST(
         title: 'New member joined',
         description: 'A new member joined the pod',
       });
+
+      // Add user to group chat if it exists
+      if (pod.group_chat_id) {
+        console.log('Adding user to group chat:', pod.group_chat_id);
+        const { error: chatError } = await supabase
+          .from('conversation_participants')
+          .insert({
+            conversation_id: pod.group_chat_id,
+            user_id: user.id,
+            role: 'member',
+            added_by: user.id,
+            status: 'active',
+          });
+
+        if (chatError) {
+          console.error('Error adding user to group chat:', chatError);
+          // Don't fail the join if chat addition fails
+        } else {
+          console.log('User successfully added to group chat');
+        }
+      }
     } else {
       // Create join request for approval
       await supabase.from('study_pod_join_requests').insert({

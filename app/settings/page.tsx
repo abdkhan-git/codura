@@ -9,12 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { X, Bell, Mail, Smartphone, Users, MessageSquare, BookOpen, Trophy, Zap, Clock, Save, Check } from "lucide-react";
+import { X, Bell, Mail, Smartphone, Users, MessageSquare, BookOpen, Trophy, Zap, Clock, Save, Check, Shield } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import dynamic from 'next/dynamic';
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
+import { PrivacySettings } from "@/components/settings/privacy-settings";
+import { NotificationSettings } from "@/components/notifications/notification-settings";
 
 // Dynamic imports for icons
 // @ts-ignore
@@ -48,7 +50,7 @@ interface NotificationPreferences {
   quiet_hours_end?: string;
 }
 
-type TabType = 'appearance' | 'profile' | 'account' | 'notifications';
+type TabType = 'appearance' | 'profile' | 'account' | 'notifications' | 'privacy';
 
 export default function SettingsPage() {
   const { theme: currentTheme, setTheme: setAppTheme } = useTheme();
@@ -396,6 +398,17 @@ export default function SettingsPage() {
                     )}
                   >
                     Notifications
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('privacy')}
+                    className={cn(
+                      "w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200",
+                      activeTab === 'privacy'
+                        ? "bg-brand text-brand-foreground shadow-lg shadow-brand/30"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    Privacy
                   </button>
                 </nav>
               </CardContent>
@@ -984,6 +997,11 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
+            )}
+
+            {/* Privacy Tab */}
+            {activeTab === 'privacy' && (
+              <PrivacySettings />
             )}
           </div>
         </div>

@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { X, UserPlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 
 interface InviteMembersModalProps {
   isOpen: boolean;
@@ -17,6 +19,7 @@ interface InviteMembersModalProps {
 }
 
 export function InviteMembersModal({ isOpen, onClose, podId, onSuccess }: InviteMembersModalProps) {
+  const { theme } = useTheme();
   const [usernames, setUsernames] = useState<string>("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -66,9 +69,17 @@ export function InviteMembersModal({ isOpen, onClose, podId, onSuccess }: Invite
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] bg-zinc-950 border-2 border-white/10">
+      <DialogContent className={cn(
+        "sm:max-w-[500px] border-2",
+        theme === 'light'
+          ? "bg-white border-gray-200"
+          : "bg-zinc-950 border-white/10"
+      )}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
+          <DialogTitle className={cn(
+            "flex items-center gap-2 text-xl",
+            theme === 'light' ? "text-gray-900" : "text-white"
+          )}>
             <UserPlus className="w-5 h-5 text-emerald-500" />
             Invite Members
           </DialogTitle>
@@ -77,16 +88,23 @@ export function InviteMembersModal({ isOpen, onClose, podId, onSuccess }: Invite
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="usernames">
-              Usernames <span className="text-muted-foreground">(comma-separated)</span>
+              Usernames <span className={theme === 'light' ? "text-gray-600" : "text-muted-foreground"}>(comma-separated)</span>
             </Label>
             <Input
               id="usernames"
               placeholder="johndoe, janedoe, ..."
               value={usernames}
               onChange={(e) => setUsernames(e.target.value)}
-              className="bg-zinc-900 border-white/10"
+              className={cn(
+                theme === 'light'
+                  ? "bg-white border-gray-300"
+                  : "bg-zinc-900 border-white/10"
+              )}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className={cn(
+              "text-xs",
+              theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+            )}>
               Enter usernames separated by commas
             </p>
           </div>
@@ -98,10 +116,18 @@ export function InviteMembersModal({ isOpen, onClose, podId, onSuccess }: Invite
               placeholder="Join our study pod!"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="bg-zinc-900 border-white/10 min-h-[100px]"
+              className={cn(
+                "min-h-[100px]",
+                theme === 'light'
+                  ? "bg-white border-gray-300"
+                  : "bg-zinc-900 border-white/10"
+              )}
               maxLength={500}
             />
-            <p className="text-xs text-muted-foreground text-right">
+            <p className={cn(
+              "text-xs text-right",
+              theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+            )}>
               {message.length}/500
             </p>
           </div>

@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -27,6 +29,7 @@ interface CreatePodModalProps {
 }
 
 export function CreatePodModal({ open, onClose, onSuccess }: CreatePodModalProps) {
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [currentTopic, setCurrentTopic] = useState("");
 
@@ -121,9 +124,19 @@ export function CreatePodModal({ open, onClose, onSuccess }: CreatePodModalProps
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border-2 border-white/5 bg-zinc-950/95 backdrop-blur-xl">
+      <DialogContent className={cn(
+        "max-w-2xl max-h-[90vh] overflow-y-auto border-2 backdrop-blur-xl",
+        theme === 'light'
+          ? "bg-white border-gray-200"
+          : "border-white/5 bg-zinc-950/95"
+      )}>
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-foreground via-emerald-400 to-green-400 bg-clip-text text-transparent flex items-center gap-2">
+          <DialogTitle className={cn(
+            "text-2xl font-bold flex items-center gap-2",
+            theme === 'light'
+              ? "text-gray-900"
+              : "bg-gradient-to-r from-foreground via-emerald-400 to-green-400 bg-clip-text text-transparent"
+          )}>
             <Sparkles className="w-6 h-6 text-emerald-400" />
             Create Study Pod
           </DialogTitle>
@@ -290,12 +303,18 @@ export function CreatePodModal({ open, onClose, onSuccess }: CreatePodModalProps
               </Select>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+            <div className={cn(
+              "flex items-center justify-between p-3 rounded-lg",
+              theme === 'light' ? "bg-gray-50" : "bg-muted/30"
+            )}>
               <div>
                 <Label htmlFor="is_public" className="cursor-pointer">
                   Public Pod
                 </Label>
-                <p className="text-xs text-muted-foreground">
+                <p className={cn(
+                  "text-xs",
+                  theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                )}>
                   Anyone can discover and join
                 </p>
               </div>
@@ -306,12 +325,18 @@ export function CreatePodModal({ open, onClose, onSuccess }: CreatePodModalProps
               />
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+            <div className={cn(
+              "flex items-center justify-between p-3 rounded-lg",
+              theme === 'light' ? "bg-gray-50" : "bg-muted/30"
+            )}>
               <div>
                 <Label htmlFor="requires_approval" className="cursor-pointer">
                   Require Approval
                 </Label>
-                <p className="text-xs text-muted-foreground">
+                <p className={cn(
+                  "text-xs",
+                  theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                )}>
                   Review join requests before accepting
                 </p>
               </div>
@@ -337,7 +362,10 @@ export function CreatePodModal({ open, onClose, onSuccess }: CreatePodModalProps
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t border-border/20">
+          <div className={cn(
+            "flex gap-3 pt-4 border-t",
+            theme === 'light' ? "border-gray-200" : "border-border/20"
+          )}>
             <Button
               type="button"
               variant="outline"

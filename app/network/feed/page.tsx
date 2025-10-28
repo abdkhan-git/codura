@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -481,9 +482,8 @@ export default function SocialFeedPage() {
         {/* Liquid Glass Background */}
         <div className="fixed inset-0 pointer-events-none z-0">
           <div className="absolute inset-0 bg-background" />
-          <div className="absolute top-[-10%] right-[20%] w-[600px] h-[600px] bg-brand/5 dark:bg-brand/8 rounded-full blur-[120px] animate-pulse-slow" />
-          <div className="absolute bottom-[10%] left-[15%] w-[500px] h-[500px] bg-purple-500/3 dark:bg-purple-500/6 rounded-full blur-[100px] animate-float-slow" style={{ animationDelay: '2s' }} />
-          <div className="absolute top-[30%] left-[50%] w-[400px] h-[400px] bg-cyan-500/2 dark:bg-cyan-500/4 rounded-full blur-[80px] animate-pulse-slow" style={{ animationDelay: '4s' }} />
+          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-[800px] h-[600px] bg-gradient-to-b from-emerald-500/8 via-green-500/5 to-transparent rounded-full blur-[200px]" />
+          <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-gradient-to-t from-yellow-500/6 to-transparent rounded-full blur-[150px]" />
         </div>
 
         {/* Navbar */}
@@ -494,19 +494,17 @@ export default function SocialFeedPage() {
           {/* Page Header */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-3">
-              <div className={cn(
-                "w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg backdrop-blur-xl",
-                theme === 'light' 
-                  ? "from-blue-500 to-cyan-500 shadow-blue-500/25 bg-white/20" 
-                  : "from-blue-600 to-cyan-600 shadow-blue-500/25 bg-white/5"
-              )}>
-                <MessageSquare className="w-6 h-6 text-white" />
+              <div className="relative">
+                <div className="absolute -inset-2 bg-gradient-to-br from-emerald-500/30 via-green-500/20 to-yellow-500/30 rounded-xl blur-lg" />
+                <div className="relative w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br from-emerald-500/10 via-green-500/8 to-yellow-500/10 border border-emerald-500/20 backdrop-blur-sm">
+                  <MessageSquare className="w-6 h-6 text-emerald-400" />
+                </div>
               </div>
               <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
-                  Social Feed
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-emerald-400 to-yellow-400 bg-clip-text text-transparent">
+                  Activity Feed
                 </h1>
-                <p className="text-muted-foreground">Connect, share, and engage with your network</p>
+                <p className="text-slate-400 text-lg">Connect, share, and engage with your network</p>
               </div>
             </div>
           </div>
@@ -523,19 +521,19 @@ export default function SocialFeedPage() {
             onClick={() => setShowCreatePost(true)}
           >
             <div className="flex items-center gap-4">
-              <Avatar className="w-12 h-12 ring-2 ring-brand/10">
-                <AvatarImage src={user.avatar} />
-                <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
-                  {user.name.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <DefaultAvatar
+                src={user.avatar}
+                name={user.name}
+                size="lg"
+                className="w-12 h-12 ring-2 ring-brand/10"
+              />
               <div className="flex-1">
                 <p className="text-muted-foreground text-lg">
                   What do you want to talk about?
                 </p>
               </div>
               <Button
-                className="gap-2 bg-gradient-to-r from-brand to-purple-600 hover:from-brand/90 hover:to-purple-600/90 text-white shadow-lg"
+                className="gap-2 bg-gradient-to-r from-emerald-500 to-yellow-500 hover:from-emerald-600 hover:to-yellow-600 text-white shadow-lg shadow-emerald-500/30"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowCreatePost(true);
@@ -586,7 +584,7 @@ export default function SocialFeedPage() {
                           className={cn(
                             "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105",
                             isActive
-                              ? "bg-gradient-to-r from-brand to-purple-600 text-white shadow-lg shadow-brand/25"
+                              ? "bg-gradient-to-r from-emerald-500 to-yellow-500 text-white shadow-lg shadow-emerald-500/25"
                               : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
                           )}
                         >
@@ -718,17 +716,17 @@ export default function SocialFeedPage() {
               <div className="max-w-md mx-auto">
                 <div className={cn(
                   "w-24 h-24 rounded-2xl mx-auto mb-6 flex items-center justify-center",
-                  "bg-gradient-to-br from-brand/10 to-purple-500/10",
-                  "border-2 border-brand/20"
+                  "bg-gradient-to-br from-emerald-500/10 to-yellow-500/10",
+                  "border-2 border-emerald-500/20"
                 )}>
                   <MessageSquare className={cn(
                     "w-12 h-12",
-                    "text-brand"
+                    "text-emerald-400"
                   )} />
                 </div>
                 
-                <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-foreground to-brand bg-clip-text text-transparent">
-                  Your Social Feed Awaits
+                <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-white via-emerald-400 to-yellow-400 bg-clip-text text-transparent">
+                  Your Activity Feed Awaits
                 </h3>
                 
                 <p className="text-muted-foreground mb-8 leading-relaxed">
@@ -739,7 +737,7 @@ export default function SocialFeedPage() {
                   <Button
                     onClick={() => setShowCreatePost(true)}
                     size="lg"
-                    className="w-full gap-3 bg-gradient-to-r from-brand to-purple-600 hover:from-brand/90 hover:to-purple-600/90 text-white shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 transition-all duration-300"
+                    className="w-full gap-3 bg-gradient-to-r from-emerald-500 to-yellow-500 hover:from-emerald-600 hover:to-yellow-600 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/30 transition-all duration-300"
                   >
                     <Plus className="w-5 h-5" />
                     Create Your First Post
@@ -932,12 +930,12 @@ function PostCard({
       <div className="space-y-4">
         {/* Post Header */}
         <div className="flex items-start gap-4">
-          <Avatar className="w-12 h-12">
-            <AvatarImage src={post.user_avatar_url} />
-            <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white font-semibold">
-              {post.user_name.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <DefaultAvatar
+            src={post.user_avatar_url}
+            name={post.user_name}
+            size="lg"
+            className="w-12 h-12"
+          />
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span className="font-bold text-base text-foreground">{post.user_name}</span>
@@ -1031,6 +1029,14 @@ function PostCard({
         <div className="space-y-3">
           <p className="text-base leading-relaxed text-foreground whitespace-pre-wrap">{post.content}</p>
           
+          {/* Activity-based post metadata */}
+          {post.metadata?.auto_generated && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <span>Auto-generated from activity</span>
+            </div>
+          )}
+          
           {/* Original Post Content (for reposts) */}
           {post.original_post_content && (
             <Card className={cn(
@@ -1040,11 +1046,11 @@ function PostCard({
                 : "bg-zinc-900/80 border-white/5"
             )}>
               <div className="flex items-start gap-3">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white text-sm">
-                    {post.original_post_user_name?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <DefaultAvatar
+                  name={post.original_post_user_name}
+                  size="sm"
+                  className="w-8 h-8"
+                />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium text-sm">{post.original_post_user_name}</span>
@@ -1208,12 +1214,12 @@ function PostCard({
           }}>
             {/* Add Comment */}
             <div className="flex gap-3">
-              <Avatar className="w-8 h-8">
-                <AvatarImage src={post.user_avatar_url} />
-                <AvatarFallback className="bg-gradient-to-br from-brand to-orange-300 text-white text-sm">
-                  {post.user_name.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <DefaultAvatar
+                src={post.user_avatar_url}
+                name={post.user_name}
+                size="sm"
+                className="w-8 h-8"
+              />
               <div className="flex-1 flex gap-2">
                 <Input
                   placeholder="Write a comment..."

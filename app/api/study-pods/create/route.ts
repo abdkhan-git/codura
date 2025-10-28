@@ -129,6 +129,54 @@ export async function POST(request: Request) {
       metadata: { pod_name: body.name },
     });
 
+    // Create group chat for the study pod
+    console.log('Creating group chat for study pod:', pod.id);
+    const { data: conversation, error: conversationError } = await supabase
+      .from('conversations')
+      .insert({
+        name: `${body.name.trim()} - Study Pod Chat`,
+        type: 'group',
+        created_by: user.id,
+        metadata: {
+          study_pod_id: pod.id,
+          pod_name: body.name.trim(),
+        }
+      })
+      .select()
+      .single();
+
+    if (conversationError) {
+      console.error('Error creating group chat:', conversationError);
+      // Don't fail the entire pod creation, just log the error
+    } else {
+      console.log('Group chat created:', conversation.id);
+
+      // Add creator as participant
+      const { error: participantError } = await supabase
+        .from('conversation_participants')
+        .insert({
+          conversation_id: conversation.id,
+          user_id: user.id,
+          role: 'owner',
+          added_by: user.id,
+          status: 'active',
+        });
+
+      if (participantError) {
+        console.error('Error adding creator to group chat:', participantError);
+      } else {
+        // Link the conversation to the study pod
+        const { error: updatePodError } = await supabase
+          .from('study_pods')
+          .update({ group_chat_id: conversation.id })
+          .eq('id', pod.id);
+
+        if (updatePodError) {
+          console.error('Error linking group chat to pod:', updatePodError);
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       pod,

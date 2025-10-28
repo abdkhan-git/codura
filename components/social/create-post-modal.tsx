@@ -103,6 +103,30 @@ const POST_TYPES: PostType[] = [
     description: 'Celebrate solving a coding problem'
   },
   {
+    value: 'achievement_earned',
+    label: 'Achievement Earned',
+    icon: PartyPopper,
+    color: 'from-purple-500 to-pink-500',
+    placeholder: 'Share your achievement...',
+    description: 'Celebrate earning an achievement'
+  },
+  {
+    value: 'streak_milestone',
+    label: 'Streak Milestone',
+    icon: Target,
+    color: 'from-green-500 to-emerald-500',
+    placeholder: 'Share your consistency journey...',
+    description: 'Celebrate your study streak'
+  },
+  {
+    value: 'study_plan_shared',
+    label: 'Study Plan Shared',
+    icon: BookOpen,
+    color: 'from-blue-500 to-cyan-500',
+    placeholder: 'Share your study plan...',
+    description: 'Share your learning roadmap'
+  },
+  {
     value: 'general',
     label: 'General Post',
     icon: Sparkles,

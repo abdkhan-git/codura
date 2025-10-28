@@ -4,11 +4,11 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeWrapper } from "@/components/theme-wrapper";
 import { LoadingProvider } from "@/components/providers/loading-provider";
-import { MessagingProvider } from "@/components/providers/messaging-provider";
 import { LoadingBar } from "@/components/loading-bar";
 import { FaviconAnimation } from "@/components/favicon-animation";
 import { Toaster } from "@/components/ui/sonner";
 import { Suspense } from "react";
+import FloatingMessageWidget from "@/components/messaging/floating-message-widget";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,7 +57,7 @@ export default function RootLayout({
                   <LoadingBar />
                   <FaviconAnimation />
                   {children}
-                  <MessagingProvider />
+                  <FloatingMessageWidget />
                   <Toaster position="top-right" richColors />
                 </LoadingProvider>
               </Suspense>

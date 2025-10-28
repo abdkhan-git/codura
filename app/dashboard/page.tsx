@@ -511,7 +511,11 @@ export default function DashboardPage() {
 
       if (!response.ok) throw new Error('Failed to delete event');
 
-      await refetchDashboard(); // OPTIMIZED: Use unified refetch
+      // Update state immediately without refetch
+      setUpcomingEvents(prev => prev.filter(event => event.id !== eventId));
+      setRecentActivity(prev => prev.filter(activity => 
+        !(activity.type === 'event_created' && activity.metadata?.event_id === eventId)
+      ));
     } catch (error) {
       console.error('Error deleting event:', error);
       alert('Failed to delete event');

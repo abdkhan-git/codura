@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, XCircle, Loader2, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
 
 interface JoinRequest {
   id: string;
@@ -27,6 +29,7 @@ interface JoinRequestsSectionProps {
 }
 
 export function JoinRequestsSection({ podId }: JoinRequestsSectionProps) {
+  const { theme } = useTheme();
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -101,7 +104,10 @@ export function JoinRequestsSection({ podId }: JoinRequestsSectionProps) {
 
   if (requests.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
+      <div className={cn(
+        "text-center py-8",
+        theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+      )}>
         <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
         <p>No pending join requests</p>
       </div>
@@ -113,7 +119,12 @@ export function JoinRequestsSection({ podId }: JoinRequestsSectionProps) {
       {requests.map((request) => (
         <Card
           key={request.id}
-          className="p-4 border-2 border-white/5 bg-zinc-950/80 backdrop-blur-xl"
+          className={cn(
+            "p-4 border-2 backdrop-blur-xl",
+            theme === 'light'
+              ? "bg-white border-gray-200"
+              : "border-white/5 bg-zinc-950/80"
+          )}
         >
           <div className="flex items-start gap-4">
             <Avatar className="w-12 h-12 flex-shrink-0">
@@ -125,17 +136,26 @@ export function JoinRequestsSection({ podId }: JoinRequestsSectionProps) {
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-semibold truncate">{request.user?.full_name}</h4>
+                <h4 className={cn(
+                  "font-semibold truncate",
+                  theme === 'light' ? "text-gray-900" : "text-white"
+                )}>{request.user?.full_name}</h4>
                 <Badge variant="outline" className="text-xs">
                   @{request.user?.username}
                 </Badge>
               </div>
 
               {request.message && (
-                <p className="text-sm text-muted-foreground mb-2">{request.message}</p>
+                <p className={cn(
+                  "text-sm mb-2",
+                  theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                )}>{request.message}</p>
               )}
 
-              <p className="text-xs text-muted-foreground">
+              <p className={cn(
+                "text-xs",
+                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+              )}>
                 Requested {new Date(request.created_at).toLocaleDateString()}
               </p>
 
@@ -147,7 +167,12 @@ export function JoinRequestsSection({ podId }: JoinRequestsSectionProps) {
                     ...prev,
                     [request.id]: e.target.value
                   }))}
-                  className="mt-2 bg-zinc-900 border-white/10 text-sm"
+                  className={cn(
+                    "mt-2 text-sm",
+                    theme === 'light'
+                      ? "bg-white border-gray-300"
+                      : "bg-zinc-900 border-white/10"
+                  )}
                   rows={2}
                 />
               )}

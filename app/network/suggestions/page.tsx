@@ -297,7 +297,10 @@ export default function SuggestionsPage() {
                 ? "from-purple-500 to-pink-500 shadow-purple-500/25 bg-white/20" 
                 : "from-purple-600 to-pink-600 shadow-purple-500/25 bg-white/5"
             )}>
-              <Sparkles className="w-6 h-6 text-white" />
+              <Sparkles className={cn(
+                "w-6 h-6",
+                theme === 'light' ? "text-purple-600" : "text-white"
+              )} />
             </div>
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground via-brand to-purple-400 bg-clip-text text-transparent">
