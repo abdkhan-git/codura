@@ -319,9 +319,9 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, onFee
                   "text-xs italic",
                   currentTheme === 'light' ? "text-zinc-400" : "text-zinc-500"
                 )}>
-                  {!user.is_public && user.connection_status !== 'connected' 
-                    ? "Connect to view" 
-                    : "No university"
+                  {!user.is_public && user.connection_status !== 'connected'
+                    ? "Connect to view"
+                    : "College not provided"
                   }
                 </p>
               )}
@@ -351,9 +351,9 @@ export function UserCard({ user, onConnect, onCancel, onAccept, onDecline, onFee
                   "text-xs italic",
                   currentTheme === 'light' ? "text-zinc-400" : "text-zinc-500"
                 )}>
-                  {!user.is_public && user.connection_status !== 'connected' 
-                    ? "Connect to view" 
-                    : "No job title"
+                  {!user.is_public && user.connection_status !== 'connected'
+                    ? "Connect to view"
+                    : "Job title not provided"
                   }
                 </p>
               )}

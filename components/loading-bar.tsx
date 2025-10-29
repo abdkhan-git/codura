@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 export function LoadingBar() {
@@ -8,8 +8,17 @@ export function LoadingBar() {
   const [progress, setProgress] = useState(0);
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const prevPathname = useRef(pathname);
 
   useEffect(() => {
+    // Only show loading bar when pathname changes (actual navigation)
+    // Don't show it when only search params change (filtering, searching)
+    if (pathname === prevPathname.current) {
+      return;
+    }
+
+    prevPathname.current = pathname;
+
     // Start loading
     setIsLoading(true);
     setProgress(20);

@@ -907,7 +907,15 @@ function ConnectionCard({
       viewMode === 'list' && "flex items-center gap-4"
     )} style={{ animationDelay: `${index * 100}ms` }}>
       <div className={cn("relative flex items-start gap-4", viewMode === 'list' && "flex-1")}>
-        <Link href={`/profile/${connection.user.username}`} className="contents">
+        <Link
+          href={connection.user.username ? `/profile/${connection.user.username}` : '#'}
+          className={cn("contents", !connection.user.username && "pointer-events-none")}
+          onClick={(e) => {
+            if (!connection.user.username) {
+              e.preventDefault();
+            }
+          }}
+        >
           {/* Avatar - Glassmorphism Design */}
           <div className="relative flex-shrink-0 cursor-pointer group-hover:scale-105 transition-all duration-500">
             <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-blue-500/15 to-rose-500/20 rounded-2xl blur-lg group-hover:blur-xl transition-all duration-500" />
@@ -934,23 +942,27 @@ function ConnectionCard({
 
             {/* Metadata Pills */}
             <div className="flex flex-wrap gap-2 mt-4">
-              {connection.user.university && (
+              {connection.user.university ? (
                 <Badge variant="secondary" className="text-xs bg-gradient-to-r from-rose-500/20 to-pink-500/20 text-rose-300 border border-rose-500/30 backdrop-blur-sm shadow-lg shadow-rose-500/10">
                   <GraduationCap className="w-3 h-3 mr-1" />
                   {connection.user.university}
                   {connection.user.graduation_year && ` '${connection.user.graduation_year.slice(-2)}`}
                 </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-slate-600/20 to-slate-700/20 text-slate-400 border border-slate-600/30 backdrop-blur-sm">
+                  <GraduationCap className="w-3 h-3 mr-1" />
+                  College not provided
+                </Badge>
               )}
-              {connection.user.company && (
+              {connection.user.company ? (
                 <Badge variant="secondary" className="text-xs bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-500/30 backdrop-blur-sm shadow-lg shadow-cyan-500/10">
                   <Briefcase className="w-3 h-3 mr-1" />
                   {connection.user.company}
                 </Badge>
-              )}
-              {connection.user.location && (
-                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-slate-600/20 to-slate-700/20 text-slate-300 border border-slate-600/30 backdrop-blur-sm">
-                  <MapPin className="w-3 h-3 mr-1" />
-                  {connection.user.location}
+              ) : (
+                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-slate-600/20 to-slate-700/20 text-slate-400 border border-slate-600/30 backdrop-blur-sm">
+                  <Briefcase className="w-3 h-3 mr-1" />
+                  Company not provided
                 </Badge>
               )}
             </div>
@@ -1032,7 +1044,12 @@ function ConnectionCard({
                     size="sm"
                     variant="ghost"
                     className="w-8 h-8 p-0 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
-                    onClick={() => window.open(`/profile/${connection.user.username}`, '_blank')}
+                    onClick={() => {
+                      if (connection.user.username) {
+                        window.open(`/profile/${connection.user.username}`, '_blank');
+                      }
+                    }}
+                    disabled={!connection.user.username}
                   >
                     <ChevronRight className="w-4 h-4" />
                   </Button>
