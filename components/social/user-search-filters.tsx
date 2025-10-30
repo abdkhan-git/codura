@@ -98,7 +98,6 @@ export function UserSearchFilters({
               placeholder="Search by name, username, university, company, or skills..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              disabled={isLoading}
               className={cn(
                 "pl-10 h-11 border-2 transition-all duration-300",
                 currentTheme === 'light'
@@ -238,7 +237,6 @@ export function UserSearchFilters({
                   placeholder="e.g. MIT, Stanford, Berkeley"
                   value={university}
                   onChange={(e) => setUniversity(e.target.value)}
-                  disabled={isLoading}
                   className={cn(
                     "border-2 transition-all duration-300",
                     currentTheme === 'light'
@@ -262,7 +260,6 @@ export function UserSearchFilters({
                   placeholder="e.g. 2024, 2025, 2026"
                   value={graduationYear}
                   onChange={(e) => setGraduationYear(e.target.value)}
-                  disabled={isLoading}
                   className={cn(
                     "border-2 transition-all duration-300",
                     currentTheme === 'light'
@@ -286,7 +283,6 @@ export function UserSearchFilters({
                   placeholder="e.g. Google, Meta, Software Engineer"
                   value={company}
                   onChange={(e) => setCompany(e.target.value)}
-                  disabled={isLoading}
                   className={cn(
                     "border-2 transition-all duration-300",
                     currentTheme === 'light'
@@ -316,7 +312,6 @@ export function UserSearchFilters({
                     onValueChange={([value]) => setMinSolved(value)}
                     max={1000}
                     step={10}
-                    disabled={isLoading}
                     className="cursor-pointer"
                   />
                 </div>
@@ -329,7 +324,6 @@ export function UserSearchFilters({
                     onValueChange={([value]) => setMaxSolved(value)}
                     max={1000}
                     step={10}
-                    disabled={isLoading}
                     className="cursor-pointer"
                   />
                 </div>
@@ -355,7 +349,6 @@ export function UserSearchFilters({
                     onValueChange={([value]) => setMinRating(value)}
                     max={3000}
                     step={50}
-                    disabled={isLoading}
                     className="cursor-pointer"
                   />
                 </div>
@@ -368,7 +361,6 @@ export function UserSearchFilters({
                     onValueChange={([value]) => setMaxRating(value)}
                     max={3000}
                     step={50}
-                    disabled={isLoading}
                     className="cursor-pointer"
                   />
                 </div>
