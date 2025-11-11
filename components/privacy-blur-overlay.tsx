@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Lock, UserPlus, Globe } from 'lucide-react';
+import { LockKeyhole, UserRoundPlus, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PrivacyBlurOverlayProps {
@@ -36,10 +36,10 @@ export function PrivacyBlurOverlay({
   };
 
   return (
-    <div className={cn("relative overflow-hidden rounded-lg", className)}>
+    <div className={cn("relative overflow-hidden rounded-lg min-h-[200px]", className)}>
       {/* Blurred content */}
       <div className={cn(
-        "pointer-events-none select-none",
+        "pointer-events-none select-none min-h-[200px]",
         blurClasses[blurIntensity],
         "opacity-40"
       )}>
@@ -61,7 +61,7 @@ export function PrivacyBlurOverlay({
           {/* Icon with gradient background */}
           <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-brand/10 to-purple-500/10 flex items-center justify-center ring-1 ring-border/30 shadow-2xl shadow-brand/20 animate-fade-in">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brand/20 to-purple-500/20 flex items-center justify-center animate-pulse-slow">
-              <Lock className="w-6 h-6 text-brand" strokeWidth={2.5} />
+              <LockKeyhole className="w-6 h-6 text-brand" strokeWidth={2.5} />
             </div>
           </div>
 
@@ -86,7 +86,7 @@ export function PrivacyBlurOverlay({
                   console.log('Connection feature coming soon!');
                 }}
               >
-                <UserPlus className="w-3 h-3 mr-1.5" />
+                <UserRoundPlus className="w-3 h-3 mr-1.5" />
                 Send Connection Request
               </Button>
               <Button 
@@ -131,7 +131,7 @@ export function PrivacyBadge({ isPublic, className }: PrivacyBadgeProps) {
       "bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20",
       className
     )}>
-      <Lock className="w-3.5 h-3.5" />
+      <LockKeyhole className="w-3.5 h-3.5" />
       Private Profile
     </div>
   );

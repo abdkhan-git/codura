@@ -5,10 +5,11 @@ import React, { useState, useEffect } from 'react'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Play, RotateCcw, Loader2, CloudUploadIcon } from 'lucide-react'
+import { Play, RotateCcw, Loader2, CloudUploadIcon, CheckCircle2, X } from 'lucide-react'
 import Editor, { useMonaco } from '@monaco-editor/react'
 import { LANGUAGES } from '@/utils/languages'
 import TestCasesSection from './TestCasesSection'
+import SubmissionResultModal from './SubmissionResultModal'
 import { createClient } from '@/utils/supabase/client'
 
 // ============================================
@@ -78,18 +79,22 @@ export default function CodeEditorPanel({
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
-  const [submissionResultLabel, setSubmissionResultLabel] = useState('')
   const [testcaseResults, setTestcaseResults] = useState<any[] | undefined>(undefined)
-  const [activeBottomTab, setActiveBottomTab] = useState<'testcases' | 'result'>('testcases')
+  const [activeBottomTab, setActiveBottomTab] = useState<'testcases' | 'results'>('testcases')
   const [submissionResult, setSubmissionResult] = useState<SubmissionResult | undefined>()
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [hasSubmitted, setHasSubmitted] = useState(false)
   const [resultsVersion, setResultsVersion] = useState(0)
+
   useEffect(() => {
     if (testcaseResults?.length || submissionResult) {
-      setActiveBottomTab('result');
+      setActiveBottomTab('results');
     }
   }, [testcaseResults, submissionResult]);
+  
   const JUDGE_URL = process.env.NEXT_PUBLIC_JUDGE_URL ?? '';
   const judgeDisabled = () => !JUDGE_URL.trim();
+
   // Monaco theme (Caffeine)
   useEffect(() => {
     if (monaco) {
@@ -135,7 +140,7 @@ const handleCodeRunning = async () => {
   if (!usersCode?.trim()) return
 
   setIsRunning(true)
-  setActiveBottomTab('result')
+  setActiveBottomTab('results')
 
   try {
     if (onRun) {
@@ -146,15 +151,13 @@ const handleCodeRunning = async () => {
     // ---------- DEV path: if judge is disabled, don't call /run ----------
     if (judgeDisabled()) {
       console.warn('[DEV] Judge disabled — skipping /run')
-      const label = 'Judge offline in dev'
       const results = (testcases || []).map((_, i) => ({
         status: 'error',
         message: 'Judge unavailable',
         testNumber: i + 1,
       }))
-      setSubmissionResultLabel(label)
       setTestcaseResults(results)
-      setResultsVersion(v => v + 1); setActiveBottomTab('result');
+      setResultsVersion(v => v + 1); setActiveBottomTab('results');
       setIsRunning(false)
       return
     }
@@ -167,7 +170,7 @@ const handleCodeRunning = async () => {
     }
 
     // ✅ use the env-configured judge base URL
-    const response = await fetch(`${JUDGE_URL}/api/problems/run`, {
+    const response = await fetch(`http://localhost:8080/api/problems/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -176,19 +179,15 @@ const handleCodeRunning = async () => {
     const data = await response.json()
 
     let results: any[] = []
-    let label = ''
 
     if (data?.testcaseResults) {
       results = data.testcaseResults.results || []
-      label = data.testcaseResults.label || ''
     } else if (data?.results) {
       results = data.results
-      label = data.label || ''
     }
 
-    setSubmissionResultLabel(label)
     setTestcaseResults(results)
-    setResultsVersion(v => v + 1); setActiveBottomTab('result');
+    setResultsVersion(v => v + 1); setActiveBottomTab('results');
   } catch (e) {
     console.error('Run error:', e)
   } finally {
@@ -202,7 +201,7 @@ const handleCodeSubmission = async () => {
   if (!usersCode?.trim()) return;
 
   setIsSubmitting(true);
-  setActiveBottomTab('result');
+  setActiveBottomTab('results');
   onSetActiveLeftPanelTab?.('submissions');
 
   try {
@@ -216,14 +215,13 @@ const handleCodeSubmission = async () => {
       const totalTests = testcases?.length || 0;
       const status = 'Judge Offline';
 
-      // bottom panel
-      setSubmissionResultLabel('Judge offline in dev');
+      // bottom panel - keep showing test case results
       setTestcaseResults((testcases || []).map((_, i) => ({
         status: 'error',
         message: 'Judge unavailable',
         testNumber: i + 1,
       })));
-      setResultsVersion(v => v + 1); setActiveBottomTab('result');
+      setResultsVersion(v => v + 1); setActiveBottomTab('results');
 
       // unlock AI
       const submissionForAI: Submission = {
@@ -261,35 +259,66 @@ const handleCodeSubmission = async () => {
       submitted_at: new Date().toISOString(),
     };
 
-    const resp = await fetch(`${JUDGE_URL}/api/problems/submit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+   const resp = await fetch(`http://localhost:8080/api/problems/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 
-    if (!resp.ok) {
-      const t = await resp.text().catch(() => '');
-      throw new Error(`Submit failed: ${resp.status} ${t}`);
-    }
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => '');
+    throw new Error(`Submit failed: ${resp.status} ${t}`);
+  }
 
-    // safely parse
-    let responseData: any = null;
-    try { responseData = await resp.json(); }
-    catch { throw new Error('Invalid JSON from judge /submit'); }
+  // Safely parse
+  let responseData: any = null;
+  try { 
+    responseData = await resp.json(); 
+  } catch { 
+    throw new Error('Invalid JSON from judge /submit'); 
+  }
 
-    const judge0Result = responseData.judge0Result;
-    const savedSubmission = responseData.savedSubmission;
-    const { results = [], label = '' } = responseData.testcaseResults || {};
+  const { judge0Result, savedSubmission, testcaseResults } = responseData;
 
-    // bottom panel
-    setSubmissionResultLabel(label);
-    setTestcaseResults(results);
-    setResultsVersion(v => v + 1); setActiveBottomTab('result');
+  // testcaseResults now has this structure:
+// {
+//   label: 'Accepted' | 'Wrong Answer' | 'Runtime Error' | etc.,
+//   passed: 2,
+//   failed: 1,
+//   errors: 0,
+//   total: 3,
+//   results: [
+//     {
+//       testcase_number: 1,
+//       input: { nums: [2,7,11,15], target: 9 },
+//       expected: [0, 1],
+//       actual: [0, 1],
+//       status: 'passed',
+//       error: null,
+//       passed: true
+//     },
+//     // ... more results
+//   ],
+//   stdout: '...',
+//   stderr: '...',
+//   runtime: '0.023',
+//   memory: 9216
+// }
+
+    console.log('Label:', testcaseResults.label);
+    console.log('Results:', testcaseResults);
+    console.log('Stats:', `${testcaseResults.passed}/${testcaseResults.total} passed`);
+    console.log('passed:',testcaseResults.passed)
+    console.log('total:',testcaseResults.total)
+
+    // bottom panel - keep showing test case results from run
+    setTestcaseResults(testcaseResults.results);
+    setResultsVersion(v => v + 1); setActiveBottomTab('results');
     onSavedSubmission?.(savedSubmission);
 
     // ---------- 3) Normalize for AI ----------
-    const testsPassed = results.filter((r: any) => r.status === 'pass').length;
-    const totalTests = results.length;
+    const testsPassed = testcaseResults.passed;
+    const totalTests = testcaseResults.total;
     const status =
       savedSubmission?.status ||
       (totalTests > 0 && testsPassed === totalTests ? 'Accepted' : 'Wrong Answer');
@@ -334,7 +363,7 @@ const handleCodeSubmission = async () => {
           // raw judge payload (optional, helpful context)
           raw: {
             judge0Result,
-            testcaseResults: { results, label },
+            testcaseResults: { results: testcaseResults.results, label: testcaseResults.label },
             savedSubmission,
             request: {
               language_id: userLang.id,
@@ -352,16 +381,20 @@ const handleCodeSubmission = async () => {
       console.warn('AI initial-analysis POST failed (non-fatal):', e);
     }
 
-    // compact display object
-    setSubmissionResult({
+    // Create submission result for modal
+    const modalResult: SubmissionResult = {
       status,
-      description: label || '',
-      testResults: results,
+      description: testcaseResults.label || '',
+      testResults: testcaseResults.results,
       totalTests,
       passedTests: testsPassed,
       runtime,
       memory,
-    });
+    };
+
+    setSubmissionResult(modalResult);
+    setIsModalOpen(true);
+    setHasSubmitted(true);
 
     // ---------- 6) Call legacy hooks LAST (optional) ----------
     if (onAiChat) await onAiChat(usersCode, userLang.id);
@@ -380,13 +413,25 @@ const handleCodeSubmission = async () => {
       status: 'Error',
     });
 
-    setSubmissionResultLabel('Submit failed');
-    setTestcaseResults([{
-      status: 'error',
+    const errorResults = [{
+      status: 'error' as const,
       message: error instanceof Error ? error.message : 'Unknown error',
       testNumber: 1,
-    }]);
-    setResultsVersion(v => v + 1); setActiveBottomTab('result');
+    }];
+
+    setTestcaseResults(errorResults);
+
+    // Show error in modal too
+    setSubmissionResult({
+      status: 'Error',
+      description: 'Submit failed',
+      testResults: errorResults,
+      totalTests: testcases?.length || 0,
+      passedTests: 0,
+    });
+    setIsModalOpen(true);
+
+    setResultsVersion(v => v + 1); setActiveBottomTab('results');
   } finally {
     setIsSubmitting(false);
   }
@@ -403,10 +448,20 @@ const handleCodeSubmission = async () => {
   }
 
   return (
-    <ResizablePanelGroup direction="vertical">
-      {/* Code Editor */}
-      <ResizablePanel defaultSize={60} minSize={30}>
-        <div className="h-full flex flex-col">
+    <>
+      {/* Submission Result Modal */}
+      {submissionResult && (
+        <SubmissionResultModal
+          submissionResult={submissionResult}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
+
+      <ResizablePanelGroup direction="vertical">
+        {/* Code Editor */}
+        <ResizablePanel defaultSize={60} minSize={30}>
+          <div className="h-full flex flex-col">
           <div className="flex justify-between">
             {/* Left: language + actions */}
             <div className="border-b p-2 flex items-center gap-3">
@@ -460,6 +515,31 @@ const handleCodeSubmission = async () => {
                   </>
                 )}
               </Button>
+
+              {/* Show submission status button after first submission */}
+              {hasSubmitted && submissionResult && (
+                <Button
+                  size="sm"
+                  className={`cursor-pointer font-weight-300 text-sm ${
+                    submissionResult.status === 'Accepted'
+                      ? 'bg-green-600 hover:bg-green-500 text-white'
+                      : 'bg-red-600 hover:bg-red-500 text-white'
+                  }`}
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  {submissionResult.status === 'Accepted' ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Accepted
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4" />
+                      {submissionResult.status}
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
 
             {/* Right: reset */}
@@ -483,7 +563,7 @@ const handleCodeSubmission = async () => {
                 height="100%"
                 language={userLang.value}
                 value={usersCode || getStarterCode()}
-                theme="caffeine-dark"
+                theme="vs-dark"
                 options={{
                   fontSize: 14,
                   fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
@@ -520,22 +600,22 @@ const handleCodeSubmission = async () => {
               />
             </div>
           </div>
-        </div>
-      </ResizablePanel>
+          </div>
+        </ResizablePanel>
 
-      <ResizableHandle withHandle />
+        <ResizableHandle withHandle />
 
-      {/* Bottom: Test Cases & Results */}
-      <ResizablePanel defaultSize={40} minSize={20}>
-        <TestCasesSection
-          key={resultsVersion}
-          testcases={testcases}
-          testcaseResults={testcaseResults}
-          activeBottomTab={activeBottomTab}
-          setActiveBottomTab={setActiveBottomTab}
-          submissionResult={submissionResult}
-        />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+        {/* Bottom: Test Cases & Results */}
+        <ResizablePanel defaultSize={60} minSize={20}>
+          <TestCasesSection
+            key={resultsVersion}
+            testcases={testcases}
+            testcaseResults={testcaseResults}
+            activeBottomTab={activeBottomTab}
+            setActiveBottomTab={setActiveBottomTab}
+          />
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </>
   )
 }

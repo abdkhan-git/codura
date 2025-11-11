@@ -57,6 +57,12 @@ interface ProblemData {
 
 interface Example { id: number; content: string }
 
+interface TestCase {
+  input: string
+  expectedOutput: string
+  explanation?: string
+}
+
 // NOTE: Removed stray top-level async/try block that caused a parse error.
 
 interface Submission {
@@ -75,18 +81,38 @@ interface Submission {
 // ============================================
 
 const parseExamplesToTestCases = (examples: Example[] | undefined): TestCase[] => {
-  if (!examples) return []
+  if (!examples) return [];
+  
   return examples.map(example => {
-    const content = example.content.replace(/&nbsp;/g, '').trim()
-    const inputMatch = content.match(/Input:\s*(.+?)(?=\nOutput:|$)/s)
-    const input = inputMatch ? inputMatch[1].trim() : ''
-    const outputMatch = content.match(/Output:\s*(.+?)(?=\nExplanation:|$)/s)
-    const expectedOutput = outputMatch ? outputMatch[1].trim() : ''
-    const explanationMatch = content.match(/Explanation:\s*(.+?)$/s)
-    const explanation = explanationMatch ? explanationMatch[1].trim() : undefined
-    return { input, expectedOutput, explanation }
-  })
-}
+    // Clean all HTML entities
+    const content = example.content
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ')
+      .trim();
+    
+    // Extract input - handle multi-line inputs
+    const inputMatch = content.match(/Input:\s*([^\n]+(?:\n(?!Output:)[^\n]+)*)/);
+    const input = inputMatch ? inputMatch[1].trim() : '';
+    
+    // Extract output - stop at Explanation or end
+    const outputMatch = content.match(/Output:\s*([^\n]+)/);
+    const expectedOutput = outputMatch ? outputMatch[1].trim() : '';
+    
+    // Extract explanation if exists
+    const explanationMatch = content.match(/Explanation:\s*(.+?)$/s);
+    const explanation = explanationMatch ? explanationMatch[1].trim() : undefined;
+    
+    return { 
+      input, 
+      expectedOutput, 
+      explanation 
+    };
+  }).filter(tc => tc.input && tc.expectedOutput); // Filter out incomplete cases
+};
 
 // ============================================
 // MAIN COMPONENT
@@ -268,21 +294,22 @@ export default function ProblemPage() {
 
   // Render
   return (
-    <div className="caffeine-theme min-h-screen w-full bg-background p-2 pt-0 overflow-y-auto">
+    <div className="caffeine-theme h-screen w-full bg-background p-2 pt-0 overflow-hidden">
       <style jsx global>{tabScrollStyles}</style>
-      <ResizablePanelGroup direction="horizontal" className="min-h-[700px]">
+      <ResizablePanelGroup direction="horizontal" className="min-h-screen">
         {/* LEFT: Problem Description & history */}
         <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>
           <ProblemDescriptionPanel
             problem={problem}
             allOfUsersSubmissions={allOfUsersSubmissions}
+            onCopyToEditor={setUsersCode}  // Add this line
           />
         </ResizablePanel>
 
         <ResizableHandle withHandle />
 
         {/* MIDDLE: Editor + Testcases UI (self-managed) */}
-        <ResizablePanel defaultSize={45} minSize={30}>
+        <ResizablePanel defaultSize={65} minSize={30}>
           <CodeEditorPanel
             problem={problem}
             testcases={testcases}

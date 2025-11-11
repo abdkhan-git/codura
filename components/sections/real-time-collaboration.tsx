@@ -709,7 +709,7 @@ export default function RealTimeCollaboration({ className }: { className?: strin
                   <div className="absolute inset-0 bg-brand/20 blur-lg animate-pulse" />
                 </div>
                 <span>Team Chat</span>
-                <Badge variant="outline" className="ml-2 bg-brand/10 text-brand border-brand/30 text-xs">
+                <Badge variant="outline" className="ml-2 bg-blue-100 text-blue-700 border-blue-300 text-xs">
                   {messages.length} messages
                 </Badge>
               </CardTitle>

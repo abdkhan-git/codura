@@ -1,6 +1,7 @@
 // app/auth/callback/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { generateUniqueUsername } from "@/lib/username-generator";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
   // Check if user row already exists in unified users table
   const { data: existingUser, error: checkError } = await supabase
     .from("users")
-    .select("user_id, federal_school_code, questionnaire_completed")
+    .select("user_id, federal_school_code, questionnaire_completed, username, full_name")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -59,6 +60,17 @@ export async function GET(request: Request) {
       "User";
 
     const email = user.email || "";
+    const provider = user.app_metadata?.provider || "email";
+
+    // Generate unique username
+    console.log("Generating username...");
+    const username = await generateUniqueUsername(
+      email,
+      fullName,
+      provider,
+      user.user_metadata
+    );
+    console.log("Generated username:", username);
 
     // Create entry in unified users table
     // Trigger will automatically create user_stats
@@ -68,6 +80,7 @@ export async function GET(request: Request) {
         user_id: user.id,
         full_name: fullName,
         email: email,
+        username: username,
         federal_school_code: null,
         questionnaire_completed: false,
         avatar_url: user.user_metadata?.avatar_url || null,
@@ -81,6 +94,31 @@ export async function GET(request: Request) {
       console.log("New user created:", newUser);
       console.log("User stats auto-created by trigger");
       profile = newUser;
+    }
+  } else if (existingUser && !existingUser.username) {
+    // If existing user doesn't have a username, generate one
+    console.log("Existing user without username, generating...");
+
+    const provider = user.app_metadata?.provider || "email";
+    const username = await generateUniqueUsername(
+      user.email || "",
+      existingUser.full_name,
+      provider,
+      user.user_metadata
+    );
+
+    console.log("Generated username for existing user:", username);
+
+    // Update the user with the new username
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({ username, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id);
+
+    if (updateError) {
+      console.error("Error updating username:", updateError);
+    } else {
+      console.log("Username updated successfully");
     }
   }
 
