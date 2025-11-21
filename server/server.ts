@@ -3,7 +3,6 @@ import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 
-
 dotenv.config();
 
 const app = express();
@@ -44,22 +43,22 @@ interface TestCase {
   expected: any;
 }
 
-// interface ProblemMetadata {
-//   slug: string;
-//   functionName: string;
-//   parameters: string[];
-//   returnType: 'array' | 'number' | 'string' | 'boolean' | 'listnode' | 'treenode' | 'void';
-//   comparisonType: 'exact' | 'sorted' | 'unordered' | 'float' | 'custom';
-//   customComparison?: string;
-//   inputTransformers?: Record<string, string>;
-//   outputTransformer?: string;
-// }
-
 export interface ProblemDefinition {
   metadata: ProblemMetadata;
   visible: TestCase[];
   hidden: TestCase[];
 }
+
+// Language ID mapping for Judge0
+const LANGUAGE_IDS: Record<string, number> = {
+  python: 71,
+  java: 62,
+  javascript: 63,
+  typescript: 74,
+  cpp: 54,
+  csharp: 51,
+  go: 60
+};
 
 // Middleware
 app.use(cors({
@@ -97,7 +96,6 @@ async function getProblemMetadata(problemSlug: string) {
 }
 
 async function getTestCasesForProblem(problemSlug: string, includeHidden: boolean) {
-  // First get the problem_id from metadata
   const { data: metadata } = await supabase
     .from('problems_metadata')
     .select('problem_id')
@@ -109,7 +107,6 @@ async function getTestCasesForProblem(problemSlug: string, includeHidden: boolea
     return [];
   }
 
-  // Get test cases
   let query = supabase
     .from('problems_test_cases')
     .select('input, expected, is_hidden, display_order')
@@ -136,31 +133,47 @@ async function getTestCasesForProblem(problemSlug: string, includeHidden: boolea
 async function wrapCodeWithTestcases(
   userCode: string,
   problemSlug: string,
-  includeHidden: boolean
+  includeHidden: boolean,
+  language: string
 ): Promise<string> {
-  // Get metadata from database
   const metadata = await getProblemMetadata(problemSlug);
   if (!metadata) {
     throw new Error(`Unknown problem: ${problemSlug}`);
   }
 
-  // Get test cases from database
   const testCases = await getTestCasesForProblem(problemSlug, includeHidden);
   if (testCases.length === 0) {
     throw new Error(`No test cases found for problem: ${problemSlug}`);
   }
 
-  // Generate the test harness (use your existing generator function)
-  return generatePythonTestHarness(userCode, testCases, metadata);
+  // Route to appropriate language harness generator
+  switch (language.toLowerCase()) {
+    case 'python':
+      return generatePythonTestHarness(userCode, testCases, metadata);
+    case 'java':
+      return generateJavaTestHarness(userCode, testCases, metadata);
+    case 'javascript':
+      return generateJavaScriptTestHarness(userCode, testCases, metadata);
+    case 'typescript':
+      return generateTypeScriptTestHarness(userCode, testCases, metadata);
+    case 'cpp':
+    case 'c++':
+      return generateCppTestHarness(userCode, testCases, metadata);
+    case 'csharp':
+    case 'c#':
+      return generateCSharpTestHarness(userCode, testCases, metadata);
+    case 'go':
+      return generateGoTestHarness(userCode, testCases, metadata);
+    default:
+      throw new Error(`Unsupported language: ${language}`);
+  }
 }
 
-
 app.post('/api/problems/run', async (req: any, res: any) => {
-  const { problem_title_slug, source_code, language_id, stdin } = req.body;
-  console.log('Running:', problem_title_slug, 'Language:', language_id);
+  const { problem_title_slug, source_code, language_id, language, stdin } = req.body;
+  console.log('Running:', problem_title_slug, 'Language:', language);
 
   try {
-    // Get test cases from database (visible only)
     const testcases = await getTestCasesForProblem(problem_title_slug, false);
     
     if (testcases.length === 0) {
@@ -169,16 +182,15 @@ app.post('/api/problems/run', async (req: any, res: any) => {
       });
     }
 
-    // Wrap code with test harness
     const wrappedCode = await wrapCodeWithTestcases(
       source_code, 
       problem_title_slug, 
-      false
+      false,
+      language || 'python'
     );
     
     console.log('Generated wrapped code:', wrappedCode);
 
-    // Submit to Judge0
     const body = { 
       source_code: wrappedCode, 
       language_id, 
@@ -198,7 +210,6 @@ app.post('/api/problems/run', async (req: any, res: any) => {
     const data = await response.json();
     const token = data.token;
 
-    // Poll for results
     const judge0Result = await pollSubmissionStatus(token);
     const testcaseResults = parseTestResults(judge0Result, testcases);
     
@@ -227,7 +238,6 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
   console.log('Submitting:', problem_title_slug, 'User:', user_id);
 
   try {
-    // Get test cases from database (including hidden)
     const testcases = await getTestCasesForProblem(problem_title_slug, true);
     
     if (testcases.length === 0) {
@@ -236,14 +246,13 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
       });
     }
 
-    // Wrap code with test harness (include hidden tests)
     const wrappedCode = await wrapCodeWithTestcases(
       source_code, 
       problem_title_slug, 
-      true
+      true,
+      language || 'python'
     );
 
-    // Submit to Judge0
     const body = { 
       source_code: wrappedCode, 
       language_id, 
@@ -263,12 +272,9 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
     const data = await response.json();
     const token = data.token;
 
-    // Poll for results
     const judge0Result = await pollSubmissionStatus(token);
     const testcaseResults = parseTestResults(judge0Result, testcases);
-    console.log('testcase results = ' + JSON.stringify(testcaseResults))
     
-    // Save submission to database
     const savedSubmission = await storeSubmission(
       user_id, 
       problem_id, 
@@ -289,7 +295,6 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
   }
 });
 
-
 async function storeSubmission(
   user_id: string,
   problem_id: number,
@@ -301,7 +306,6 @@ async function storeSubmission(
   source_code: string,
   submitted_at: string
 ) {
-  // Your existing storeSubmission logic
   const { data, error } = await supabase
     .from('submissions')
     .insert({
@@ -322,6 +326,8 @@ async function storeSubmission(
   if (error) throw error;
   return data;
 }
+
+// ==================== PYTHON ====================
 
 const PYTHON_DATA_STRUCTURES: Record<string, string> = {
   ListNode: `# Definition for singly-linked list.
@@ -410,8 +416,6 @@ function generatePythonTestHarness(
   const comparisonCode = generateComparisonLogic(metadata);
   const paramExtraction = generateParamExtraction(metadata);
   const functionCall = `solution.${metadata.functionName}(${metadata.parameters.join(', ')})`;
-
-  // Convert test cases to Python-compatible format
   const pythonTestCases = convertToPythonFormat(testCases);
 
   return `${dataStructures}
@@ -432,27 +436,23 @@ for i, test in enumerate(test_cases):
         result = ${functionCall}
         expected = test['expected']
         
-        # Handle None results
         if result is None and expected is not None:
             print(f"Test {i + 1}: FAIL - Expected {expected}, got None")
         elif compare_results(result, expected):
             print(f"Test {i + 1}: PASS")
         else:
-            # Format output for better display
             result_str = str(result) if result is not None else "None"
             expected_str = str(expected) if expected is not None else "None"
             print(f"Test {i + 1}: FAIL - Expected {expected_str}, got {result_str}")
     except Exception as e:
         import traceback
         error_msg = str(e)
-        # Truncate very long error messages
         if len(error_msg) > 200:
             error_msg = error_msg[:200] + "..."
         print(f"Test {i + 1}: ERROR - {error_msg}")
 `;
 }
 
-// Helper function to convert JSON to Python-compatible format
 function convertToPythonFormat(obj: any): string {
   if (obj === null) return 'None';
   if (obj === true) return 'True';
@@ -471,7 +471,6 @@ function convertToPythonFormat(obj: any): string {
   }
   return String(obj);
 }
-
 
 function wrapInClass(code: string): string {
   const hasClass = code.includes('class Solution');
@@ -548,19 +547,16 @@ def compare_results(result, expected):
     unordered: `
 def compare_results(result, expected):
     try:
-        # For 2D arrays (like 3Sum output)
         if result is None or expected is None:
             return result == expected
         if not isinstance(result, list) or not isinstance(expected, list):
             return result == expected
         if len(result) != len(expected):
             return False
-        # Sort each inner list, then sort the outer list
         sorted_result = sorted([sorted(r) if isinstance(r, list) else r for r in result])
         sorted_expected = sorted([sorted(e) if isinstance(e, list) else e for e in expected])
         return sorted_result == sorted_expected
     except Exception as e:
-        # Fallback to exact comparison
         return result == expected
 `,
     float: `
@@ -596,15 +592,1240 @@ function generateParamExtraction(metadata: any): string {
     .join('\n        ');
 }
 
+// ==================== JAVA ====================
+
+function generateJavaTestHarness(
+  userCode: string,
+  testCases: any[],
+  metadata: any
+): string {
+  const dataStructures = getJavaDataStructures(metadata);
+  const helpers = getJavaHelpers(metadata);
+  const comparison = getJavaComparison(metadata);
+  const testCode = generateJavaTests(testCases, metadata);
+
+  return `${dataStructures}
+
+${userCode}
+
+${helpers}
+
+${comparison}
+
+public class Main {
+    ${testCode}
+}`;
+}
+
+function getJavaDataStructures(metadata: any): string {
+  let code = '';
+  
+  if (needsListNode(metadata)) {
+    code += `class ListNode {
+    int val;
+    ListNode next;
+    ListNode() {}
+    ListNode(int val) { this.val = val; }
+    ListNode(int val, ListNode next) { this.val = val; this.next = next; }
+}
+
+`;
+  }
+  
+  if (needsTreeNode(metadata)) {
+    code += `class TreeNode {
+    int val;
+    TreeNode left;
+    TreeNode right;
+    TreeNode() {}
+    TreeNode(int val) { this.val = val; }
+    TreeNode(int val, TreeNode left, TreeNode right) {
+        this.val = val;
+        this.left = left;
+        this.right = right;
+    }
+}
+
+`;
+  }
+  
+  return code;
+}
+
+function getJavaHelpers(metadata: any): string {
+  let code = '';
+  
+  if (needsListNode(metadata)) {
+    code += `class Helpers {
+    static ListNode arrayToListNode(int[] arr) {
+        if (arr == null || arr.length == 0) return null;
+        ListNode head = new ListNode(arr[0]);
+        ListNode current = head;
+        for (int i = 1; i < arr.length; i++) {
+            current.next = new ListNode(arr[i]);
+            current = current.next;
+        }
+        return head;
+    }
+    
+    static int[] listNodeToArray(ListNode node) {
+        java.util.List<Integer> list = new java.util.ArrayList<>();
+        while (node != null) {
+            list.add(node.val);
+            node = node.next;
+        }
+        return list.stream().mapToInt(i -> i).toArray();
+    }
+    
+`;
+  } else {
+    code += 'class Helpers {\n';
+  }
+  
+  if (needsTreeNode(metadata)) {
+    code += `    static TreeNode arrayToTreeNode(Integer[] arr) {
+        if (arr == null || arr.length == 0 || arr[0] == null) return null;
+        TreeNode root = new TreeNode(arr[0]);
+        java.util.Queue<TreeNode> queue = new java.util.LinkedList<>();
+        queue.offer(root);
+        int i = 1;
+        while (!queue.isEmpty() && i < arr.length) {
+            TreeNode node = queue.poll();
+            if (i < arr.length && arr[i] != null) {
+                node.left = new TreeNode(arr[i]);
+                queue.offer(node.left);
+            }
+            i++;
+            if (i < arr.length && arr[i] != null) {
+                node.right = new TreeNode(arr[i]);
+                queue.offer(node.right);
+            }
+            i++;
+        }
+        return root;
+    }
+`;
+  }
+  
+  code += '}\n\n';
+  return code;
+}
+
+function getJavaComparison(metadata: any): string {
+  const compType = metadata.comparisonType || 'exact';
+  
+  const comparisons: Record<string, string> = {
+    exact: `class Comparison {
+    static boolean compare(Object result, Object expected) {
+        if (result == null && expected == null) return true;
+        if (result == null || expected == null) return false;
+        if (result instanceof int[] && expected instanceof int[]) {
+            return java.util.Arrays.equals((int[])result, (int[])expected);
+        }
+        if (result instanceof int[][] && expected instanceof int[][]) {
+            return java.util.Arrays.deepEquals((int[][])result, (int[][])expected);
+        }
+        return result.equals(expected);
+    }
+}`,
+    sorted: `class Comparison {
+    static boolean compare(Object result, Object expected) {
+        if (result == null && expected == null) return true;
+        if (result == null || expected == null) return false;
+        if (result instanceof int[] && expected instanceof int[]) {
+            int[] r = ((int[])result).clone();
+            int[] e = ((int[])expected).clone();
+            java.util.Arrays.sort(r);
+            java.util.Arrays.sort(e);
+            return java.util.Arrays.equals(r, e);
+        }
+        return result.equals(expected);
+    }
+}`,
+    unordered: `class Comparison {
+    static boolean compare(Object result, Object expected) {
+        if (result == null && expected == null) return true;
+        if (result == null || expected == null) return false;
+        if (result instanceof java.util.List && expected instanceof java.util.List) {
+            java.util.List<?> r = new java.util.ArrayList<>((java.util.List<?>)result);
+            java.util.List<?> e = new java.util.ArrayList<>((java.util.List<?>)expected);
+            if (r.size() != e.size()) return false;
+            java.util.Collections.sort(r, (a, b) -> a.toString().compareTo(b.toString()));
+            java.util.Collections.sort(e, (a, b) -> a.toString().compareTo(b.toString()));
+            return r.equals(e);
+        }
+        return result.equals(expected);
+    }
+}`
+  };
+  
+  return comparisons[compType] || comparisons.exact;
+}
+
+function generateJavaTests(testCases: any[], metadata: any): string {
+  const functionName = metadata.functionName;
+  const params = metadata.parameters;
+  
+  let code = 'public static void main(String[] args) {\n';
+  code += '        Solution solution = new Solution();\n\n';
+  
+  testCases.forEach((tc, idx) => {
+    code += `        // Test ${idx + 1}\n`;
+    code += '        try {\n';
+    
+    // Generate parameter assignments
+    params.forEach((param: string) => {
+      const value = tc.input[param];
+      const transformer = metadata.inputTransformers?.[param];
+      
+      if (transformer === 'array_to_listnode') {
+        code += `            ListNode ${param} = Helpers.arrayToListNode(new int[]{${value.join(', ')}});\n`;
+      } else if (transformer === 'array_to_treenode') {
+        const nullableArray = value.map((v: any) => v === null ? 'null' : v).join(', ');
+        code += `            TreeNode ${param} = Helpers.arrayToTreeNode(new Integer[]{${nullableArray}});\n`;
+      } else if (Array.isArray(value)) {
+        if (value.length > 0 && Array.isArray(value[0])) {
+          code += `            int[][] ${param} = ${convertToJavaArray2D(value)};\n`;
+        } else {
+          code += `            int[] ${param} = new int[]{${value.join(', ')}};\n`;
+        }
+      } else if (typeof value === 'string') {
+        code += `            String ${param} = "${value}";\n`;
+      } else {
+        code += `            int ${param} = ${value};\n`;
+      }
+    });
+    
+    code += `            Object result = solution.${functionName}(${params.join(', ')});\n`;
+    code += `            Object expected = ${convertToJavaLiteral(tc.expected)};\n`;
+    code += '            if (Comparison.compare(result, expected)) {\n';
+    code += `                System.out.println("Test ${idx + 1}: PASS");\n`;
+    code += '            } else {\n';
+    code += `                System.out.println("Test ${idx + 1}: FAIL - Expected " + expected + ", got " + result);\n`;
+    code += '            }\n';
+    code += '        } catch (Exception e) {\n';
+    code += `            System.out.println("Test ${idx + 1}: ERROR - " + e.getMessage());\n`;
+    code += '        }\n\n';
+  });
+  
+  code += '    }';
+  return code;
+}
+
+function convertToJavaArray2D(arr: any[][]): string {
+  const rows = arr.map(row => `{${row.join(', ')}}`).join(', ');
+  return `new int[][]{${rows}}`;
+}
+
+function convertToJavaLiteral(value: any): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string') return `"${value}"`;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    if (value.length > 0 && Array.isArray(value[0])) {
+      return convertToJavaArray2D(value);
+    }
+    return `new int[]{${value.join(', ')}}`;
+  }
+  return 'null';
+}
+
+function needsListNode(metadata: any): boolean {
+  if (metadata.returnType === 'listnode') return true;
+  if (metadata.inputTransformers) {
+    return Object.values(metadata.inputTransformers).some(
+      (t: any) => t === 'array_to_listnode'
+    );
+  }
+  return false;
+}
+
+function needsTreeNode(metadata: any): boolean {
+  if (metadata.returnType === 'treenode') return true;
+  if (metadata.inputTransformers) {
+    return Object.values(metadata.inputTransformers).some(
+      (t: any) => t === 'array_to_treenode'
+    );
+  }
+  return false;
+}
+
+// ==================== JAVASCRIPT/TYPESCRIPT ====================
+
+function generateJavaScriptTestHarness(
+  userCode: string,
+  testCases: any[],
+  metadata: any
+): string {
+  return generateJSTypeTestHarness(userCode, testCases, metadata, false);
+}
+
+function generateTypeScriptTestHarness(
+  userCode: string,
+  testCases: any[],
+  metadata: any
+): string {
+  return generateJSTypeTestHarness(userCode, testCases, metadata, true);
+}
+
+function generateJSTypeTestHarness(
+  userCode: string,
+  testCases: any[],
+  metadata: any,
+  isTypeScript: boolean
+): string {
+  const dataStructures = getJSDataStructures(metadata, isTypeScript);
+  const helpers = getJSHelpers(metadata);
+  const comparison = getJSComparison(metadata);
+  const testCode = generateJSTests(testCases, metadata);
+
+  return `${dataStructures}
+
+${userCode}
+
+${helpers}
+
+${comparison}
+
+${testCode}`;
+}
+
+function getJSDataStructures(metadata: any, isTypeScript: boolean): string {
+  let code = '';
+  
+  if (needsListNode(metadata)) {
+    code += isTypeScript 
+      ? `class ListNode {
+    val: number;
+    next: ListNode | null;
+    constructor(val?: number, next?: ListNode | null) {
+        this.val = (val===undefined ? 0 : val);
+        this.next = (next===undefined ? null : next);
+    }
+}
+
+`
+      : `class ListNode {
+    constructor(val, next) {
+        this.val = (val===undefined ? 0 : val);
+        this.next = (next===undefined ? null : next);
+    }
+}
+
+`;
+  }
+  
+  if (needsTreeNode(metadata)) {
+    code += isTypeScript
+      ? `class TreeNode {
+    val: number;
+    left: TreeNode | null;
+    right: TreeNode | null;
+    constructor(val?: number, left?: TreeNode | null, right?: TreeNode | null) {
+        this.val = (val===undefined ? 0 : val);
+        this.left = (left===undefined ? null : left);
+        this.right = (right===undefined ? null : right);
+    }
+}
+
+`
+      : `class TreeNode {
+    constructor(val, left, right) {
+        this.val = (val===undefined ? 0 : val);
+        this.left = (left===undefined ? null : left);
+        this.right = (right===undefined ? null : right);
+    }
+}
+
+`;
+  }
+  
+  return code;
+}
+
+function getJSHelpers(metadata: any): string {
+  let code = '';
+  
+  if (needsListNode(metadata)) {
+    code += `function arrayToListNode(arr) {
+    if (!arr || arr.length === 0) return null;
+    let head = new ListNode(arr[0]);
+    let current = head;
+    for (let i = 1; i < arr.length; i++) {
+        current.next = new ListNode(arr[i]);
+        current = current.next;
+    }
+    return head;
+}
+
+function listNodeToArray(node) {
+    let arr = [];
+    while (node) {
+        arr.push(node.val);
+        node = node.next;
+    }
+    return arr;
+}
+
+`;
+  }
+  
+  if (needsTreeNode(metadata)) {
+    code += `function arrayToTreeNode(arr) {
+    if (!arr || arr.length === 0 || arr[0] === null) return null;
+    let root = new TreeNode(arr[0]);
+    let queue = [root];
+    let i = 1;
+    while (queue.length > 0 && i < arr.length) {
+        let node = queue.shift();
+        if (i < arr.length && arr[i] !== null) {
+            node.left = new TreeNode(arr[i]);
+            queue.push(node.left);
+        }
+        i++;
+        if (i < arr.length && arr[i] !== null) {
+            node.right = new TreeNode(arr[i]);
+            queue.push(node.right);
+        }
+        i++;
+    }
+    return root;
+}
+
+`;
+  }
+  
+  return code;
+}
+
+function getJSComparison(metadata: any): string {
+  const compType = metadata.comparisonType || 'exact';
+  
+  const comparisons: Record<string, string> = {
+    exact: `function compareResults(result, expected) {
+    return JSON.stringify(result) === JSON.stringify(expected);
+}`,
+    sorted: `function compareResults(result, expected) {
+    try {
+        if (Array.isArray(result) && Array.isArray(expected)) {
+            return JSON.stringify([...result].sort()) === JSON.stringify([...expected].sort());
+        }
+        return JSON.stringify(result) === JSON.stringify(expected);
+    } catch {
+        return result === expected;
+    }
+}`,
+    unordered: `function compareResults(result, expected) {
+    try {
+        if (!Array.isArray(result) || !Array.isArray(expected)) {
+            return JSON.stringify(result) === JSON.stringify(expected);
+        }
+        if (result.length !== expected.length) return false;
+        
+        const sortedResult = result.map(r => 
+            Array.isArray(r) ? [...r].sort() : r
+        ).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+        
+        const sortedExpected = expected.map(e => 
+            Array.isArray(e) ? [...e].sort() : e
+        ).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+        
+        return JSON.stringify(sortedResult) === JSON.stringify(sortedExpected);
+    } catch {
+        return JSON.stringify(result) === JSON.stringify(expected);
+    }
+}`,
+    float: `function compareResults(result, expected) {
+    try {
+        return Math.abs(result - expected) < 1e-5;
+    } catch {
+        return result === expected;
+    }
+}`
+  };
+  
+  return comparisons[compType] || comparisons.exact;
+}
+
+function generateJSTests(testCases: any[], metadata: any): string {
+  const functionName = metadata.functionName;
+  const params = metadata.parameters;
+  
+  let code = '// Test harness\n';
+  code += 'const testCases = ' + JSON.stringify(testCases, null, 2) + ';\n\n';
+  code += 'testCases.forEach((test, i) => {\n';
+  code += '    try {\n';
+  
+  // Generate parameter extraction
+  params.forEach((param: string) => {
+    const transformer = metadata.inputTransformers?.[param];
+    if (transformer === 'array_to_listnode') {
+      code += `        const ${param} = arrayToListNode(test.input.${param});\n`;
+    } else if (transformer === 'array_to_treenode') {
+      code += `        const ${param} = arrayToTreeNode(test.input.${param});\n`;
+    } else {
+      code += `        const ${param} = test.input.${param};\n`;
+    }
+  });
+  
+  code += `        const result = ${functionName}(${params.join(', ')});\n`;
+  code += '        const expected = test.expected;\n';
+  code += '        \n';
+  code += '        if (result === null && expected !== null) {\n';
+  code += '            console.log(`Test ${i + 1}: FAIL - Expected ${expected}, got null`);\n';
+  code += '        } else if (compareResults(result, expected)) {\n';
+  code += '            console.log(`Test ${i + 1}: PASS`);\n';
+  code += '        } else {\n';
+  code += '            console.log(`Test ${i + 1}: FAIL - Expected ${JSON.stringify(expected)}, got ${JSON.stringify(result)}`);\n';
+  code += '        }\n';
+  code += '    } catch (e) {\n';
+  code += '        const errorMsg = e.message.length > 200 ? e.message.substring(0, 200) + "..." : e.message;\n';
+  code += '        console.log(`Test ${i + 1}: ERROR - ${errorMsg}`);\n';
+  code += '    }\n';
+  code += '});\n';
+  
+  return code;
+}
+
+// ==================== C++ ====================
+
+function generateCppTestHarness(
+  userCode: string,
+  testCases: any[],
+  metadata: any
+): string {
+  const dataStructures = getCppDataStructures(metadata);
+  const helpers = getCppHelpers(metadata);
+  const comparison = getCppComparison(metadata);
+  const testCode = generateCppTests(testCases, metadata);
+
+  return `#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <queue>
+#include <cmath>
+using namespace std;
+
+${dataStructures}
+
+${userCode}
+
+${helpers}
+
+${comparison}
+
+int main() {
+${testCode}
+    return 0;
+}`;
+}
+
+function getCppDataStructures(metadata: any): string {
+  let code = '';
+  
+  if (needsListNode(metadata)) {
+    code += `struct ListNode {
+    int val;
+    ListNode *next;
+    ListNode() : val(0), next(nullptr) {}
+    ListNode(int x) : val(x), next(nullptr) {}
+    ListNode(int x, ListNode *next) : val(x), next(next) {}
+};
+
+`;
+  }
+  
+  if (needsTreeNode(metadata)) {
+    code += `struct TreeNode {
+    int val;
+    TreeNode *left;
+    TreeNode *right;
+    TreeNode() : val(0), left(nullptr), right(nullptr) {}
+    TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}
+    TreeNode(int x, TreeNode *left, TreeNode *right) : val(x), left(left), right(right) {}
+};
+
+`;
+  }
+  
+  return code;
+}
+
+function getCppHelpers(metadata: any): string {
+  let code = '';
+  
+  if (needsListNode(metadata)) {
+    code += `ListNode* arrayToListNode(vector<int>& arr) {
+    if (arr.empty()) return nullptr;
+    ListNode* head = new ListNode(arr[0]);
+    ListNode* current = head;
+    for (int i = 1; i < arr.size(); i++) {
+        current->next = new ListNode(arr[i]);
+        current = current->next;
+    }
+    return head;
+}
+
+vector<int> listNodeToArray(ListNode* node) {
+    vector<int> arr;
+    while (node) {
+        arr.push_back(node->val);
+        node = node->next;
+    }
+    return arr;
+}
+
+`;
+  }
+  
+  if (needsTreeNode(metadata)) {
+    code += `TreeNode* arrayToTreeNode(vector<int>& arr) {
+    if (arr.empty() || arr[0] == -1) return nullptr;
+    TreeNode* root = new TreeNode(arr[0]);
+    queue<TreeNode*> q;
+    q.push(root);
+    int i = 1;
+    while (!q.empty() && i < arr.size()) {
+        TreeNode* node = q.front();
+        q.pop();
+        if (i < arr.size() && arr[i] != -1) {
+            node->left = new TreeNode(arr[i]);
+            q.push(node->left);
+        }
+        i++;
+        if (i < arr.size() && arr[i] != -1) {
+            node->right = new TreeNode(arr[i]);
+            q.push(node->right);
+        }
+        i++;
+    }
+    return root;
+}
+
+`;
+  }
+  
+  return code;
+}
+
+function getCppComparison(metadata: any): string {
+  const compType = metadata.comparisonType || 'exact';
+  
+  const comparisons: Record<string, string> = {
+    exact: `template<typename T>
+bool compareResults(T result, T expected) {
+    return result == expected;
+}
+
+bool compareResults(vector<int> result, vector<int> expected) {
+    return result == expected;
+}
+
+bool compareResults(vector<vector<int>> result, vector<vector<int>> expected) {
+    return result == expected;
+}
+
+bool compareResults(string result, string expected) {
+    return result == expected;
+}
+
+bool compareResults(const char* result, const char* expected) {
+    return string(result) == string(expected);
+}`,
+    sorted: `bool compareResults(vector<int> result, vector<int> expected) {
+    sort(result.begin(), result.end());
+    sort(expected.begin(), expected.end());
+    return result == expected;
+}
+
+bool compareResults(string result, string expected) {
+    return result == expected;
+}`,
+    unordered: `bool compareResults(vector<vector<int>> result, vector<vector<int>> expected) {
+    if (result.size() != expected.size()) return false;
+    for (auto& v : result) sort(v.begin(), v.end());
+    for (auto& v : expected) sort(v.begin(), v.end());
+    sort(result.begin(), result.end());
+    sort(expected.begin(), expected.end());
+    return result == expected;
+}
+
+bool compareResults(string result, string expected) {
+    return result == expected;
+}`
+  };
+  
+  return comparisons[compType] || comparisons.exact;
+}
+
+function generateCppTests(testCases: any[], metadata: any): string {
+  const functionName = metadata.functionName;
+  const params = metadata.parameters;
+  
+  let code = '    Solution solution;\n\n';
+  
+  testCases.forEach((tc, idx) => {
+    code += `    // Test ${idx + 1}\n`;
+    code += '    try {\n';
+    
+    // Generate parameter assignments
+    params.forEach((param: string) => {
+      const value = tc.input[param];
+      const transformer = metadata.inputTransformers?.[param];
+      
+      if (transformer === 'array_to_listnode') {
+        code += `        vector<int> ${param}_arr = {${value.join(', ')}};\n`;
+        code += `        ListNode* ${param} = arrayToListNode(${param}_arr);\n`;
+      } else if (transformer === 'array_to_treenode') {
+        const nullableArray = value.map((v: any) => v === null ? -1 : v).join(', ');
+        code += `        vector<int> ${param}_arr = {${nullableArray}};\n`;
+        code += `        TreeNode* ${param} = arrayToTreeNode(${param}_arr);\n`;
+      } else if (Array.isArray(value)) {
+        if (value.length > 0 && Array.isArray(value[0])) {
+          code += `        vector<vector<int>> ${param} = ${convertToCppVector2D(value)};\n`;
+        } else if (value.length > 0 && typeof value[0] === 'string') {
+          // Handle string arrays
+          const stringArray = value.map((v: string) => `"${v}"`).join(', ');
+          code += `        vector<string> ${param} = {${stringArray}};\n`;
+        } else {
+          code += `        vector<int> ${param} = {${value.join(', ')}};\n`;
+        }
+      } else if (typeof value === 'string') {
+        code += `        string ${param} = "${value}";\n`;
+      } else {
+        code += `        int ${param} = ${value};\n`;
+      }
+    });
+    
+    code += `        auto result = solution.${functionName}(${params.join(', ')});\n`;
+    code += `        auto expected = ${convertToCppLiteral(tc.expected)};\n`;
+    code += '        if (compareResults(result, expected)) {\n';
+    code += `            cout << "Test ${idx + 1}: PASS" << endl;\n`;
+    code += '        } else {\n';
+    code += `            cout << "Test ${idx + 1}: FAIL" << endl;\n`;
+    code += '        }\n';
+    code += '    } catch (exception& e) {\n';
+    code += `        cout << "Test ${idx + 1}: ERROR - " << e.what() << endl;\n`;
+    code += '    }\n\n';
+  });
+  
+  return code;
+}
+
+function convertToCppVector2D(arr: any[][]): string {
+  const rows = arr.map(row => `{${row.join(', ')}}`).join(', ');
+  return `{{${rows}}}`;
+}
+
+function convertToCppLiteral(value: any): string {
+  if (value === null) return '0';
+  if (typeof value === 'string') return `"${value}"`;
+  if (typeof value === 'number') return String(value);
+  if (Array.isArray(value)) {
+    if (value.length > 0 && Array.isArray(value[0])) {
+      return convertToCppVector2D(value);
+    }
+    if (value.length > 0 && typeof value[0] === 'string') {
+      // Handle string arrays
+      const stringArray = value.map((v: string) => `"${v}"`).join(', ');
+      return `vector<string>{${stringArray}}`;
+    }
+    return `vector<int>{${value.join(', ')}}`;
+  }
+  return '0';
+}
+
+// ==================== C# ====================
+
+function generateCSharpTestHarness(
+  userCode: string,
+  testCases: any[],
+  metadata: any
+): string {
+  const dataStructures = getCSharpDataStructures(metadata);
+  const helpers = getCSharpHelpers(metadata);
+  const comparison = getCSharpComparison(metadata);
+  const testCode = generateCSharpTests(testCases, metadata);
+
+  return `using System;
+using System.Collections.Generic;
+using System.Linq;
+
+${dataStructures}
+
+${userCode}
+
+${helpers}
+
+${comparison}
+
+class Program {
+    static void Main() {
+${testCode}
+    }
+}`;
+}
+
+function getCSharpDataStructures(metadata: any): string {
+  let code = '';
+  
+  if (needsListNode(metadata)) {
+    code += `public class ListNode {
+    public int val;
+    public ListNode next;
+    public ListNode(int val=0, ListNode next=null) {
+        this.val = val;
+        this.next = next;
+    }
+}
+
+`;
+  }
+  
+  if (needsTreeNode(metadata)) {
+    code += `public class TreeNode {
+    public int val;
+    public TreeNode left;
+    public TreeNode right;
+    public TreeNode(int val=0, TreeNode left=null, TreeNode right=null) {
+        this.val = val;
+        this.left = left;
+        this.right = right;
+    }
+}
+
+`;
+  }
+  
+  return code;
+}
+
+function getCSharpHelpers(metadata: any): string {
+  let code = 'public class Helpers {\n';
+  
+  if (needsListNode(metadata)) {
+    code += `    public static ListNode ArrayToListNode(int[] arr) {
+        if (arr == null || arr.Length == 0) return null;
+        ListNode head = new ListNode(arr[0]);
+        ListNode current = head;
+        for (int i = 1; i < arr.Length; i++) {
+            current.next = new ListNode(arr[i]);
+            current = current.next;
+        }
+        return head;
+    }
+    
+    public static int[] ListNodeToArray(ListNode node) {
+        List<int> list = new List<int>();
+        while (node != null) {
+            list.Add(node.val);
+            node = node.next;
+        }
+        return list.ToArray();
+    }
+    
+`;
+  }
+  
+  if (needsTreeNode(metadata)) {
+    code += `    public static TreeNode ArrayToTreeNode(int?[] arr) {
+        if (arr == null || arr.Length == 0 || arr[0] == null) return null;
+        TreeNode root = new TreeNode(arr[0].Value);
+        Queue<TreeNode> queue = new Queue<TreeNode>();
+        queue.Enqueue(root);
+        int i = 1;
+        while (queue.Count > 0 && i < arr.Length) {
+            TreeNode node = queue.Dequeue();
+            if (i < arr.Length && arr[i] != null) {
+                node.left = new TreeNode(arr[i].Value);
+                queue.Enqueue(node.left);
+            }
+            i++;
+            if (i < arr.Length && arr[i] != null) {
+                node.right = new TreeNode(arr[i].Value);
+                queue.Enqueue(node.right);
+            }
+            i++;
+        }
+        return root;
+    }
+`;
+  }
+  
+  code += '}\n\n';
+  return code;
+}
+
+function getCSharpComparison(metadata: any): string {
+  const compType = metadata.comparisonType || 'exact';
+  
+  const comparisons: Record<string, string> = {
+    exact: `public class Comparison {
+    public static bool Compare(object result, object expected) {
+        if (result == null && expected == null) return true;
+        if (result == null || expected == null) return false;
+        if (result is int[] && expected is int[]) {
+            return ((int[])result).SequenceEqual((int[])expected);
+        }
+        if (result is int[][] && expected is int[][]) {
+            var r = (int[][])result;
+            var e = (int[][])expected;
+            if (r.Length != e.Length) return false;
+            for (int i = 0; i < r.Length; i++) {
+                if (!r[i].SequenceEqual(e[i])) return false;
+            }
+            return true;
+        }
+        return result.Equals(expected);
+    }
+}`,
+    sorted: `public class Comparison {
+    public static bool Compare(object result, object expected) {
+        if (result == null && expected == null) return true;
+        if (result == null || expected == null) return false;
+        if (result is int[] && expected is int[]) {
+            var r = ((int[])result).OrderBy(x => x).ToArray();
+            var e = ((int[])expected).OrderBy(x => x).ToArray();
+            return r.SequenceEqual(e);
+        }
+        return result.Equals(expected);
+    }
+}`,
+    unordered: `public class Comparison {
+    public static bool Compare(object result, object expected) {
+        if (result == null && expected == null) return true;
+        if (result == null || expected == null) return false;
+        if (result is IList<IList<int>> && expected is IList<IList<int>>) {
+            var r = (IList<IList<int>>)result;
+            var e = (IList<IList<int>>)expected;
+            if (r.Count != e.Count) return false;
+            var sortedR = r.Select(x => x.OrderBy(y => y).ToList()).OrderBy(x => string.Join(",", x)).ToList();
+            var sortedE = e.Select(x => x.OrderBy(y => y).ToList()).OrderBy(x => string.Join(",", x)).ToList();
+            for (int i = 0; i < sortedR.Count; i++) {
+                if (!sortedR[i].SequenceEqual(sortedE[i])) return false;
+            }
+            return true;
+        }
+        return result.Equals(expected);
+    }
+}`
+  };
+  
+  return comparisons[compType] || comparisons.exact;
+}
+
+function generateCSharpTests(testCases: any[], metadata: any): string {
+  const functionName = metadata.functionName;
+  const params = metadata.parameters;
+  
+  let code = '        Solution solution = new Solution();\n\n';
+  
+  testCases.forEach((tc, idx) => {
+    code += `        // Test ${idx + 1}\n`;
+    code += '        try {\n';
+    
+    // Generate parameter assignments
+    params.forEach((param: string) => {
+      const value = tc.input[param];
+      const transformer = metadata.inputTransformers?.[param];
+      
+      if (transformer === 'array_to_listnode') {
+        code += `            ListNode ${param} = Helpers.ArrayToListNode(new int[]{${value.join(', ')}});\n`;
+      } else if (transformer === 'array_to_treenode') {
+        const nullableArray = value.map((v: any) => v === null ? 'null' : v).join(', ');
+        code += `            TreeNode ${param} = Helpers.ArrayToTreeNode(new int?[]{${nullableArray}});\n`;
+      } else if (Array.isArray(value)) {
+        if (value.length > 0 && Array.isArray(value[0])) {
+          code += `            int[][] ${param} = ${convertToCSharpArray2D(value)};\n`;
+        } else {
+          code += `            int[] ${param} = new int[]{${value.join(', ')}};\n`;
+        }
+      } else if (typeof value === 'string') {
+        code += `            string ${param} = "${value}";\n`;
+      } else {
+        code += `            int ${param} = ${value};\n`;
+      }
+    });
+    
+    const capitalizedFunctionName = functionName.charAt(0).toUpperCase() + functionName.slice(1);
+    code += `            var result = solution.${capitalizedFunctionName}(${params.join(', ')});\n`;
+    code += `            var expected = ${convertToCSharpLiteral(tc.expected)};\n`;
+    code += '            if (Comparison.Compare(result, expected)) {\n';
+    code += `                Console.WriteLine("Test ${idx + 1}: PASS");\n`;
+    code += '            } else {\n';
+    code += `                Console.WriteLine("Test ${idx + 1}: FAIL");\n`;
+    code += '            }\n';
+    code += '        } catch (Exception e) {\n';
+    code += `            Console.WriteLine("Test ${idx + 1}: ERROR - " + e.Message);\n`;
+    code += '        }\n\n';
+  });
+  
+  return code;
+}
+
+function convertToCSharpArray2D(arr: any[][]): string {
+  const rows = arr.map(row => `new int[]{${row.join(', ')}}`).join(', ');
+  return `new int[][]{${rows}}`;
+}
+
+function convertToCSharpLiteral(value: any): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string') return `"${value}"`;
+  if (typeof value === 'number') return String(value);
+  if (Array.isArray(value)) {
+    if (value.length > 0 && Array.isArray(value[0])) {
+      return convertToCSharpArray2D(value);
+    }
+    return `new int[]{${value.join(', ')}}`;
+  }
+  return 'null';
+}
+
+// ==================== GO ====================
+
+function generateGoTestHarness(
+  userCode: string,
+  testCases: any[],
+  metadata: any
+): string {
+  const dataStructures = getGoDataStructures(metadata);
+  const helpers = getGoHelpers(metadata);
+  const comparison = getGoComparison(metadata);
+  const testCode = generateGoTests(testCases, metadata);
+
+  return `package main
+
+import (
+    "fmt"
+    "reflect"
+)
+
+${dataStructures}
+
+${userCode}
+
+${helpers}
+
+${comparison}
+
+func main() {
+${testCode}
+}`;
+}
+
+function getGoDataStructures(metadata: any): string {
+  let code = '';
+  
+  if (needsListNode(metadata)) {
+    code += `type ListNode struct {
+    Val int
+    Next *ListNode
+}
+
+`;
+  }
+  
+  if (needsTreeNode(metadata)) {
+    code += `type TreeNode struct {
+    Val int
+    Left *TreeNode
+    Right *TreeNode
+}
+
+`;
+  }
+  
+  return code;
+}
+
+function getGoHelpers(metadata: any): string {
+  let code = '';
+  
+  if (needsListNode(metadata)) {
+    code += `func arrayToListNode(arr []int) *ListNode {
+    if len(arr) == 0 {
+        return nil
+    }
+    head := &ListNode{Val: arr[0]}
+    current := head
+    for i := 1; i < len(arr); i++ {
+        current.Next = &ListNode{Val: arr[i]}
+        current = current.Next
+    }
+    return head
+}
+
+func listNodeToArray(node *ListNode) []int {
+    arr := []int{}
+    for node != nil {
+        arr = append(arr, node.Val)
+        node = node.Next
+    }
+    return arr
+}
+
+`;
+  }
+  
+  if (needsTreeNode(metadata)) {
+    code += `func arrayToTreeNode(arr []interface{}) *TreeNode {
+    if len(arr) == 0 || arr[0] == nil {
+        return nil
+    }
+    root := &TreeNode{Val: arr[0].(int)}
+    queue := []*TreeNode{root}
+    i := 1
+    for len(queue) > 0 && i < len(arr) {
+        node := queue[0]
+        queue = queue[1:]
+        if i < len(arr) && arr[i] != nil {
+            node.Left = &TreeNode{Val: arr[i].(int)}
+            queue = append(queue, node.Left)
+        }
+        i++
+        if i < len(arr) && arr[i] != nil {
+            node.Right = &TreeNode{Val: arr[i].(int)}
+            queue = append(queue, node.Right)
+        }
+        i++
+    }
+    return root
+}
+
+`;
+  }
+  
+  return code;
+}
+
+function getGoComparison(metadata: any): string {
+  const compType = metadata.comparisonType || 'exact';
+  
+  const comparisons: Record<string, string> = {
+    exact: `func compareResults(result, expected interface{}) bool {
+    return reflect.DeepEqual(result, expected)
+}`,
+    sorted: `func compareResults(result, expected interface{}) bool {
+    r, ok1 := result.([]int)
+    e, ok2 := expected.([]int)
+    if ok1 && ok2 {
+        if len(r) != len(e) {
+            return false
+        }
+        rCopy := make([]int, len(r))
+        eCopy := make([]int, len(e))
+        copy(rCopy, r)
+        copy(eCopy, e)
+        sort.Ints(rCopy)
+        sort.Ints(eCopy)
+        return reflect.DeepEqual(rCopy, eCopy)
+    }
+    return reflect.DeepEqual(result, expected)
+}`,
+    unordered: `func compareResults(result, expected interface{}) bool {
+    r, ok1 := result.([][]int)
+    e, ok2 := expected.([][]int)
+    if ok1 && ok2 {
+        if len(r) != len(e) {
+            return false
+        }
+        // Sort inner arrays and outer array
+        for i := range r {
+            sort.Ints(r[i])
+        }
+        for i := range e {
+            sort.Ints(e[i])
+        }
+        return reflect.DeepEqual(r, e)
+    }
+    return reflect.DeepEqual(result, expected)
+}`
+  };
+  
+  return comparisons[compType] || comparisons.exact;
+}
+
+function generateGoTests(testCases: any[], metadata: any): string {
+  const functionName = metadata.functionName;
+  const params = metadata.parameters;
+  
+  let code = '';
+  
+  testCases.forEach((tc, idx) => {
+    code += `    // Test ${idx + 1}\n`;
+    code += '    func() {\n';
+    code += '        defer func() {\n';
+    code += '            if r := recover(); r != nil {\n';
+    code += `                fmt.Printf("Test ${idx + 1}: ERROR - %v\\n", r)\n`;
+    code += '            }\n';
+    code += '        }()\n';
+    
+    // Generate parameter assignments
+    params.forEach((param: string) => {
+      const value = tc.input[param];
+      const transformer = metadata.inputTransformers?.[param];
+      
+      if (transformer === 'array_to_listnode') {
+        code += `        ${param} := arrayToListNode([]int{${value.join(', ')}})\n`;
+      } else if (transformer === 'array_to_treenode') {
+        const nullableArray = value.map((v: any) => v === null ? 'nil' : v).join(', ');
+        code += `        ${param} := arrayToTreeNode([]interface{}{${nullableArray}})\n`;
+      } else if (Array.isArray(value)) {
+        if (value.length > 0 && Array.isArray(value[0])) {
+          code += `        ${param} := ${convertToGoSlice2D(value)}\n`;
+        } else {
+          code += `        ${param} := []int{${value.join(', ')}}\n`;
+        }
+      } else if (typeof value === 'string') {
+        code += `        ${param} := "${value}"\n`;
+      } else {
+        code += `        ${param} := ${value}\n`;
+      }
+    });
+    
+    code += `        result := ${functionName}(${params.join(', ')})\n`;
+    code += `        expected := ${convertToGoLiteral(tc.expected)}\n`;
+    code += '        if compareResults(result, expected) {\n';
+    code += `            fmt.Println("Test ${idx + 1}: PASS")\n`;
+    code += '        } else {\n';
+    code += `            fmt.Printf("Test ${idx + 1}: FAIL - Expected %v, got %v\\n", expected, result)\n`;
+    code += '        }\n';
+    code += '    }()\n\n';
+  });
+  
+  return code;
+}
+
+function convertToGoSlice2D(arr: any[][]): string {
+  const rows = arr.map(row => `{${row.join(', ')}}`).join(', ');
+  return `[][]int{${rows}}`;
+}
+
+function convertToGoLiteral(value: any): string {
+  if (value === null) return 'nil';
+  if (typeof value === 'string') return `"${value}"`;
+  if (typeof value === 'number') return String(value);
+  if (Array.isArray(value)) {
+    if (value.length > 0 && Array.isArray(value[0])) {
+      return convertToGoSlice2D(value);
+    }
+    return `[]int{${value.join(', ')}}`;
+  }
+  return 'nil';
+}
+
+// ==================== SHARED UTILITIES ====================
+
 async function pollSubmissionStatus(token: string) {
     const submissionUri = `https://${process.env.RAPIDAPI_HOST}/submissions/${token}`
     const maxAttempts = 10
-    const pollInterval = 1000 // 1 second
+    const pollInterval = 1000
 
     let attempts = 0
     while (attempts < maxAttempts) {
         try {
-            // Now we need to periodically poll the token and check up on the status of our submission
             const response = await fetch(submissionUri, {
                 method: 'GET',
                 headers: {
@@ -614,13 +1835,11 @@ async function pollSubmissionStatus(token: string) {
                 },
             })
             
-            // If response code is outside of 2xx range (ex: 404)
             if (!response.ok) {
                 console.log(`Received ${response.status} -- trying again in ${pollInterval} ms`)
                 await sleep(pollInterval)
             }
             
-            // Check status.description field within the response body --> tells us whether or not code is accepted or not
             const data = await response.json()
             const status = data.status?.description
             console.log(`Current status = ${status}`)
@@ -635,7 +1854,6 @@ async function pollSubmissionStatus(token: string) {
                 return data
             }
             
-            // Continue polling
             if (attempts < maxAttempts) {
                 attempts++
                 await sleep(pollInterval)
@@ -652,10 +1870,8 @@ function parseTestResults(judge0Result: any, testcases: any[]) {
   const stderr = judge0Result.stderr || '';
   const compile_output = judge0Result.compile_output || '';
   
-  // Parse test results from stdout
   const lines = stdout.split('\n').filter((line: string) => line.trim());
   
-  // Create results array matching frontend expectations
   const results = testcases.map((testcase, index) => {
     const testLine = lines.find((line: string) => 
       line.includes(`Test ${index + 1}:`)
@@ -668,10 +1884,9 @@ function parseTestResults(judge0Result: any, testcases: any[]) {
     if (testLine) {
       if (testLine.includes('PASS')) {
         status = 'passed';
-        actual = testcase.expected; // If passed, actual equals expected
+        actual = testcase.expected;
       } else if (testLine.includes('FAIL')) {
         status = 'failed';
-        // Try to extract actual value from output
         const actualMatch = testLine.match(/got (.+)$/);
         if (actualMatch) {
           try {
@@ -698,13 +1913,11 @@ function parseTestResults(judge0Result: any, testcases: any[]) {
     };
   });
   
-  // Count results
   const passed = results.filter(r => r.status === 'passed').length;
   const failed = results.filter(r => r.status === 'failed').length;
   const errors = results.filter(r => r.status === 'error').length;
   const total = testcases.length;
   
-  // Determine overall label
   let label = 'Accepted';
   
   if (judge0Result.status.id === 6) {
@@ -729,7 +1942,7 @@ function parseTestResults(judge0Result: any, testcases: any[]) {
     failed,
     errors,
     total,
-    results, // Array of individual test results
+    results,
     stdout,
     stderr,
     compile_output,
@@ -741,7 +1954,6 @@ function parseTestResults(judge0Result: any, testcases: any[]) {
 function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
 }
-
 
 app.listen(PORT, () => {
     console.log(`Backend server started @ port ${PORT}`);
