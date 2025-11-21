@@ -36,6 +36,9 @@ import { JoinRequestsSection } from "@/components/study-pods/join-requests-secti
 import { EditPodModal } from "@/components/study-pods/edit-pod-modal";
 import { PodProblemsList } from "@/components/study-pods/pod-problems-list";
 import { AssignProblemsModal } from "@/components/study-pods/assign-problems-modal";
+import { CreateSessionModal } from "@/components/study-pods/create-session-modal";
+import { SessionCard } from "@/components/study-pods/session-card";
+import { SessionDetailModal } from "@/components/study-pods/session-detail-modal";
 
 export default function StudyPodDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { theme } = useTheme();
@@ -48,6 +51,12 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAssignProblemsModal, setShowAssignProblemsModal] = useState(false);
+  const [showCreateSessionModal, setShowCreateSessionModal] = useState(false);
+  const [showSessionDetailModal, setShowSessionDetailModal] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionFilter, setSessionFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming');
 
   useEffect(() => {
     fetchUser();
@@ -103,6 +112,7 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
 
       const data = await response.json();
       setPod(data.pod);
+      fetchSessions(); // Fetch sessions after pod is loaded
     } catch (error) {
       console.error("Error fetching pod:", error);
       toast.error("Failed to load study pod");
@@ -110,6 +120,30 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
       setLoading(false);
     }
   };
+
+  const fetchSessions = async (filter: string = sessionFilter) => {
+    if (!podId) return;
+
+    setSessionsLoading(true);
+    try {
+      const response = await fetch(`/api/study-pods/${podId}/sessions?filter=${filter}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSessions(data.sessions || []);
+      }
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  // Fetch sessions when filter changes
+  useEffect(() => {
+    if (podId) {
+      fetchSessions();
+    }
+  }, [sessionFilter, podId]);
 
   const handleJoin = async () => {
     setActionLoading(true);
@@ -446,57 +480,74 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
 
           {/* Sessions */}
           <TabsContent value="sessions" className="space-y-4">
-            {pod.upcoming_sessions && pod.upcoming_sessions.length > 0 ? (
-              <div className="space-y-3">
-                {pod.upcoming_sessions.map((session: any) => (
-                  <Card
+            {/* Header with Create Button */}
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                <Button
+                  variant={sessionFilter === 'upcoming' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSessionFilter('upcoming')}
+                  className={sessionFilter === 'upcoming' ? 'bg-gradient-to-r from-emerald-500 to-cyan-500' : ''}
+                >
+                  Upcoming
+                </Button>
+                <Button
+                  variant={sessionFilter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSessionFilter('all')}
+                  className={sessionFilter === 'all' ? 'bg-gradient-to-r from-emerald-500 to-cyan-500' : ''}
+                >
+                  All
+                </Button>
+                <Button
+                  variant={sessionFilter === 'past' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSessionFilter('past')}
+                  className={sessionFilter === 'past' ? 'bg-gradient-to-r from-emerald-500 to-cyan-500' : ''}
+                >
+                  Past
+                </Button>
+              </div>
+
+              {pod.is_member && (pod.user_role === 'owner' || pod.user_role === 'moderator') && (
+                <Button
+                  onClick={() => setShowCreateSessionModal(true)}
+                  className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Schedule Session
+                </Button>
+              )}
+            </div>
+
+            {/* Sessions List */}
+            {sessionsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+              </div>
+            ) : sessions && sessions.length > 0 ? (
+              <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+                {sessions.map((session: any) => (
+                  <SessionCard
                     key={session.id}
-                    className={cn(
-                      "p-4 border-2 backdrop-blur-xl",
-                      theme === 'light'
-                        ? "bg-white border-gray-200"
-                        : "border-white/5 bg-zinc-950/80"
-                    )}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className={cn(
-                          "font-semibold mb-1",
-                          theme === 'light' ? "text-gray-900" : "text-white"
-                        )}>{session.title}</h4>
-                        {session.description && (
-                          <p className={cn(
-                            "text-sm mb-2",
-                            theme === 'light' ? "text-gray-600" : "text-muted-foreground"
-                          )}>
-                            {session.description}
-                          </p>
-                        )}
-                        <div className={cn(
-                          "flex items-center gap-4 text-sm",
-                          theme === 'light' ? "text-gray-600" : "text-muted-foreground"
-                        )}>
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="w-4 h-4" />
-                            {new Date(session.scheduled_at).toLocaleDateString()}
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Clock className="w-4 h-4" />
-                            {new Date(session.scheduled_at).toLocaleTimeString()}
-                          </div>
-                        </div>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          session.status === "in_progress" &&
-                            "border-emerald-500/20 text-emerald-400"
-                        )}
-                      >
-                        {session.status}
-                      </Badge>
-                    </div>
-                  </Card>
+                    session={session}
+                    podId={podId}
+                    userRole={pod?.user_role}
+                    isHost={session.host_user_id === user?.id}
+                    onViewDetails={() => {
+                      setSelectedSessionId(session.id);
+                      setShowSessionDetailModal(true);
+                    }}
+                    onJoin={async () => {
+                      const response = await fetch(`/api/study-pods/sessions/${session.id}/join`, {
+                        method: 'POST',
+                      });
+                      if (response.ok) {
+                        toast.success("Attendance marked!");
+                        fetchSessions();
+                      }
+                    }}
+                  />
                 ))}
               </div>
             ) : (
@@ -504,7 +555,14 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 "text-center py-12",
                 theme === 'light' ? "text-gray-600" : "text-muted-foreground"
               )}>
-                No upcoming sessions
+                <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium mb-2">
+                  {sessionFilter === 'upcoming' ? 'No upcoming sessions' :
+                   sessionFilter === 'past' ? 'No past sessions' : 'No sessions yet'}
+                </p>
+                {pod.is_member && (pod.user_role === 'owner' || pod.user_role === 'moderator') && (
+                  <p className="text-sm mb-4">Schedule your first session to get started!</p>
+                )}
               </div>
             )}
           </TabsContent>
@@ -538,6 +596,36 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
           setShowAssignProblemsModal(false);
         }}
       />
+
+      {/* Create Session Modal */}
+      <CreateSessionModal
+        isOpen={showCreateSessionModal}
+        onClose={() => setShowCreateSessionModal(false)}
+        podId={podId}
+        onSuccess={() => {
+          fetchSessions();
+          fetchPodDetails();
+        }}
+      />
+
+      {/* Session Detail Modal */}
+      {selectedSessionId && (
+        <SessionDetailModal
+          isOpen={showSessionDetailModal}
+          onClose={() => {
+            setShowSessionDetailModal(false);
+            setSelectedSessionId(null);
+          }}
+          sessionId={selectedSessionId}
+          podId={podId}
+          userRole={pod?.user_role}
+          isHost={sessions.find(s => s.id === selectedSessionId)?.host_user_id === user?.id}
+          onRefresh={() => {
+            fetchSessions();
+            fetchPodDetails();
+          }}
+        />
+      )}
     </div>
   );
 }
