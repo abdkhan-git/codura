@@ -443,6 +443,8 @@ export function VideoCallInterface({
 
   // Handle incoming data channel messages
   const handleDataChannelMessage = (message: any) => {
+    console.log("[Data Channel] Received message:", message.type);
+
     switch (message.type) {
       case "code-change":
         setCurrentCode(message.code);
@@ -460,14 +462,39 @@ export function VideoCallInterface({
           codeEditorRef.current.applyRemoteChange(currentCode, message.language);
         }
         break;
+      case "code-output":
+        console.log("[Data Channel] Applying remote output to editor");
+        // Apply the output to the code editor
+        if (codeEditorRef.current && codeEditorRef.current.applyRemoteOutput) {
+          codeEditorRef.current.applyRemoteOutput(message.output);
+        } else {
+          console.warn("[Data Channel] Code editor ref not available or applyRemoteOutput method missing");
+        }
+        break;
+      case "whiteboard-stroke":
+        console.log("[Data Channel] Applying remote stroke to whiteboard");
+        if (whiteboardRef.current && whiteboardRef.current.applyRemoteStroke) {
+          whiteboardRef.current.applyRemoteStroke(message.strokeData);
+        } else {
+          console.warn("[Data Channel] Whiteboard ref not available or applyRemoteStroke method missing");
+        }
+        break;
       case "whiteboard-draw":
+        // Legacy support for full image sync (not used in new version)
         if (whiteboardRef.current && whiteboardRef.current.applyRemoteDrawing) {
           whiteboardRef.current.applyRemoteDrawing(message.imageData);
         }
         break;
       case "whiteboard-clear":
+        console.log("[Data Channel] Clearing remote whiteboard");
         if (whiteboardRef.current && whiteboardRef.current.clear) {
-          whiteboardRef.current.clear();
+          whiteboardRef.current.clear({ broadcast: false });
+        }
+        break;
+      case "whiteboard-settings":
+        console.log("[Data Channel] Applying remote whiteboard settings");
+        if (whiteboardRef.current && whiteboardRef.current.applyRemoteSettings) {
+          whiteboardRef.current.applyRemoteSettings(message.settings);
         }
         break;
       default:
@@ -477,12 +504,17 @@ export function VideoCallInterface({
 
   // Send data via data channel
   const sendDataMessage = useCallback((message: any) => {
+    console.log("[Data Channel] Attempting to send message:", message.type);
+
     if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
       try {
         dataChannelRef.current.send(JSON.stringify(message));
+        console.log("[Data Channel] Message sent successfully:", message.type);
       } catch (error) {
-        console.error("Error sending data channel message:", error);
+        console.error("[Data Channel] Error sending message:", error);
       }
+    } else {
+      console.warn("[Data Channel] Cannot send - channel not open. State:", dataChannelRef.current?.readyState || "null");
     }
   }, []);
 

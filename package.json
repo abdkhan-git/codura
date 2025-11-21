@@ -39,6 +39,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "framer-motion": "^12.23.14",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.15",
     "next": "^16.0.0",
