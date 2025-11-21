@@ -165,6 +165,7 @@ const handleCodeRunning = async () => {
     const body = {
       problem_title_slug: problem?.title_slug,
       language_id: userLang.id,
+      language: userLang.value, // ✅ Added language field
       source_code: usersCode,
       stdin: 'test',
     }
@@ -236,7 +237,7 @@ const handleCodeSubmission = async () => {
       };
       onSubmissionComplete(submissionForAI);
 
-      // don’t call /api/ai/initial-analysis here because your route verifies a real submission row
+      // don't call /api/ai/initial-analysis here because the route verifies a real submission row
       // (it would 403 when judge is offline). You can enable a bypass flag on the route if you want.
 
       // call legacy hooks (optional) AFTER unlock so UI stays consistent
@@ -251,7 +252,7 @@ const handleCodeSubmission = async () => {
       problem_title_slug: problem?.title_slug,
       problem_id: problem?.id,
       problem_difficulty: problem?.difficulty,
-      language: userLang.value,
+      language: userLang.value, // ✅ Added language field
       language_id: userLang.id,
       source_code: usersCode,
       stdin: 'test',
@@ -337,7 +338,7 @@ const handleCodeSubmission = async () => {
       memory,
     };
 
-    // ---------- 4) Unlock chatbot FIRST (don’t early return before this) ----------
+    // ---------- 4) Unlock chatbot FIRST (don't early return before this) ----------
     onSubmissionComplete(submissionForAI);
 
     // ---------- 5) Optionally ping initial-analysis (now safe, DB has a submission row) ----------
