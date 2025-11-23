@@ -856,6 +856,11 @@ export default function ProblemPage() {
   const annotationWidgetsRef = useRef<Map<string, editor.IContentWidget>>(new Map())
   const annotationDecorationsRef = useRef<string[]>([])
   
+  // Annotation modal state
+  const [showAnnotationModal, setShowAnnotationModal] = useState(false)
+  const [annotationLineNumber, setAnnotationLineNumber] = useState<number | null>(null)
+  const [annotationText, setAnnotationText] = useState('')
+  
   // Language & code
   const [userLang, setUserLang] = useState({
     id: 92,
@@ -920,11 +925,25 @@ export default function ProblemPage() {
 
   // Handle adding annotation on line number click
   const handleAddAnnotation = useCallback((lineNumber: number) => {
-    const text = prompt(`Add comment for line ${lineNumber}:`)
-    if (text?.trim()) {
-      addAnnotation(lineNumber, text)
+    setAnnotationLineNumber(lineNumber)
+    setAnnotationText('')
+    setShowAnnotationModal(true)
+  }, [])
+
+  const handleSubmitAnnotation = useCallback(() => {
+    if (annotationText.trim() && annotationLineNumber) {
+      addAnnotation(annotationLineNumber, annotationText)
+      setShowAnnotationModal(false)
+      setAnnotationText('')
+      setAnnotationLineNumber(null)
     }
-  }, [addAnnotation])
+  }, [annotationText, annotationLineNumber, addAnnotation])
+
+  const handleCancelAnnotation = useCallback(() => {
+    setShowAnnotationModal(false)
+    setAnnotationText('')
+    setAnnotationLineNumber(null)
+  }, [])
 
   // Handle jumping to annotation line
   const handleJumpToAnnotation = useCallback((lineNumber: number) => {
@@ -1393,10 +1412,12 @@ export default function ProblemPage() {
     return ''
   }, [problem?.code_snippets, userLang.value])
 
+  // AI message analytics (optional)
   const handleAIChatMessage = (message: string) => {
     console.log('💬 AIChatbot user msg:', message)
   }
 
+  // Receive normalized submission from editor → unlock AIChatbot
   const handleSubmissionComplete = async (submission: Submission) => {
     console.log('✅ handleSubmissionComplete:', {
       lang: submission.language,
@@ -1432,6 +1453,75 @@ export default function ProblemPage() {
   return (
     <div className="caffeine-theme h-screen w-full bg-background flex flex-col overflow-hidden">
       <style jsx global>{tabScrollStyles}</style>
+      
+      {/* Annotation Modal */}
+      {showAnnotationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={handleCancelAnnotation}
+          />
+          
+          {/* Modal */}
+          <div className="relative bg-background border rounded-lg shadow-2xl w-full max-w-md mx-4 p-6 space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Add Comment</h3>
+                <p className="text-sm text-muted-foreground">
+                  Line {annotationLineNumber}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCancelAnnotation}
+                className="h-8 w-8 p-0"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Your comment</label>
+              <textarea
+                value={annotationText}
+                onChange={(e) => setAnnotationText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    handleSubmitAnnotation()
+                  }
+                  if (e.key === 'Escape') {
+                    handleCancelAnnotation()
+                  }
+                }}
+                placeholder="What do you want to discuss about this line?"
+                className="w-full min-h-[120px] bg-muted border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                Press <kbd className="px-1.5 py-0.5 bg-muted border rounded text-xs">⌘</kbd> + <kbd className="px-1.5 py-0.5 bg-muted border rounded text-xs">Enter</kbd> to submit
+              </p>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={handleCancelAnnotation}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmitAnnotation}
+                disabled={!annotationText.trim()}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Add Comment
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Collaboration Header Bar */}
       <div className="h-12 bg-muted/50 border-b flex items-center justify-between px-4">
