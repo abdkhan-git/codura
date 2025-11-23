@@ -10,6 +10,8 @@ interface PublicInterviewSession {
   role: "host" | "participant";
   isConnected: boolean;
   hasPendingRequests: boolean;
+  // End time for the session (for timer)
+  endTime?: string;
 }
 
 interface PublicInterviewContextType {

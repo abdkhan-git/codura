@@ -77,9 +77,32 @@ export function PublicInterviewAdmission({ sessionId, onApprove }: PublicIntervi
 
       // Session code is now generated and ready - start the interview
       if (data.request.sessionCode) {
-        // Default timer: 60 minutes with 15-minute reminders
-        const totalMinutes = 60;
-        const reminderMinutes = 15;
+        // Fetch the public session to get the actual end time
+        const sessionResponse = await fetch(`/api/mock-interview/public-sessions?sessionId=${sessionId}`);
+        let totalMinutes = 60; // Default fallback
+        let reminderMinutes = 15; // Default reminder interval
+
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          const session = sessionData.sessions?.[0];
+
+          if (session?.endTime) {
+            // Calculate remaining time from session end time
+            const endTime = new Date(session.endTime).getTime();
+            const now = Date.now();
+            const remainingMs = Math.max(0, endTime - now);
+            totalMinutes = Math.ceil(remainingMs / 60_000);
+
+            // Set reminder interval based on total time
+            if (totalMinutes <= 20) {
+              reminderMinutes = 5; // 5 min reminders for short sessions
+            } else if (totalMinutes <= 45) {
+              reminderMinutes = 10; // 10 min reminders for medium sessions
+            } else {
+              reminderMinutes = 15; // 15 min reminders for long sessions
+            }
+          }
+        }
 
         onApprove(requestId, data.request.sessionCode, {
           totalMinutes,

@@ -20,10 +20,16 @@ export function PublicInterviewGlobalWindow() {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch user data when activeSession exists
+  // Fetch user data only when activeSession first becomes available
+  // Don't refetch on activeSession updates to prevent window flicker
   useEffect(() => {
     if (!activeSession) {
       setUser(null);
+      return;
+    }
+
+    // Only fetch if we don't already have user data
+    if (user) {
       return;
     }
 
@@ -48,7 +54,7 @@ export function PublicInterviewGlobalWindow() {
     };
 
     fetchUser();
-  }, [activeSession]);
+  }, [activeSession, user]);
 
   // Don't render if no active session, no user data, or window is closed
   if (!activeSession || !user || isLoading || !isWindowOpen) {

@@ -43,7 +43,7 @@ export function HostPublicInterviewModal({
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    duration: "30", // in minutes
+    duration: "15", // in minutes, default to 15
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -104,7 +104,7 @@ export function HostPublicInterviewModal({
     setFormData({
       title: "",
       description: "",
-      duration: "30",
+      duration: "15",
     });
     onClose();
   };
@@ -168,6 +168,8 @@ export function HostPublicInterviewModal({
                 <SelectValue placeholder="Select duration" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="15">15 minutes</SelectItem>
+                <SelectItem value="20">20 minutes</SelectItem>
                 <SelectItem value="25">25 minutes</SelectItem>
                 <SelectItem value="30">30 minutes</SelectItem>
                 <SelectItem value="45">45 minutes</SelectItem>

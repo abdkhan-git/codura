@@ -140,21 +140,22 @@ export default function MockInterviewPage() {
     setPublicSessionId(sessionData.id);
     setSessionRole("public-host");
 
-    // Update global public interview context
+    // Update global public interview context with end time for timer
     setActiveSession({
       publicSessionId: sessionData.id,
       sessionCode: sessionData.sessionCode,
       role: "host",
       isConnected: false,
       hasPendingRequests: false,
+      endTime: sessionData.endTime,
     });
 
     // Update global interview status
     setStatus("pending");
 
-    // Go to waiting room
-    setSessionMode("waiting");
-    toast.success("Public session created! Setting up your devices...");
+    // For public sessions, open the toggle window instead of going to waiting room
+    setIsWindowOpen(true);
+    toast.success("Public session created! Opening interview window...");
   };
 
   const handleJoinPublicSession = (sessionCode: string, pubSessionId: string) => {
@@ -175,9 +176,12 @@ export default function MockInterviewPage() {
     // Update global interview status
     setStatus("pending");
 
-    // Close join interface and go to waiting room to set up devices
+    // For public sessions, open the toggle window instead of going to waiting room
+    setIsWindowOpen(true);
+
+    // Close join interface
     setShowJoinInterface(false);
-    setSessionMode("waiting");
+    // Don't set sessionMode to "waiting" - let the toggle window handle everything
     toast.success("Request approved! Setting up your devices...");
   };
 
@@ -226,7 +230,7 @@ export default function MockInterviewPage() {
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-16">
         {/* Selection Mode */}
         {sessionMode === "selection" && (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-6xl mx-auto">
             {/* Back Button */}
             <Link href="/dashboard">
               <Button variant="ghost" className="mb-6 gap-2">
@@ -246,9 +250,9 @@ export default function MockInterviewPage() {
             </div>
 
             {/* Session Type Selection */}
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-3 gap-6">
               {/* Host Session Card */}
-              <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-brand/40 transition-all duration-500 shadow-xl hover:scale-[1.02] cursor-pointer">
+              <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-brand/40 transition-all duration-500 shadow-xl hover:scale-[1.02] cursor-pointer flex flex-col h-full">
                 <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none" />
 
                 <CardHeader className="text-center pb-4">
@@ -261,7 +265,7 @@ export default function MockInterviewPage() {
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                     <li className="flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-brand" />
@@ -287,7 +291,7 @@ export default function MockInterviewPage() {
               </Card>
 
               {/* Join Session Card */}
-              <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-purple-500/40 transition-all duration-500 shadow-xl hover:scale-[1.02] cursor-pointer">
+              <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-purple-500/40 transition-all duration-500 shadow-xl hover:scale-[1.02] cursor-pointer flex flex-col h-full">
                 <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none" />
 
                 <CardHeader className="text-center pb-4">
@@ -300,7 +304,7 @@ export default function MockInterviewPage() {
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                     <li className="flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
@@ -326,7 +330,7 @@ export default function MockInterviewPage() {
               </Card>
 
               {/* Public Interviews Card */}
-              <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-emerald-500/40 transition-all duration-500 shadow-xl hover:scale-[1.02] cursor-pointer">
+              <Card className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-emerald-500/40 transition-all duration-500 shadow-xl hover:scale-[1.02] cursor-pointer flex flex-col h-full">
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-700 pointer-events-none" />
 
                 <CardHeader className="text-center pb-4">
@@ -339,7 +343,7 @@ export default function MockInterviewPage() {
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                     <li className="flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -419,7 +423,7 @@ export default function MockInterviewPage() {
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                     <li className="flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -458,7 +462,7 @@ export default function MockInterviewPage() {
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
                   <ul className="space-y-2 text-sm text-muted-foreground mb-6">
                     <li className="flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-teal-500" />

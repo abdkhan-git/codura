@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Video,
   VideoOff,
@@ -15,6 +16,9 @@ import {
   MessageSquare,
   Code,
   Palette,
+  Check,
+  Loader2,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -85,6 +89,14 @@ export function VideoCallInterface({
   const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [iceConnectionState, setIceConnectionState] = useState<string>("new");
   const [signalingState, setSignalingState] = useState<string>("stable");
+
+  // Device setup states
+  const [devicesReady, setDevicesReady] = useState(false);
+  const [availableVideoDevices, setAvailableVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [availableAudioDevices, setAvailableAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedVideoDevice, setSelectedVideoDevice] = useState<string>("");
+  const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>("");
+  const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
   const [timerEndMs, setTimerEndMs] = useState<number | null>(null);
   const [timerReminderMinutes, setTimerReminderMinutes] = useState<number | null>(null);
   const [timerRemainingMs, setTimerRemainingMs] = useState<number>(0);
@@ -99,21 +111,56 @@ export function VideoCallInterface({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
 
+  // Track if this is the initial mount
+  const isInitialMount = useRef(true);
+
   useEffect(() => {
     isMountedRef.current = true;
-    // Reset all connection state flags when component mounts/remounts
-    offerSentRef.current = false;
-    answerSentRef.current = false;
-    offerReceivedRef.current = false;
-    pendingIceCandidatesRef.current = [];
-    partnerIdRef.current = null;
-    partnerNameRef.current = null;
-    initializeCall();
+
+    // Only initialize on mount, or when we need to reconnect
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      // Reset all connection state flags when component mounts
+      offerSentRef.current = false;
+      answerSentRef.current = false;
+      offerReceivedRef.current = false;
+      pendingIceCandidatesRef.current = [];
+      partnerIdRef.current = null;
+      partnerNameRef.current = null;
+
+      // For public sessions, start timer from session end time
+      if (publicSessionId && activeSession?.endTime) {
+        const endTime = new Date(activeSession.endTime).getTime();
+        const now = Date.now();
+        const remainingMinutes = Math.ceil((endTime - now) / 60_000);
+
+        // Set reminder interval based on remaining time
+        let reminderMinutes = 15;
+        if (remainingMinutes <= 20) {
+          reminderMinutes = 5;
+        } else if (remainingMinutes <= 45) {
+          reminderMinutes = 10;
+        }
+
+        // Apply timer config without broadcasting (will broadcast after connection)
+        applyTimerConfig(endTime, reminderMinutes, false);
+      }
+
+      // For public sessions, enumerate devices first before initializing
+      if (publicSessionId) {
+        enumerateDevices();
+      } else {
+        // For private sessions, initialize immediately (old behavior)
+        initializeCall();
+      }
+    }
+
     return () => {
       isMountedRef.current = false;
       cleanup();
     };
   }, []);
+
 
   // Effect to attach remote stream to video element when it becomes available
   useEffect(() => {
@@ -138,6 +185,29 @@ export function VideoCallInterface({
       });
     }
   }, [remoteStream]);
+
+  // Ensure local self-view stays attached when switching from setup to the live call
+  useEffect(() => {
+    if (!localStream || !localVideoRef.current) return;
+
+    const videoEl = localVideoRef.current;
+    videoEl.srcObject = localStream;
+
+    const ensurePlay = () => {
+      videoEl.play().catch((e) => console.warn("[WebRTC] Unable to play local video:", e));
+    };
+
+    if (videoEl.readyState >= 1) {
+      ensurePlay();
+    } else {
+      videoEl.onloadedmetadata = ensurePlay;
+    }
+
+    return () => {
+      videoEl.onloadedmetadata = null;
+      videoEl.srcObject = null;
+    };
+  }, [localStream, devicesReady]);
 
   const formatMs = (ms: number) => {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -213,6 +283,103 @@ export function VideoCallInterface({
     partnerNameRef.current = name;
     setPartnerName(name);
   }, []);
+
+  // Effect to complete initialization when sessionId becomes available
+  useEffect(() => {
+    // If we have local stream but no peer connection, and now we have a sessionId,
+    // complete the initialization
+    if (localStream && !peerConnectionRef.current && sessionId && sessionId.trim() !== "" && user.user_id) {
+      console.log("[WebRTC] Session ID now available, completing initialization...");
+      const completeInit = async () => {
+        try {
+          await setupPeerConnection(localStream);
+
+          const signaling = new SimpleSignaling(sessionId, user.user_id!);
+          signalingRef.current = signaling;
+          signaling.onMessage(handleSignalingMessage);
+
+          const connected = await signaling.connect({
+            name: user.name,
+            role: isHost ? "host" : "participant",
+          });
+
+          if (connected) {
+            console.log("[WebRTC] Successfully connected after session ID became available");
+            setConnectionStatus("connecting");
+          }
+        } catch (error) {
+          console.error("[WebRTC] Error completing initialization:", error);
+        }
+      };
+      completeInit();
+    }
+  }, [sessionId, localStream, user.user_id]);
+
+  // Reconnect function - cleans up connection state and reinitializes
+  const reconnect = useCallback(async () => {
+    console.log("[WebRTC] Starting reconnection...");
+
+    // Clean up existing connection components (but keep local stream)
+    if (dataChannelRef.current) {
+      dataChannelRef.current.close();
+      dataChannelRef.current = null;
+    }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+    if (signalingRef.current) {
+      await signalingRef.current.disconnect().catch((error: any) =>
+        console.error("Error disconnecting signaling during reconnect:", error)
+      );
+      signalingRef.current = null;
+    }
+
+    // Clear remote stream
+    setRemoteStream(null);
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+
+    // Reset connection state flags
+    offerSentRef.current = false;
+    answerSentRef.current = false;
+    offerReceivedRef.current = false;
+    pendingIceCandidatesRef.current = [];
+    partnerIdRef.current = null;
+    updatePartnerName(null);
+
+    // Set status to connecting
+    setConnectionStatus("connecting");
+
+    // Wait a moment, then reinitialize
+    setTimeout(() => {
+      if (isMountedRef.current) {
+        console.log("[WebRTC] Reinitializing call after cleanup...");
+        initializeCall();
+      }
+    }, 500);
+  }, [updatePartnerName]);
+
+  // Reconnect effect - watches for disconnection and attempts to reconnect
+  useEffect(() => {
+    if (connectionStatus === "disconnected" && isMountedRef.current) {
+      // For public sessions, automatically attempt to reconnect after disconnect
+      if (publicSessionId && !isInitialMount.current) {
+        console.log("[WebRTC] Detected disconnection in public session, preparing to reconnect...");
+
+        // Wait a bit before attempting reconnection
+        const reconnectTimeout = setTimeout(() => {
+          if (isMountedRef.current && connectionStatus === "disconnected") {
+            console.log("[WebRTC] Attempting automatic reconnection...");
+            reconnect();
+          }
+        }, 2000);
+
+        return () => clearTimeout(reconnectTimeout);
+      }
+    }
+  }, [connectionStatus, publicSessionId, reconnect]);
 
   const createAndSendOffer = useCallback(
     async (targetId?: string) => {
@@ -621,44 +788,137 @@ export function VideoCallInterface({
     }
   }, [timerEndMs, timerReminderMinutes, sendDataMessage]);
 
-  const initializeCall = async () => {
-    if (!user.user_id) {
-      toast.error("Unable to start call. Please refresh and try again.");
-      return;
-    }
-
-    console.log(`[WebRTC] Initializing call as ${isHost ? 'HOST' : 'PARTICIPANT'}, userId: ${user.user_id}`);
-
+  const enumerateDevices = async () => {
     try {
-      // Get local media stream with better quality settings
-      console.log("[WebRTC] Requesting user media...");
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === "videoinput");
+      const audioDevices = devices.filter(d => d.kind === "audioinput");
+
+      setAvailableVideoDevices(videoDevices);
+      setAvailableAudioDevices(audioDevices);
+
+      // Auto-select first devices
+      if (videoDevices.length > 0 && !selectedVideoDevice) {
+        setSelectedVideoDevice(videoDevices[0].deviceId);
+      }
+      if (audioDevices.length > 0 && !selectedAudioDevice) {
+        setSelectedAudioDevice(audioDevices[0].deviceId);
+      }
+
+      // Start preview with default devices
+      if (videoDevices.length > 0 && audioDevices.length > 0) {
+        startPreview(videoDevices[0].deviceId, audioDevices[0].deviceId);
+      }
+    } catch (error) {
+      console.error("[Device Setup] Error enumerating devices:", error);
+      toast.error("Failed to access media devices");
+    }
+  };
+
+  const startPreview = async (videoDeviceId: string, audioDeviceId: string) => {
+    try {
+      // Stop existing preview stream
+      if (previewStream) {
+        previewStream.getTracks().forEach(track => track.stop());
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
+          deviceId: videoDeviceId ? { exact: videoDeviceId } : undefined,
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: "user",
         },
         audio: {
+          deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
         },
       });
 
-      console.log(`[WebRTC] Got local stream with ${stream.getTracks().length} tracks:`,
-        stream.getTracks().map(t => `${t.kind}:${t.id}`));
+      setPreviewStream(stream);
 
-      setLocalStream(stream);
-
+      // Attach to local video for preview
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
-        // Ensure video plays
         localVideoRef.current.onloadedmetadata = () => {
-          console.log("[WebRTC] Local video metadata loaded");
           localVideoRef.current?.play().catch(e => {
-            console.error("[WebRTC] Error playing local video:", e);
+            console.error("[Device Setup] Error playing preview:", e);
           });
         };
+      }
+    } catch (error) {
+      console.error("[Device Setup] Error starting preview:", error);
+      toast.error("Failed to access camera/microphone");
+    }
+  };
+
+  const handleDevicesReady = async () => {
+    if (!previewStream) {
+      toast.error("Please allow camera and microphone access");
+      return;
+    }
+
+    // Mark devices as ready
+    setDevicesReady(true);
+
+    // Use the preview stream as the local stream
+    setLocalStream(previewStream);
+
+    // Now initialize the WebRTC connection
+    await initializeCall();
+  };
+
+  const initializeCall = async () => {
+    if (!user.user_id) {
+      toast.error("Unable to start call. Please refresh and try again.");
+      return;
+    }
+
+    console.log(`[WebRTC] Initializing call as ${isHost ? 'HOST' : 'PARTICIPANT'}, userId: ${user.user_id}, sessionId: ${sessionId || 'pending'}`);
+
+    try {
+      let stream = localStream;
+
+      // If no local stream yet (private sessions), get it now
+      if (!stream) {
+        console.log("[WebRTC] Requesting user media...");
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user",
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+
+        console.log(`[WebRTC] Got local stream with ${stream.getTracks().length} tracks:`,
+          stream.getTracks().map(t => `${t.kind}:${t.id}`));
+
+        setLocalStream(stream);
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          // Ensure video plays
+          localVideoRef.current.onloadedmetadata = () => {
+            console.log("[WebRTC] Local video metadata loaded");
+            localVideoRef.current?.play().catch(e => {
+              console.error("[WebRTC] Error playing local video:", e);
+            });
+          };
+        }
+      } else {
+        console.log("[WebRTC] Using existing local stream from device setup");
+      }
+
+      // Only proceed with WebRTC/signaling if we have a valid session ID
+      if (!sessionId || sessionId.trim() === "") {
+        console.log("[WebRTC] No session ID yet, local stream ready but waiting for session code");
+        return;
       }
 
       // Initialize WebRTC peer connection
@@ -1063,6 +1323,7 @@ export function VideoCallInterface({
     }
   };
 
+  
   const handleLeave = () => {
     if (isRecording) {
       stopRecording();
@@ -1131,6 +1392,129 @@ export function VideoCallInterface({
     setConnectionStatus("disconnected");
   };
 
+  // Show device setup for public sessions
+  if (!devicesReady && publicSessionId) {
+    return (
+      <div className="h-full flex items-center justify-center p-6 bg-gradient-to-br from-zinc-900 to-zinc-800">
+        <Card className="w-full max-w-2xl border-2 border-border/20 bg-card/50 backdrop-blur-sm">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl flex items-center justify-center gap-2">
+              <Video className="w-6 h-6 text-brand" />
+              Setup Your Devices
+            </CardTitle>
+            <CardDescription>
+              Test your camera and microphone before joining the interview
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Timer Display */}
+            {timerEndMs && (
+              <div className="flex items-center justify-center gap-4 px-4 py-3 rounded-lg bg-brand/10 border border-brand/20">
+                <Clock className="w-5 h-5 text-brand" />
+                <div>
+                  <p className="text-sm font-medium">Session Time Remaining</p>
+                  <p className="text-2xl font-bold text-brand">{formatMs(timerRemainingMs)}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Video Preview */}
+            <div className="relative aspect-video bg-zinc-900 rounded-lg overflow-hidden border-2 border-border/20">
+              {previewStream ? (
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                  style={{ transform: 'scaleX(-1)' }}
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center space-y-3">
+                    <VideoOff className="w-16 h-16 text-zinc-600 mx-auto" />
+                    <p className="text-zinc-400">Camera preview will appear here</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Device Selection */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="video-device" className="flex items-center gap-2">
+                  <Video className="w-4 h-4" />
+                  Camera
+                </Label>
+                <select
+                  id="video-device"
+                  className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-border text-sm"
+                  value={selectedVideoDevice}
+                  onChange={(e) => {
+                    setSelectedVideoDevice(e.target.value);
+                    if (selectedAudioDevice) {
+                      startPreview(e.target.value, selectedAudioDevice);
+                    }
+                  }}
+                >
+                  {availableVideoDevices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Camera ${availableVideoDevices.indexOf(device) + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="audio-device" className="flex items-center gap-2">
+                  <Mic className="w-4 h-4" />
+                  Microphone
+                </Label>
+                <select
+                  id="audio-device"
+                  className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-border text-sm"
+                  value={selectedAudioDevice}
+                  onChange={(e) => {
+                    setSelectedAudioDevice(e.target.value);
+                    if (selectedVideoDevice) {
+                      startPreview(selectedVideoDevice, e.target.value);
+                    }
+                  }}
+                >
+                  {availableAudioDevices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Microphone ${availableAudioDevices.indexOf(device) + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <Button
+              onClick={handleDevicesReady}
+              className="w-full bg-gradient-to-r from-brand to-blue-600 hover:from-brand/90 hover:to-blue-600/90"
+              size="lg"
+              disabled={!previewStream}
+            >
+              {previewStream ? (
+                <>
+                  <Check className="w-5 h-5 mr-2" />
+                  Continue to Interview
+                </>
+              ) : (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Requesting Permissions...
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col">
       {isHost && !isPublicHost && (
@@ -1164,7 +1548,7 @@ export function VideoCallInterface({
             {timerEndMs && (
               <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
                 <div className="px-3 py-2 rounded-lg bg-black/70 border border-white/10 text-white text-sm font-medium">
-                  Main Timer: {formatMs(timerRemainingMs)}
+                  Timer: {formatMs(timerRemainingMs)}
                 </div>
                 {timerReminderMinutes && (
                   <div className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/10 text-white/80 text-xs">

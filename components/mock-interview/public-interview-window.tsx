@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { X, Maximize2, Minimize2 } from "lucide-react";
+import { Minus, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -84,8 +84,9 @@ export function PublicInterviewWindow({ user, onClose }: PublicInterviewWindowPr
               size="sm"
               onClick={() => setIsWindowOpen(false)}
               className="h-8 w-8 p-0"
+              title="Minimize window"
             >
-              <X className="w-4 h-4" />
+              <Minus className="w-4 h-4" />
             </Button>
           </div>
         </div>
@@ -93,6 +94,7 @@ export function PublicInterviewWindow({ user, onClose }: PublicInterviewWindowPr
         {/* Content */}
         <div className="flex-1 overflow-hidden">
           <VideoCallInterface
+            key={activeSession.publicSessionId}
             sessionId={activeSession.sessionCode || ""}
             publicSessionId={activeSession.publicSessionId}
             user={user}
