@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { Loader2, Users, Copy, Check, X, MessageSquare } from 'lucide-react'
+import { Loader2, Users, Copy, Check, X, MessageSquare, MessageCircle, Trash2, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMonaco } from '@monaco-editor/react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -63,6 +63,20 @@ const tabScrollStyles = `
     white-space: nowrap;
     color: white;
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  .annotation-widget {
+    pointer-events: auto;
+    z-index: 999;
+  }
+
+  .annotation-icon {
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+
+  .annotation-icon:hover {
+    transform: scale(1.2);
   }
 `
 
@@ -129,6 +143,27 @@ interface ChatMessage {
   timestamp: Date
 }
 
+interface AnnotationComment {
+  id: string
+  userId: string
+  userName: string
+  userColor: string
+  text: string
+  timestamp: Date
+}
+
+interface Annotation {
+  id: string
+  lineNumber: number
+  userId: string
+  userName: string
+  userColor: string
+  text: string
+  timestamp: Date
+  comments: AnnotationComment[]
+  resolved: boolean
+}
+
 // ============================================
 // COLLABORATION HOOK
 // ============================================
@@ -139,6 +174,7 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
   const [isConnected, setIsConnected] = useState(false)
   const [syncedCode, setSyncedCode] = useState<string>('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [annotations, setAnnotations] = useState<Annotation[]>([])
   const channelRef = useRef<RealtimeChannel | null>(null)
   const userColor = useRef(`hsl(${Math.random() * 360}, 70%, 60%)`)
 
@@ -176,7 +212,6 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
 
     // Broadcast cursor position
     channel.on('broadcast', { event: 'cursor-move' }, (payload: any) => {
-      console.log('📥 Received cursor update:', payload.payload)
       if (payload.payload.userId !== userId) {
         setCollaborators((prev) =>
           prev.map((c) =>
@@ -192,6 +227,43 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
     channel.on('broadcast', { event: 'chat-message' }, (payload: any) => {
       if (payload.payload.userId !== userId) {
         setMessages((prev) => [...prev, payload.payload.message])
+      }
+    })
+
+    // Annotation events
+    channel.on('broadcast', { event: 'annotation-add' }, (payload: any) => {
+      if (payload.payload.userId !== userId) {
+        setAnnotations((prev) => [...prev, payload.payload.annotation])
+      }
+    })
+
+    channel.on('broadcast', { event: 'annotation-comment' }, (payload: any) => {
+      if (payload.payload.userId !== userId) {
+        setAnnotations((prev) =>
+          prev.map((ann) =>
+            ann.id === payload.payload.annotationId
+              ? { ...ann, comments: [...ann.comments, payload.payload.comment] }
+              : ann
+          )
+        )
+      }
+    })
+
+    channel.on('broadcast', { event: 'annotation-delete' }, (payload: any) => {
+      if (payload.payload.userId !== userId) {
+        setAnnotations((prev) => prev.filter((ann) => ann.id !== payload.payload.annotationId))
+      }
+    })
+
+    channel.on('broadcast', { event: 'annotation-resolve' }, (payload: any) => {
+      if (payload.payload.userId !== userId) {
+        setAnnotations((prev) =>
+          prev.map((ann) =>
+            ann.id === payload.payload.annotationId
+              ? { ...ann, resolved: payload.payload.resolved }
+              : ann
+          )
+        )
       }
     })
 
@@ -234,7 +306,6 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
       endColumn: number
     } | null) => {
       if (channelRef.current) {
-        console.log('📡 Broadcasting cursor:', { userId, position, selection })
         channelRef.current.send({
           type: 'broadcast',
           event: 'cursor-move',
@@ -267,14 +338,106 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
     [userId, userName]
   )
 
+  const addAnnotation = useCallback(
+    (lineNumber: number, text: string) => {
+      const annotation: Annotation = {
+        id: `${userId}-${Date.now()}`,
+        lineNumber,
+        userId,
+        userName,
+        userColor: userColor.current,
+        text,
+        timestamp: new Date(),
+        comments: [],
+        resolved: false,
+      }
+      setAnnotations((prev) => [...prev, annotation])
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'annotation-add',
+          payload: { userId, annotation },
+        })
+      }
+      return annotation.id
+    },
+    [userId, userName]
+  )
+
+  const addAnnotationComment = useCallback(
+    (annotationId: string, text: string) => {
+      const comment: AnnotationComment = {
+        id: `${userId}-${Date.now()}`,
+        userId,
+        userName,
+        userColor: userColor.current,
+        text,
+        timestamp: new Date(),
+      }
+      setAnnotations((prev) =>
+        prev.map((ann) =>
+          ann.id === annotationId
+            ? { ...ann, comments: [...ann.comments, comment] }
+            : ann
+        )
+      )
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'annotation-comment',
+          payload: { userId, annotationId, comment },
+        })
+      }
+    },
+    [userId, userName]
+  )
+
+  const deleteAnnotation = useCallback(
+    (annotationId: string) => {
+      setAnnotations((prev) => prev.filter((ann) => ann.id !== annotationId))
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'annotation-delete',
+          payload: { userId, annotationId },
+        })
+      }
+    },
+    [userId]
+  )
+
+  const toggleAnnotationResolved = useCallback(
+    (annotationId: string) => {
+      setAnnotations((prev) =>
+        prev.map((ann) =>
+          ann.id === annotationId ? { ...ann, resolved: !ann.resolved } : ann
+        )
+      )
+      const annotation = annotations.find((a) => a.id === annotationId)
+      if (annotation && channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'annotation-resolve',
+          payload: { userId, annotationId, resolved: !annotation.resolved },
+        })
+      }
+    },
+    [userId, annotations]
+  )
+
   return {
     collaborators,
     isConnected,
     syncedCode,
     messages,
+    annotations,
     broadcastCode,
     broadcastCursor,
     sendChatMessage,
+    addAnnotation,
+    addAnnotationComment,
+    deleteAnnotation,
+    toggleAnnotationResolved,
     userColor: userColor.current,
   }
 }
@@ -287,23 +450,36 @@ interface CollaborationSidebarProps {
   roomId: string
   collaborators: Collaborator[]
   messages: ChatMessage[]
+  annotations: Annotation[]
   currentUserId: string
   currentUserColor: string
   onClose: () => void
   onSendMessage: (text: string) => void
+  onAnnotationComment: (annotationId: string, text: string) => void
+  onAnnotationDelete: (annotationId: string) => void
+  onAnnotationResolve: (annotationId: string) => void
+  onJumpToAnnotation: (lineNumber: number) => void
 }
 
 const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
   roomId,
   collaborators,
   messages,
+  annotations,
   currentUserId,
   currentUserColor,
   onClose,
   onSendMessage,
+  onAnnotationComment,
+  onAnnotationDelete,
+  onAnnotationResolve,
+  onJumpToAnnotation,
 }) => {
   const [copied, setCopied] = useState(false)
   const [newMessage, setNewMessage] = useState('')
+  const [activeTab, setActiveTab] = useState<'chat' | 'annotations'>('chat')
+  const [commentText, setCommentText] = useState<{ [key: string]: string }>({})
+  const [showResolved, setShowResolved] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const copyRoomLink = () => {
@@ -319,25 +495,30 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
     setNewMessage('')
   }
 
+  const handleAddComment = (annotationId: string) => {
+    const text = commentText[annotationId]
+    if (!text?.trim()) return
+    onAnnotationComment(annotationId, text)
+    setCommentText((prev) => ({ ...prev, [annotationId]: '' }))
+  }
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-    // Helper function to get user color
   const getUserColor = (userId: string, userName: string, messageColor?: string) => {
-    // First try to use the color from the message itself
     if (messageColor) return messageColor
-    
-    // Then try to find the user in collaborators
     const collaborator = collaborators.find(c => c.id === userId)
     if (collaborator) return collaborator.color
-    
-    // If it's the current user, use their color
     if (userId === currentUserId) return currentUserColor
-    
-    // Fallback to default
     return 'hsl(200, 70%, 60%)'
   }
+
+  const filteredAnnotations = showResolved
+    ? annotations
+    : annotations.filter((a) => !a.resolved)
+
+  const unresolvedCount = annotations.filter((a) => !a.resolved).length
 
   return (
     <div className="h-full flex flex-col bg-background border-l">
@@ -390,57 +571,222 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
         </div>
       </div>
 
-      {/* Chat */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="p-3 border-b">
-          <h4 className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-            <MessageSquare className="w-3 h-3" />
-            Team Chat
-          </h4>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No messages yet. Start the conversation!
-            </p>
-          ) : (
-            messages.map((msg) => {
-              const userColor = getUserColor(msg.userId, msg.userName, msg.userColor)
-              return (
-              <div key={msg.id} className="space-y-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-medium text-primary" style={{ color: userColor }}>{msg.userName}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(msg.timestamp).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </div>
-                <p className="text-sm">{msg.text}</p>
-              </div>
-              )
-            })
+      {/* Tabs */}
+      <div className="flex border-b">
+        <button
+          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === 'chat'
+              ? 'border-b-2 border-primary text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setActiveTab('chat')}
+        >
+          <MessageSquare className="w-4 h-4 inline mr-2" />
+          Chat
+        </button>
+        <button
+          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors relative ${
+            activeTab === 'annotations'
+              ? 'border-b-2 border-primary text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setActiveTab('annotations')}
+        >
+          <MessageCircle className="w-4 h-4 inline mr-2" />
+          Comments
+          {unresolvedCount > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
+              {unresolvedCount}
+            </span>
           )}
-          <div ref={messagesEndRef} />
-        </div>
+        </button>
+      </div>
 
-        <div className="p-3 border-t">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder="Type a message..."
-              className="flex-1 bg-muted border rounded px-3 py-2 text-sm"
-            />
-            <Button onClick={handleSendMessage} size="sm">
-              Send
-            </Button>
-          </div>
-        </div>
+      {/* Content */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {activeTab === 'chat' ? (
+          <>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No messages yet. Start the conversation!
+                </p>
+              ) : (
+                messages.map((msg) => {
+                  const userColor = getUserColor(msg.userId, msg.userName, msg.userColor)
+                  return (
+                    <div key={msg.id} className="space-y-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs font-medium" style={{ color: userColor }}>
+                          {msg.userName}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(msg.timestamp).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-sm">{msg.text}</p>
+                    </div>
+                  )
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="p-3 border-t">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Type a message..."
+                  className="flex-1 bg-muted border rounded px-3 py-2 text-sm"
+                />
+                <Button onClick={handleSendMessage} size="sm">
+                  Send
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="p-3 border-b flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showResolved"
+                  checked={showResolved}
+                  onChange={(e) => setShowResolved(e.target.checked)}
+                  className="rounded"
+                />
+                <label htmlFor="showResolved" className="text-xs text-muted-foreground cursor-pointer">
+                  Show resolved
+                </label>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {filteredAnnotations.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No {!showResolved && 'unresolved '}comments yet. Click the line numbers in the editor to add one!
+                </p>
+              ) : (
+                filteredAnnotations
+                  .sort((a, b) => a.lineNumber - b.lineNumber)
+                  .map((annotation) => (
+                    <div
+                      key={annotation.id}
+                      className={`border rounded-lg p-3 space-y-2 ${
+                        annotation.resolved ? 'opacity-60 bg-muted/50' : 'bg-card'
+                      }`}
+                    >
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => onJumpToAnnotation(annotation.lineNumber)}
+                              className="text-xs font-mono bg-muted px-2 py-0.5 rounded hover:bg-muted/80 transition-colors"
+                            >
+                              Line {annotation.lineNumber}
+                            </button>
+                            <span
+                              className="text-xs font-medium"
+                              style={{ color: annotation.userColor }}
+                            >
+                              {annotation.userName}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(annotation.timestamp).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                          <p className="text-sm mt-2">{annotation.text}</p>
+                        </div>
+                        
+                        {annotation.userId === currentUserId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onAnnotationDelete(annotation.id)}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Comments */}
+                      {annotation.comments.length > 0 && (
+                        <div className="space-y-2 pl-3 border-l-2 border-muted">
+                          {annotation.comments.map((comment) => (
+                            <div key={comment.id} className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="text-xs font-medium"
+                                  style={{ color: comment.userColor }}
+                                >
+                                  {comment.userName}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(comment.timestamp).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              </div>
+                              <p className="text-sm">{comment.text}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Reply input */}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={commentText[annotation.id] || ''}
+                          onChange={(e) =>
+                            setCommentText((prev) => ({
+                              ...prev,
+                              [annotation.id]: e.target.value,
+                            }))
+                          }
+                          onKeyPress={(e) =>
+                            e.key === 'Enter' && handleAddComment(annotation.id)
+                          }
+                          placeholder="Reply..."
+                          className="flex-1 bg-muted border rounded px-2 py-1 text-xs"
+                        />
+                        <Button
+                          onClick={() => handleAddComment(annotation.id)}
+                          size="sm"
+                          className="h-7 px-2"
+                        >
+                          <Send className="w-3 h-3" />
+                        </Button>
+                      </div>
+
+                      {/* Resolve button */}
+                      <Button
+                        variant={annotation.resolved ? 'outline' : 'default'}
+                        size="sm"
+                        onClick={() => onAnnotationResolve(annotation.id)}
+                        className="w-full h-7 text-xs"
+                      >
+                        {annotation.resolved ? 'Unresolve' : 'Resolve'}
+                      </Button>
+                    </div>
+                  ))
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -507,6 +853,8 @@ export default function ProblemPage() {
   const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor | null>(null)
   const cursorWidgetsRef = useRef<Map<string, editor.IContentWidget>>(new Map())
   const selectionDecorationsRef = useRef<Map<string, string[]>>(new Map())
+  const annotationWidgetsRef = useRef<Map<string, editor.IContentWidget>>(new Map())
+  const annotationDecorationsRef = useRef<string[]>([])
   
   // Language & code
   const [userLang, setUserLang] = useState({
@@ -531,12 +879,10 @@ export default function ProblemPage() {
   // Generate or join room ID
   useEffect(() => {
     if (params.id && session?.user?.id) {
-      // Check if there's a room parameter in the URL
       const urlRoomId = searchParams.get('room')
       if (urlRoomId) {
         setRoomId(urlRoomId)
       } else {
-        // Generate a default room for this problem
         const defaultRoom = `problem-${params.id}`
         setRoomId(defaultRoom)
       }
@@ -549,9 +895,14 @@ export default function ProblemPage() {
     isConnected,
     syncedCode,
     messages,
+    annotations,
     broadcastCode,
     broadcastCursor,
     sendChatMessage,
+    addAnnotation,
+    addAnnotationComment,
+    deleteAnnotation,
+    toggleAnnotationResolved,
     userColor,
   } = useCollaboration(
     roomId,
@@ -567,26 +918,143 @@ export default function ProblemPage() {
     }
   }, [syncedCode])
 
-  // Render remote cursors using Monaco Content Widgets
+  // Handle adding annotation on line number click
+  const handleAddAnnotation = useCallback((lineNumber: number) => {
+    const text = prompt(`Add comment for line ${lineNumber}:`)
+    if (text?.trim()) {
+      addAnnotation(lineNumber, text)
+    }
+  }, [addAnnotation])
+
+  // Handle jumping to annotation line
+  const handleJumpToAnnotation = useCallback((lineNumber: number) => {
+    if (editorInstance) {
+      editorInstance.revealLineInCenter(lineNumber)
+      editorInstance.setPosition({ lineNumber, column: 1 })
+      editorInstance.focus()
+    }
+  }, [editorInstance])
+
+  // Render annotation icons in gutter
   useEffect(() => {
-    if (!editorInstance || !monaco) {
-      console.log('❌ Cannot render cursors - missing:', { 
-        hasEditor: !!editorInstance, 
-        hasMonaco: !!monaco 
-      })
-      return
+    if (!editorInstance || !monaco) return
+
+    // Remove old widgets
+    annotationWidgetsRef.current.forEach((widget) => {
+      editorInstance.removeContentWidget(widget)
+    })
+    annotationWidgetsRef.current.clear()
+
+    // Remove old decorations
+    if (annotationDecorationsRef.current.length > 0) {
+      editorInstance.deltaDecorations(annotationDecorationsRef.current, [])
+      annotationDecorationsRef.current = []
     }
 
-    // If cursors are disabled, remove all widgets and stop
+    // Group annotations by line
+    const annotationsByLine = annotations.reduce((acc, ann) => {
+      if (!acc[ann.lineNumber]) acc[ann.lineNumber] = []
+      acc[ann.lineNumber].push(ann)
+      return acc
+    }, {} as { [line: number]: Annotation[] })
+
+    // Add decorations for annotated lines
+    const decorations = Object.keys(annotationsByLine).map((lineStr) => {
+      const lineNumber = parseInt(lineStr)
+      const lineAnnotations = annotationsByLine[lineNumber]
+      const hasUnresolved = lineAnnotations.some((a) => !a.resolved)
+      
+      return {
+        range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+        options: {
+          isWholeLine: true,
+          className: hasUnresolved ? 'annotation-line-highlight' : 'annotation-line-resolved',
+          glyphMarginClassName: hasUnresolved ? 'annotation-glyph' : 'annotation-glyph-resolved',
+        }
+      }
+    })
+
+    annotationDecorationsRef.current = editorInstance.deltaDecorations([], decorations)
+
+    // Add CSS for decorations
+    const styleId = 'annotation-styles'
+    let styleElement = document.getElementById(styleId) as HTMLStyleElement
+    if (!styleElement) {
+      styleElement = document.createElement('style')
+      styleElement.id = styleId
+      document.head.appendChild(styleElement)
+    }
+    
+    styleElement.textContent = `
+      .annotation-line-highlight {
+        background-color: rgba(59, 130, 246, 0.1) !important;
+      }
+      .annotation-line-resolved {
+        background-color: rgba(34, 197, 94, 0.05) !important;
+      }
+      .annotation-glyph {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233b82f6'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-size: 16px 16px !important;
+        background-position: center !important;
+        cursor: pointer !important;
+      }
+      .annotation-glyph-resolved {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2322c55e'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-size: 16px 16px !important;
+        background-position: center !important;
+        cursor: pointer !important;
+        opacity: 0.5 !important;
+      }
+    `
+
+    // Add click handler for glyph margin
+    const clickDisposable = editorInstance.onMouseDown((e) => {
+      if (e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+        const lineNumber = e.target.position?.lineNumber
+        if (lineNumber && annotationsByLine[lineNumber]) {
+          // Line already has annotations, show them in sidebar
+          setShowCollabSidebar(true)
+          handleJumpToAnnotation(lineNumber)
+        }
+      }
+    })
+
+    return () => {
+      clickDisposable.dispose()
+    }
+  }, [annotations, editorInstance, monaco, handleJumpToAnnotation])
+
+  // Add line number click handler for creating annotations
+  useEffect(() => {
+    if (!editorInstance || !monaco) return
+
+    const clickDisposable = editorInstance.onMouseDown((e) => {
+      if (e.target.type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS) {
+        const lineNumber = e.target.position?.lineNumber
+        if (lineNumber) {
+          handleAddAnnotation(lineNumber)
+        }
+      }
+    })
+
+    return () => {
+      clickDisposable.dispose()
+    }
+  }, [editorInstance, monaco, handleAddAnnotation])
+
+  // Render remote cursors using Monaco Content Widgets
+  useEffect(() => {
+    if (!editorInstance || !monaco) return
+
     if (!showRemoteCursors) {
-      console.log('👁️ Remote cursors hidden by user')
-      cursorWidgetsRef.current.forEach((widget, id) => {
+      cursorWidgetsRef.current.forEach((widget) => {
         editorInstance.removeContentWidget(widget)
       })
       cursorWidgetsRef.current.clear()
       
-      // Also remove all selection decorations
-      selectionDecorationsRef.current.forEach((decorations, userId) => {
+      selectionDecorationsRef.current.forEach((decorations) => {
         editorInstance.deltaDecorations(decorations, [])
       })
       selectionDecorationsRef.current.clear()
@@ -594,14 +1062,7 @@ export default function ProblemPage() {
     }
 
     const remoteCursors = collaborators.filter(c => c.cursor && c.id !== session?.user?.id)
-    console.log('👥 Rendering cursors for:', remoteCursors.map(c => ({ 
-      name: c.name, 
-      pos: c.cursor,
-      color: c.color,
-      selection: c.selection
-    })))
 
-    // Remove widgets for users who left or no longer have cursors
     const activeUserIds = new Set(remoteCursors.map(c => c.id))
     cursorWidgetsRef.current.forEach((widget, userId) => {
       if (!activeUserIds.has(userId)) {
@@ -610,7 +1071,6 @@ export default function ProblemPage() {
       }
     })
 
-    // Remove selection decorations for users who left
     selectionDecorationsRef.current.forEach((decorations, userId) => {
       if (!activeUserIds.has(userId)) {
         editorInstance.deltaDecorations(decorations, [])
@@ -618,18 +1078,15 @@ export default function ProblemPage() {
       }
     })
 
-    // Add or update widgets and selections for active remote cursors
     remoteCursors.forEach(collaborator => {
       const position = collaborator.cursor!
       const widgetId = `cursor-widget-${collaborator.id}`
 
-      // Remove old widget if exists
       const existingWidget = cursorWidgetsRef.current.get(collaborator.id)
       if (existingWidget) {
         editorInstance.removeContentWidget(existingWidget)
       }
 
-      // Create cursor widget
       const cursorWidget: editor.IContentWidget = {
         getId: () => widgetId,
         getDomNode: () => {
@@ -637,7 +1094,6 @@ export default function ProblemPage() {
           container.className = 'remote-cursor-widget'
           container.style.cssText = 'pointer-events: none; z-index: 1000;'
 
-          // Cursor line
           const cursorLine = document.createElement('div')
           cursorLine.className = 'remote-cursor-line'
           cursorLine.style.cssText = `
@@ -647,7 +1103,6 @@ export default function ProblemPage() {
             animation: cursorBlink 1s ease-in-out infinite;
           `
 
-          // Cursor label
           const cursorLabel = document.createElement('div')
           cursorLabel.className = 'remote-cursor-label'
           cursorLabel.textContent = collaborator.name
@@ -682,21 +1137,17 @@ export default function ProblemPage() {
 
       editorInstance.addContentWidget(cursorWidget)
       cursorWidgetsRef.current.set(collaborator.id, cursorWidget)
-      console.log('✅ Added cursor widget for:', collaborator.name)
 
-      // Handle selection highlighting
       const oldDecorations = selectionDecorationsRef.current.get(collaborator.id) || []
       
       if (collaborator.selection) {
         const { startLine, startColumn, endLine, endColumn } = collaborator.selection
         
-        // Convert the color to RGBA with transparency
         const colorMatch = collaborator.color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/)
         let backgroundColor = collaborator.color
         
         if (colorMatch) {
           const [, h, s, l] = colorMatch
-          // Convert HSL to RGBA with 20% opacity
           backgroundColor = `hsla(${h}, ${s}%, ${l}%, 0.2)`
         }
 
@@ -713,7 +1164,6 @@ export default function ProblemPage() {
         
         selectionDecorationsRef.current.set(collaborator.id, newDecorations)
         
-        // Inject dynamic CSS for this selection
         const styleId = `selection-style-${collaborator.id}`
         let styleElement = document.getElementById(styleId) as HTMLStyleElement
         
@@ -729,12 +1179,10 @@ export default function ProblemPage() {
           }
         `
       } else {
-        // No selection, clear decorations
         if (oldDecorations.length > 0) {
           editorInstance.deltaDecorations(oldDecorations, [])
           selectionDecorationsRef.current.delete(collaborator.id)
           
-          // Remove style element
           const styleId = `selection-style-${collaborator.id}`
           const styleElement = document.getElementById(styleId)
           if (styleElement) {
@@ -746,11 +1194,10 @@ export default function ProblemPage() {
 
   }, [collaborators, editorInstance, monaco, session?.user?.id, showRemoteCursors])
 
-  // Track cursor position and broadcast (with idle tracking)
+  // Track cursor position and broadcast
   useEffect(() => {
     if (!editorInstance) return
 
-    // Broadcast cursor position on change
     const cursorDisposable = editorInstance.onDidChangeCursorPosition((e) => {
       broadcastCursor({
         line: e.position.lineNumber,
@@ -758,19 +1205,15 @@ export default function ProblemPage() {
       })
     })
 
-    // Broadcast selection changes
     const selectionDisposable = editorInstance.onDidChangeCursorSelection((e) => {
       const selection = e.selection
       
-      // Check if there's an actual selection (not just a cursor)
       if (selection.isEmpty()) {
-        // No selection, just broadcast cursor with null selection
         broadcastCursor({
           line: selection.startLineNumber,
           column: selection.startColumn,
         }, null)
       } else {
-        // There's a selection, broadcast both cursor and selection
         broadcastCursor({
           line: selection.endLineNumber,
           column: selection.endColumn,
@@ -783,7 +1226,6 @@ export default function ProblemPage() {
       }
     })
 
-    // Also broadcast on focus to show idle cursor position
     const focusDisposable = editorInstance.onDidFocusEditorText(() => {
       const position = editorInstance.getPosition()
       const selection = editorInstance.getSelection()
@@ -807,7 +1249,6 @@ export default function ProblemPage() {
       }
     })
 
-    // Broadcast current position periodically (every 5 seconds) to maintain presence
     const intervalId = setInterval(() => {
       const position = editorInstance.getPosition()
       const selection = editorInstance.getSelection()
@@ -847,7 +1288,6 @@ export default function ProblemPage() {
     }
   }, [isConnected, broadcastCode])
 
-  // Proof of life
   useEffect(() => {
     console.log('🟢 PAGE.TSX mounted')
   }, [])
@@ -886,7 +1326,7 @@ export default function ProblemPage() {
     monaco.editor.setTheme('caffeine-dark')
   }, [monaco])
 
-  // Fetch user's submissions for the left panel
+  // Fetch user's submissions
   useEffect(() => {
     const fetchUsersSubmissions = async () => {
       try {
@@ -945,7 +1385,7 @@ export default function ProblemPage() {
     setUsersCode(starter)
   }, [userLang.value, problem])
 
-  // Starter code getter (memoized)
+  // Starter code getter
   const getStarterCode = useCallback(() => {
     if (problem?.code_snippets) {
       return problem.code_snippets.find(snippet => snippet.langSlug === userLang.value)?.code || ''
@@ -953,12 +1393,10 @@ export default function ProblemPage() {
     return ''
   }, [problem?.code_snippets, userLang.value])
 
-  // AI message analytics (optional)
   const handleAIChatMessage = (message: string) => {
     console.log('💬 AIChatbot user msg:', message)
   }
 
-  // Receive normalized submission from editor → unlock AIChatbot
   const handleSubmissionComplete = async (submission: Submission) => {
     console.log('✅ handleSubmissionComplete:', {
       lang: submission.language,
@@ -969,7 +1407,6 @@ export default function ProblemPage() {
     setLatestUserSubmission({ _ts: Date.now() })
   }
 
-  // Loading / Error UI
   if (loading) {
     return (
       <div className="h-screen w-full bg-background flex items-center justify-center">
@@ -992,7 +1429,6 @@ export default function ProblemPage() {
     )
   }
 
-  // Render
   return (
     <div className="caffeine-theme h-screen w-full bg-background flex flex-col overflow-hidden">
       <style jsx global>{tabScrollStyles}</style>
@@ -1007,6 +1443,12 @@ export default function ProblemPage() {
               {isConnected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
+          {annotations.filter(a => !a.resolved).length > 0 && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <MessageCircle className="w-3 h-3" />
+              <span>{annotations.filter(a => !a.resolved).length} unresolved</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -1041,7 +1483,6 @@ export default function ProblemPage() {
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
             >
               {showRemoteCursors ? (
                 <>
@@ -1049,9 +1490,7 @@ export default function ProblemPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </>
               ) : (
-                <>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                </>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
               )}
             </svg>
             {showRemoteCursors ? 'Cursors On' : 'Cursors Off'}
@@ -1107,10 +1546,15 @@ export default function ProblemPage() {
                 roomId={roomId}
                 collaborators={collaborators}
                 messages={messages}
+                annotations={annotations}
                 currentUserId={session?.user?.id || 'anonymous'}
                 currentUserColor={userColor}
                 onClose={() => setShowCollabSidebar(false)}
                 onSendMessage={sendChatMessage}
+                onAnnotationComment={addAnnotationComment}
+                onAnnotationDelete={deleteAnnotation}
+                onAnnotationResolve={toggleAnnotationResolved}
+                onJumpToAnnotation={handleJumpToAnnotation}
               />
             </ResizablePanel>
           ) : (
