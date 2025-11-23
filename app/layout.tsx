@@ -9,6 +9,8 @@ import { FaviconAnimation } from "@/components/favicon-animation";
 import { Toaster } from "@/components/ui/sonner";
 import { Suspense } from "react";
 import FloatingMessageWidget from "@/components/messaging/floating-message-widget";
+import { PublicInterviewProvider } from "@/contexts/public-interview-context";
+import { InterviewStatusProvider } from "@/contexts/interview-status-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,11 +56,15 @@ export default function RootLayout({
             <ThemeWrapper>
               <Suspense fallback={null}>
                 <LoadingProvider>
-                  <LoadingBar />
-                  <FaviconAnimation />
-                  {children}
-                  <FloatingMessageWidget />
-                  <Toaster position="top-right" richColors />
+                  <PublicInterviewProvider>
+                    <InterviewStatusProvider>
+                      <LoadingBar />
+                      <FaviconAnimation />
+                      {children}
+                      <FloatingMessageWidget />
+                      <Toaster position="top-right" richColors />
+                    </InterviewStatusProvider>
+                  </PublicInterviewProvider>
                 </LoadingProvider>
               </Suspense>
             </ThemeWrapper>

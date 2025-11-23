@@ -24,8 +24,9 @@ import { toast } from "sonner";
 import { AudioTestPlayback } from "./audio-test-playback";
 
 interface WaitingRoomProps {
-  sessionRole: "host" | "join";
+  sessionRole: "host" | "join" | "public-host" | "public-join";
   sessionId: string | null;
+  publicSessionId?: string | null;
   user: {
     name: string;
     email: string;
@@ -40,6 +41,7 @@ interface WaitingRoomProps {
 export function WaitingRoom({
   sessionRole,
   sessionId,
+  publicSessionId,
   user,
   onDevicesReady,
   onJoinSession,
@@ -444,6 +446,7 @@ export function WaitingRoom({
   };
 
   const handleJoin = async () => {
+    // Handle regular join (private interviews)
     if (sessionRole === "join") {
       if (!joinSessionId.trim()) {
         toast.error("Please enter a session ID");
@@ -452,23 +455,43 @@ export function WaitingRoom({
 
       const sessionCode = joinSessionId.trim();
       await requestJoin(sessionCode);
-    } else {
+      return;
+    }
+
+    // Handle public join (already approved, just enter)
+    if (sessionRole === "public-join") {
+      if (!sessionId) {
+        toast.error("Missing session ID. Please go back and try again.");
+        return;
+      }
+      // Public participants are already approved, just enter the call
+      onDevicesReady();
+      return;
+    }
+
+    // Handle host roles (both regular host and public-host)
+    if (sessionRole === "host" || sessionRole === "public-host") {
       if (!sessionId) {
         toast.error("Missing session ID. Please go back and try again.");
         return;
       }
 
-      if (hostSessionStatus === "error" || hostSessionStatus === "idle") {
-        ensureHostSession(sessionId);
-        toast.info("Setting up your session. Please wait a moment...");
-        return;
+      // Only regular hosts need to ensure session exists in study_pod_sessions
+      // Public hosts already have their session created
+      if (sessionRole === "host") {
+        if (hostSessionStatus === "error" || hostSessionStatus === "idle") {
+          ensureHostSession(sessionId);
+          toast.info("Setting up your session. Please wait a moment...");
+          return;
+        }
+
+        if (hostSessionStatus === "creating") {
+          toast.info("Still preparing your session. Hang tight!");
+          return;
+        }
       }
 
-      if (hostSessionStatus === "creating") {
-        toast.info("Still preparing your session. Hang tight!");
-        return;
-      }
-
+      // Both regular and public hosts can enter when ready
       onDevicesReady();
     }
   };
@@ -481,6 +504,7 @@ export function WaitingRoom({
   }, [sessionRole, joinStatus, pendingSessionCode, onJoinSession]);
 
   const isReady = videoTest === "success" || audioTest === "success";
+  const isHostRole = sessionRole === "host" || sessionRole === "public-host";
   const hostButtonLabel =
     hostSessionStatus === "error"
       ? "Retry Setup"
@@ -493,13 +517,14 @@ export function WaitingRoom({
       : joinStatus === "joining"
       ? "Requesting..."
       : "Join Interview";
-  const buttonLabel = sessionRole === "host" ? hostButtonLabel : participantButtonLabel;
+  const buttonLabel = isHostRole ? hostButtonLabel : participantButtonLabel;
   const isProcessing =
-    (sessionRole === "host" && hostSessionStatus === "creating") ||
-    (sessionRole === "join" && (joinStatus === "joining" || joinStatus === "pending"));
+    (isHostRole && hostSessionStatus === "creating") ||
+    ((sessionRole === "join" || sessionRole === "public-join") && (joinStatus === "joining" || joinStatus === "pending"));
   const isButtonDisabled =
     !isReady ||
     (sessionRole === "join" && (!joinSessionId.trim() || joinStatus === "joining" || joinStatus === "pending")) ||
+    ((sessionRole === "public-join") && (joinStatus === "joining" || joinStatus === "pending")) ||
     (sessionRole === "host" && hostSessionStatus === "creating");
   const statusTone: "info" | "success" | "error" = (() => {
     if (!statusMessage) return "info";
@@ -537,7 +562,7 @@ export function WaitingRoom({
       {/* Header */}
       <div className="mb-8 text-center">
         <h1 className="text-3xl md:text-4xl font-bold mb-3">
-          {sessionRole === "host" ? "Setup Your Interview Room" : "Join Interview Room"}
+          {(sessionRole === "host" || sessionRole === "public-host") ? "Setup Your Interview Room" : "Join Interview Room"}
         </h1>
         <p className="text-muted-foreground">
           Test your devices before starting the interview

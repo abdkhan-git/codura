@@ -24,9 +24,12 @@ import { SimpleSignaling, SignalingMessage } from "@/lib/simple-signaling";
 import { AdmissionModal, PendingUser } from "./admission-modal";
 import { CollaborativeCodeEditor } from "./collaborative-code-editor";
 import { CollaborativeWhiteboard } from "./collaborative-whiteboard";
+import { PublicInterviewAdmission } from "./public-interview-admission";
+import { usePublicInterview } from "@/contexts/public-interview-context";
 
 interface VideoCallInterfaceProps {
   sessionId: string;
+  publicSessionId?: string;
   user: {
     name: string;
     email: string;
@@ -34,15 +37,19 @@ interface VideoCallInterfaceProps {
     user_id?: string;
   };
   isHost: boolean;
+  isPublicHost?: boolean;
   onLeave: () => void;
 }
 
 export function VideoCallInterface({
   sessionId,
+  publicSessionId,
   user,
   isHost,
+  isPublicHost = false,
   onLeave,
 }: VideoCallInterfaceProps) {
+  const { activeSession, setActiveSession } = usePublicInterview();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
@@ -188,210 +195,188 @@ export function VideoCallInterface({
   const handleSignalingMessage = useCallback(
     async (message: SignalingMessage) => {
       if (!isMountedRef.current) return;
-      const currentUserId = user.user_id;
-      if (!currentUserId) return;
-      if (message.from === currentUserId) return;
 
-      console.log(`[WebRTC] Received signaling message from ${message.from}:`, message.type);
+      console.log(`[WebRTC] Received ${message.type} from ${message.from}`);
+      const pc = peerConnectionRef.current;
 
-      switch (message.type) {
-        case "user-joined": {
-          console.log(`[WebRTC] User joined:`, message.from, message.data);
-          partnerIdRef.current = message.from;
-          offerSentRef.current = false;
-          const remoteName = message.data?.name as string | undefined;
-          if (remoteName) {
-            updatePartnerName(remoteName);
-          } else if (!partnerNameRef.current) {
-            updatePartnerName("Interview Partner");
-          }
-          setConnectionStatus("connecting");
-          if (isHost) {
-            // Acknowledge presence; send direct and broadcast to maximize delivery
-            console.log(`[WebRTC] Host acknowledging participant join`);
-            await sendSignalingMessage({ type: "user-joined", data: { name: user.name }, to: message.from });
-            await sendSignalingMessage({ type: "user-joined", data: { name: user.name } });
-          }
-          if (!isHost && !offerSentRef.current) {
-            console.log(`[WebRTC] Participant creating offer to host`);
-            await createAndSendOffer(message.from);
-          }
-          break;
-        }
-        case "offer": {
-          if (!isHost) {
-            console.log(`[WebRTC] Non-host ignoring offer`);
-            return;
-          }
-          const pc = peerConnectionRef.current;
-          if (!pc || !message.data) {
-            console.warn(`[WebRTC] No peer connection or data for offer`);
-            return;
-          }
+      if (!pc) {
+        console.warn(`[WebRTC] No peer connection available for ${message.type}`);
+        return;
+      }
 
-          // Check if we already processed an offer
-          if (offerReceivedRef.current) {
-            console.warn("[WebRTC] Already processed an offer, ignoring duplicate");
-            return;
-          }
+      try {
+        switch (message.type) {
+          case "user-joined":
+            if (!isHost && message.from && !partnerIdRef.current) {
+              console.log(`[WebRTC] Host discovered: ${message.from}, attempting connection...`);
+              partnerIdRef.current = message.from;
+              if (message.data?.name) {
+                updatePartnerName(message.data.name);
+              }
+              // Participant creates and sends offer to discovered host
+              if (!offerSentRef.current) {
+                console.log("[WebRTC] Participant creating initial offer to host");
+                await createAndSendOffer(message.from);
+              }
+            } else if (isHost && message.from && !partnerIdRef.current) {
+              console.log(`[WebRTC] Participant discovered: ${message.from}`);
+              partnerIdRef.current = message.from;
+              if (message.data?.name) {
+                updatePartnerName(message.data.name);
+              }
+            }
+            break;
 
-          // Check signaling state
-          if (pc.signalingState !== "stable" && pc.signalingState !== "have-local-offer") {
-            console.warn(`[WebRTC] Ignoring offer in signaling state: ${pc.signalingState}`);
-            return;
-          }
+          case "offer":
+            if (message.data && message.from) {
+              console.log(`[WebRTC] Received offer from ${message.from}`);
+              partnerIdRef.current = message.from;
+              if (message.data.name) {
+                updatePartnerName(message.data.name);
+              }
 
-          partnerIdRef.current = message.from;
+              // If peer connection was closed (e.g., previous participant left), recreate it
+              if (!pc) {
+                console.log("[WebRTC] Peer connection not found, reinitializing for new participant...");
+                await setupPeerConnection(localStream!);
+                const newPc = peerConnectionRef.current;
+                if (!newPc) {
+                  console.error("[WebRTC] Failed to recreate peer connection");
+                  return;
+                }
+                // Reset flags for new connection
+                offerReceivedRef.current = false;
+                offerSentRef.current = false;
+                answerSentRef.current = false;
+              }
 
-          if (pc.currentRemoteDescription) {
-            console.warn("[WebRTC] Remote description already set, ignoring duplicate offer.");
-            return;
-          }
+              if (!offerReceivedRef.current) {
+                offerReceivedRef.current = true;
+                const currentPc = peerConnectionRef.current;
+                if (!currentPc) return;
+                await currentPc.setRemoteDescription(new RTCSessionDescription(message.data));
 
-          try {
-            console.log(`[WebRTC] Host processing offer from ${message.from}`);
-            offerReceivedRef.current = true;
+                // Apply any pending ICE candidates
+                if (pendingIceCandidatesRef.current.length > 0) {
+                  console.log(`[WebRTC] Applying ${pendingIceCandidatesRef.current.length} pending ICE candidates`);
+                  for (const candidate of pendingIceCandidatesRef.current) {
+                    try {
+                      await currentPc.addIceCandidate(candidate);
+                    } catch (e) {
+                      console.error("[WebRTC] Error adding pending ICE candidate:", e);
+                    }
+                  }
+                  pendingIceCandidatesRef.current = [];
+                }
 
-            const description: RTCSessionDescriptionInit = message.data;
-            await pc.setRemoteDescription(new RTCSessionDescription(description));
-            console.log(`[WebRTC] Remote description set, creating answer`);
-
-            // Process any pending ICE candidates now that remote description is set
-            if (pendingIceCandidatesRef.current.length > 0) {
-              console.log(`[WebRTC] Adding ${pendingIceCandidatesRef.current.length} pending ICE candidates`);
-              for (const candidate of pendingIceCandidatesRef.current) {
-                try {
-                  await pc.addIceCandidate(candidate);
-                } catch (err) {
-                  console.error("[WebRTC] Error adding pending ICE candidate:", err);
+                if (!answerSentRef.current) {
+                  const answer = await currentPc.createAnswer();
+                  await currentPc.setLocalDescription(answer);
+                  answerSentRef.current = true;
+                  await sendSignalingMessage({
+                    type: "answer",
+                    data: answer,
+                    to: message.from,
+                  });
                 }
               }
-              pendingIceCandidatesRef.current = [];
             }
+            break;
 
-            // Only create answer if we haven't already
-            if (!answerSentRef.current) {
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-              answerSentRef.current = true;
-              console.log(`[WebRTC] Sending answer to ${message.from}`);
-              await sendSignalingMessage({
-                type: "answer",
-                data: answer,
-                to: message.from,
-              });
-            } else {
-              console.log(`[WebRTC] Answer already sent, skipping`);
-            }
-          } catch (error) {
-            console.error("[WebRTC] Error handling offer:", error);
-            // Reset flags on error
-            offerReceivedRef.current = false;
-            answerSentRef.current = false;
-          }
-          break;
-        }
-        case "answer": {
-          if (isHost) {
-            console.log(`[WebRTC] Host ignoring answer`);
-            return;
-          }
-          const pc = peerConnectionRef.current;
-          if (!pc || !message.data) {
-            console.warn(`[WebRTC] No peer connection or data for answer`);
-            return;
-          }
+          case "answer":
+            if (message.data && !answerSentRef.current) {
+              console.log("[WebRTC] Received answer, applying...");
+              try {
+                await pc.setRemoteDescription(new RTCSessionDescription(message.data));
 
-          try {
-            console.log(`[WebRTC] Participant processing answer from ${message.from}`);
-            const description: RTCSessionDescriptionInit = message.data;
-            await pc.setRemoteDescription(new RTCSessionDescription(description));
-            console.log(`[WebRTC] Remote description set from answer`);
-
-            // Process any pending ICE candidates now that remote description is set
-            if (pendingIceCandidatesRef.current.length > 0) {
-              console.log(`[WebRTC] Adding ${pendingIceCandidatesRef.current.length} pending ICE candidates`);
-              for (const candidate of pendingIceCandidatesRef.current) {
-                try {
-                  await pc.addIceCandidate(candidate);
-                } catch (err) {
-                  console.error("[WebRTC] Error adding pending ICE candidate:", err);
+                // Apply any pending ICE candidates
+                if (pendingIceCandidatesRef.current.length > 0) {
+                  console.log(`[WebRTC] Applying ${pendingIceCandidatesRef.current.length} pending ICE candidates after answer`);
+                  for (const candidate of pendingIceCandidatesRef.current) {
+                    try {
+                      await pc.addIceCandidate(candidate);
+                    } catch (e) {
+                      console.error("[WebRTC] Error adding pending ICE candidate:", e);
+                    }
+                  }
+                  pendingIceCandidatesRef.current = [];
                 }
+              } catch (error) {
+                console.error("[WebRTC] Error applying answer:", error);
               }
-              pendingIceCandidatesRef.current = [];
             }
-          } catch (error) {
-            console.error("[WebRTC] Error applying answer:", error);
-          }
-          break;
-        }
-        case "ice-candidate": {
-          const pc = peerConnectionRef.current;
-          if (!pc || !message.data) {
-            console.warn(`[WebRTC] No peer connection or data for ICE candidate`);
-            return;
-          }
+            break;
 
-          try {
-            const candidate = new RTCIceCandidate(message.data);
-
-            // If we don't have a remote description yet, queue the candidate
-            if (!pc.currentRemoteDescription) {
-              console.log(`[WebRTC] Queuing ICE candidate (no remote description yet)`);
-              pendingIceCandidatesRef.current.push(candidate);
-            } else {
-              console.log(`[WebRTC] Adding ICE candidate immediately`);
-              await pc.addIceCandidate(candidate);
+          case "ice-candidate":
+            if (message.data) {
+              try {
+                const candidate = new RTCIceCandidate(message.data);
+                // If remote description is set, add candidate immediately
+                if (pc.remoteDescription) {
+                  await pc.addIceCandidate(candidate);
+                  console.log("[WebRTC] Added ICE candidate");
+                } else {
+                  // Otherwise, queue it for later
+                  console.log("[WebRTC] Queuing ICE candidate (no remote description yet)");
+                  pendingIceCandidatesRef.current.push(candidate);
+                }
+              } catch (error) {
+                console.error("[WebRTC] Error adding ICE candidate:", error);
+              }
             }
-          } catch (error) {
-            console.error("[WebRTC] Error adding ICE candidate:", error);
-          }
-          break;
+            break;
+
+          case "user-left":
+            console.log("[WebRTC] Partner left");
+            toast.info("Your partner has left the interview.");
+            setRemoteStream(null);
+            setConnectionStatus("disconnected");
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = null;
+            }
+            updatePartnerName(null);
+            break;
         }
-        case "user-left": {
-          console.log(`[WebRTC] User left:`, message.from);
-          partnerIdRef.current = null;
-          partnerNameRef.current = null;
-          offerSentRef.current = false;
-          answerSentRef.current = false;
-          offerReceivedRef.current = false;
-          pendingIceCandidatesRef.current = [];
-          updatePartnerName(null);
-          setRemoteStream(null);
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = null;
-          }
-          setConnectionStatus("disconnected");
-          toast.error("Your interview partner has left the session.");
-          break;
-        }
-        default:
-          break;
+      } catch (error) {
+        console.error(`[WebRTC] Error handling ${message.type}:`, error);
       }
     },
-    [createAndSendOffer, isHost, sendSignalingMessage, updatePartnerName, user.name, user.user_id]
+    [isHost, createAndSendOffer, sendSignalingMessage, updatePartnerName]
   );
 
   const fetchPendingRequests = useCallback(async () => {
-    if (!isHost) return;
+    // Skip for public interviews - they use PublicInterviewAdmission component
+    if (!isHost || isPublicHost) return;
 
     try {
-      const response = await fetch(`/api/mock-interview/sessions/admission?sessionId=${sessionId}`);
-      if (!response.ok) {
-        return;
-      }
+      const response = await fetch(`/api/mock-interview/sessions/requests?sessionId=${encodeURIComponent(sessionId)}`);
+      if (!response.ok) return;
+
       const data = await response.json();
-      const pending = Array.isArray(data.pendingRequests) ? data.pendingRequests : [];
-      if (isMountedRef.current) {
-        setPendingUsers(pending);
-      }
+      const pending = data.requests.filter((r: any) => r.status === "pending");
+
+      const pendingWithUserData = await Promise.all(
+        pending.map(async (request: any) => {
+          const userResponse = await fetch(`/api/users/${request.requester_id}`);
+          if (!userResponse.ok) return null;
+          const userData = await userResponse.json();
+          return {
+            user_id: request.requester_id,
+            name: userData.full_name || userData.username || "Unknown",
+            avatar: userData.avatar_url || "",
+          };
+        })
+      );
+
+      setPendingUsers(pendingWithUserData.filter(Boolean) as PendingUser[]);
     } catch (error) {
       console.error("Error fetching admission requests:", error);
     }
-  }, [isHost, sessionId]);
+  }, [isHost, isPublicHost, sessionId]);
 
   useEffect(() => {
-    if (!isHost) return;
+    // Skip polling for public interviews - they use PublicInterviewAdmission component
+    if (!isHost || isPublicHost) return;
 
     fetchPendingRequests();
     admissionPollRef.current = setInterval(fetchPendingRequests, 3000);
@@ -402,7 +387,7 @@ export function VideoCallInterface({
         admissionPollRef.current = null;
       }
     };
-  }, [isHost, fetchPendingRequests]);
+  }, [isHost, isPublicHost, fetchPendingRequests]);
 
   const handlePendingApprove = useCallback((userId: string) => {
     setPendingUsers((prev) => prev.filter((user) => user.user_id !== userId));
@@ -411,29 +396,28 @@ export function VideoCallInterface({
 
   const handlePendingDeny = useCallback((userId: string) => {
     setPendingUsers((prev) => prev.filter((user) => user.user_id !== userId));
-    fetchPendingRequests();
-  }, [fetchPendingRequests]);
+  }, []);
 
-  // Setup data channel for code synchronization
-  const setupDataChannel = (dataChannel: RTCDataChannel) => {
-    dataChannelRef.current = dataChannel;
+  const setupDataChannel = (channel: RTCDataChannel) => {
+    dataChannelRef.current = channel;
+    console.log("[WebRTC] Data channel setup, ready state:", channel.readyState);
 
-    dataChannel.onopen = () => {
-      console.log("Data channel opened");
-      toast.success("Code editor synchronized!");
+    channel.onopen = () => {
+      console.log("[WebRTC] Data channel opened");
     };
 
-    dataChannel.onclose = () => {
-      console.log("Data channel closed");
+    channel.onclose = () => {
+      console.log("[WebRTC] Data channel closed");
     };
 
-    dataChannel.onerror = (error) => {
+    channel.onerror = (error) => {
       console.error("Data channel error:", error);
     };
 
-    dataChannel.onmessage = (event) => {
+    channel.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+        console.log("[WebRTC] Data channel message received:", message.type);
         handleDataChannelMessage(message);
       } catch (error) {
         console.error("Error parsing data channel message:", error);
@@ -448,12 +432,8 @@ export function VideoCallInterface({
     switch (message.type) {
       case "code-change":
         setCurrentCode(message.code);
-        if (message.language) {
-          setCurrentLanguage(message.language);
-        }
-        // Apply the change to the editor
         if (codeEditorRef.current && codeEditorRef.current.applyRemoteChange) {
-          codeEditorRef.current.applyRemoteChange(message.code, message.language);
+          codeEditorRef.current.applyRemoteChange(message.code, currentLanguage);
         }
         break;
       case "language-change":
@@ -498,7 +478,7 @@ export function VideoCallInterface({
         }
         break;
       default:
-        console.log("Unknown data channel message type:", message.type);
+        console.warn("Unknown data channel message type:", message.type);
     }
   };
 
@@ -518,13 +498,10 @@ export function VideoCallInterface({
     }
   }, []);
 
-  // Handle code changes from editor
-  const handleCodeChange = useCallback((code: string, language: string) => {
+  const handleCodeChange = useCallback((code: string) => {
     setCurrentCode(code);
-    setCurrentLanguage(language);
   }, []);
 
-  // Handle language changes from editor
   const handleLanguageChange = useCallback((language: string) => {
     setCurrentLanguage(language);
   }, []);
@@ -611,6 +588,9 @@ export function VideoCallInterface({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sessionId, action: 'host_ready' }),
           });
+
+          // NOTE: Public hosts should NOT mark session unavailable when entering
+          // Session stays available until a participant actually connects
         } else {
           console.log("[WebRTC] Participant marking attendance...");
           await fetch('/api/mock-interview/sessions/attend', {
@@ -618,6 +598,20 @@ export function VideoCallInterface({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sessionId }),
           });
+
+          // If this is a public participant, mark session as unavailable now that we're connected
+          if (!isHost && publicSessionId) {
+            console.log("[WebRTC] Public participant marking session unavailable...");
+            await fetch('/api/mock-interview/public-sessions', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sessionId: publicSessionId,
+                action: 'set_unavailable',
+                participantId: user.user_id,
+              }),
+            });
+          }
         }
       } catch (e) {
         console.error('[WebRTC] Failed to mark readiness/attendance:', e);
@@ -755,8 +749,11 @@ export function VideoCallInterface({
       ) {
         setConnectionStatus("disconnected");
         console.error(`[WebRTC] Connection ${pc.connectionState}`);
-        toast.error("Connection lost");
-        if (!isHost) {
+
+        // For public hosts, don't exit - let them wait for next participant
+        // The ICE state handler below will handle the cleanup
+        if (!isHost || !isPublicHost) {
+          toast.error("Connection lost");
           cleanup();
           onLeave();
         }
@@ -773,16 +770,48 @@ export function VideoCallInterface({
       } else if (state === "disconnected" || state === "failed") {
         setConnectionStatus("disconnected");
         console.error(`[WebRTC] ICE connection ${state}`);
-        toast.error("You were disconnected.");
-        if (isHost) {
-          fetch('/api/mock-interview/sessions', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId, action: 'end' }),
-          }).catch(() => {});
+
+        // For public hosts, participant left - stay in session and wait for next participant
+        if (isPublicHost) {
+          toast.info("Participant disconnected. Waiting for next participant...");
+          // Clear remote stream but stay in the interface
+          setRemoteStream(null);
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = null;
+          }
+          // Close peer connection to prepare for next participant
+          if (peerConnectionRef.current) {
+            peerConnectionRef.current.close();
+            peerConnectionRef.current = null;
+          }
+          partnerIdRef.current = null;
+          partnerNameRef.current = null;
+          updatePartnerName(null);
+          // Mark session as available again
+          if (publicSessionId) {
+            fetch('/api/mock-interview/public-sessions', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sessionId: publicSessionId,
+                action: 'set_available',
+              }),
+            }).catch((error) => console.error("Error marking session available:", error));
+          }
+          // DO NOT call cleanup() or onLeave() - host stays in session
+        } else {
+          // For regular hosts and all participants, disconnect completely
+          toast.error("You were disconnected.");
+          if (isHost) {
+            fetch('/api/mock-interview/sessions', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sessionId, action: 'end' }),
+            }).catch(() => {});
+          }
+          cleanup();
+          onLeave();
         }
-        cleanup();
-        onLeave();
       }
     };
 
@@ -912,12 +941,12 @@ export function VideoCallInterface({
       stopRecording();
     }
     if (confirm("Are you sure you want to leave the interview?")) {
-      cleanup();
+      cleanup(true); // Pass true to indicate this is an intentional leave
       onLeave();
     }
   };
 
-  const cleanup = () => {
+  const cleanup = (isIntentionalLeave = false) => {
     isMountedRef.current = false;
     if (localStream) {
       localStream.getTracks().forEach((track) => track.stop());
@@ -940,6 +969,27 @@ export function VideoCallInterface({
         .catch((error: any) => console.error("Error disconnecting signaling:", error));
       signalingRef.current = null;
     }
+
+    // If this is a public participant leaving (not host), mark session as available again
+    if (!isHost && publicSessionId) {
+      fetch('/api/mock-interview/public-sessions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: publicSessionId,
+          action: 'set_available',
+        }),
+      }).catch((error) => console.error("Error marking session available:", error));
+
+      // Only revoke approval if this is an intentional leave (user clicked Leave button)
+      // If it's a disconnect, keep approval so they can rejoin
+      if (isIntentionalLeave) {
+        fetch(`/api/mock-interview/public-sessions/requests?sessionId=${publicSessionId}`, {
+          method: 'DELETE',
+        }).catch((error) => console.error("Error revoking approval:", error));
+      }
+    }
+
     partnerIdRef.current = null;
     partnerNameRef.current = null;
     offerSentRef.current = false;
@@ -956,7 +1006,7 @@ export function VideoCallInterface({
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col">
-      {isHost && (
+      {isHost && !isPublicHost && (
         <AdmissionModal
           open={pendingUsers.length > 0}
           pendingUsers={pendingUsers}
@@ -994,18 +1044,36 @@ export function VideoCallInterface({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center space-y-4">
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center mx-auto">
-                      <Video className="w-12 h-12 text-white" />
+                <div className="absolute inset-0 flex items-center justify-center p-6">
+                  {isPublicHost ? (
+                    <div className="w-full max-w-2xl max-h-full overflow-y-auto">
+                      <PublicInterviewAdmission
+                        sessionId={publicSessionId || sessionId}
+                        onApprove={(_requestId, approvedSessionCode) => {
+                          console.log('Request approved, session code:', approvedSessionCode);
+                          if (activeSession) {
+                            setActiveSession({
+                              ...activeSession,
+                              sessionCode: approvedSessionCode,
+                              hasPendingRequests: false,
+                            });
+                          }
+                        }}
+                      />
                     </div>
-                    <div>
-                      <p className="text-white text-lg font-medium">Waiting for partner...</p>
-                      <p className="text-zinc-400 text-sm mt-1">
-                        {connectionStatus === "connecting" ? "Connecting..." : "No one has joined yet"}
-                      </p>
+                  ) : (
+                    <div className="text-center space-y-4">
+                      <div className="w-24 h-24 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center mx-auto">
+                        <Video className="w-12 h-12 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-white text-lg font-medium">Waiting for partner...</p>
+                        <p className="text-zinc-400 text-sm mt-1">
+                          {connectionStatus === "connecting" ? "Connecting..." : "No one has joined yet"}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 
