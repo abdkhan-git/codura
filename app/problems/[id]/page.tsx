@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { Loader2, Users, Copy, Check, X, MessageSquare, MessageCircle, Trash2, Send } from 'lucide-react'
+import { Loader2, Users, Copy, Check, X, MessageSquare, MessageCircle, Trash2, Send, Pencil, Brush } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMonaco } from '@monaco-editor/react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -14,6 +14,7 @@ import type { editor } from 'monaco-editor'
 import AIChatbot from '@/components/problems/AIChatbot'
 import CodeEditorPanel from '@/components/problems/CodeEditorPanel'
 import ProblemDescriptionPanel from '@/components/problems/ProblemDescriptionPanel'
+import CollaborativeWhiteboard from '@/components/mock-interview/collaborative-whiteboard'
 
 // Custom styles for tab scrolling and cursor animations
 const tabScrollStyles = `
@@ -861,6 +862,9 @@ export default function ProblemPage() {
   const [annotationLineNumber, setAnnotationLineNumber] = useState<number | null>(null)
   const [annotationText, setAnnotationText] = useState('')
   
+  // Whiteboard
+  const [showWhiteboard, setShowWhiteboard] = useState(false)
+
   // Language & code
   const [userLang, setUserLang] = useState({
     id: 92,
@@ -1565,8 +1569,9 @@ export default function ProblemPage() {
           <Button
             onClick={() => setShowRemoteCursors(!showRemoteCursors)}
             size="sm"
-            variant={showRemoteCursors ? 'default' : 'outline'}
+            variant={showRemoteCursors ? 'secondary' : 'outline'}
             title={showRemoteCursors ? 'Hide remote cursors' : 'Show remote cursors'}
+            className='cursor-pointer'
           >
             <svg
               className="w-4 h-4 mr-2"
@@ -1591,10 +1596,25 @@ export default function ProblemPage() {
             onClick={() => setShowCollabSidebar(!showCollabSidebar)}
             size="sm"
             variant={showCollabSidebar ? 'default' : 'outline'}
+            className='cursor-pointer'
           >
             <Users className="w-4 h-4 mr-2" />
             {showCollabSidebar ? 'Hide' : 'Show'} Collaboration
           </Button>
+
+          <Button
+            onClick={() => setShowWhiteboard(!showWhiteboard)}
+            size="sm"
+            variant={showWhiteboard ? 'secondary' : 'outline'}
+            className='cursor-pointer'
+          >
+            <Brush className="w-4 h-4" />
+          </Button>
+
+          {showWhiteboard && (
+            <CollaborativeWhiteboard />
+          )}
+
         </div>
       </div>
 
