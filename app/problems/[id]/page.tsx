@@ -124,6 +124,7 @@ interface ChatMessage {
   id: string
   userId: string
   userName: string
+  userColor?: string
   text: string
   timestamp: Date
 }
@@ -250,6 +251,7 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
         id: Date.now().toString(),
         userId,
         userName,
+        userColor: userColor.current,
         text,
         timestamp: new Date(),
       }
@@ -286,6 +288,7 @@ interface CollaborationSidebarProps {
   collaborators: Collaborator[]
   messages: ChatMessage[]
   currentUserId: string
+  currentUserColor: string
   onClose: () => void
   onSendMessage: (text: string) => void
 }
@@ -295,6 +298,7 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
   collaborators,
   messages,
   currentUserId,
+  currentUserColor,
   onClose,
   onSendMessage,
 }) => {
@@ -318,6 +322,22 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+    // Helper function to get user color
+  const getUserColor = (userId: string, userName: string, messageColor?: string) => {
+    // First try to use the color from the message itself
+    if (messageColor) return messageColor
+    
+    // Then try to find the user in collaborators
+    const collaborator = collaborators.find(c => c.id === userId)
+    if (collaborator) return collaborator.color
+    
+    // If it's the current user, use their color
+    if (userId === currentUserId) return currentUserColor
+    
+    // Fallback to default
+    return 'hsl(200, 70%, 60%)'
+  }
 
   return (
     <div className="h-full flex flex-col bg-background border-l">
@@ -385,10 +405,12 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
               No messages yet. Start the conversation!
             </p>
           ) : (
-            messages.map((msg) => (
+            messages.map((msg) => {
+              const userColor = getUserColor(msg.userId, msg.userName, msg.userColor)
+              return (
               <div key={msg.id} className="space-y-1">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-medium text-primary">{msg.userName}</span>
+                  <span className="text-xs font-medium text-primary" style={{ color: userColor }}>{msg.userName}</span>
                   <span className="text-xs text-muted-foreground">
                     {new Date(msg.timestamp).toLocaleTimeString([], {
                       hour: '2-digit',
@@ -398,7 +420,8 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
                 </div>
                 <p className="text-sm">{msg.text}</p>
               </div>
-            ))
+              )
+            })
           )}
           <div ref={messagesEndRef} />
         </div>
@@ -1085,6 +1108,7 @@ export default function ProblemPage() {
                 collaborators={collaborators}
                 messages={messages}
                 currentUserId={session?.user?.id || 'anonymous'}
+                currentUserColor={userColor}
                 onClose={() => setShowCollabSidebar(false)}
                 onSendMessage={sendChatMessage}
               />
