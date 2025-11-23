@@ -237,9 +237,31 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
-    // Verify user is the host
-    if (session.host_user_id !== user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Verify permissions based on action
+    const isHost = session.host_user_id === user.id;
+
+    if (action === "set_unavailable" || action === "set_available") {
+      // For set_unavailable and set_available, allow approved participants
+      // They mark unavailable when joining and available when leaving
+      if (!isHost) {
+        // Check if user is an approved participant
+        const { data: approval } = await supabase
+          .from("public_interview_join_requests")
+          .select("status")
+          .eq("session_id", sessionId)
+          .eq("requester_id", user.id)
+          .eq("status", "approved")
+          .maybeSingle();
+
+        if (!approval) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+      }
+    } else {
+      // For all other actions, only the host can modify
+      if (!isHost) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     let updateData: any = {};

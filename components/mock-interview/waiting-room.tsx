@@ -188,14 +188,17 @@ export function WaitingRoom({
         body: JSON.stringify({ sessionId: sessionCode }),
       });
 
-      if (!response.ok) {
+      if (!response.ok && response.status !== 409) {
         const error = await response.json().catch(() => null);
         throw new Error(error?.error || "Failed to create session");
       }
 
+      // If 409 (already exists), we still consider it ready for rejoin flows
       setHostSessionStatus("ready");
       setStatusMessage("Session ready! Share the session ID with your partner.");
-      toast.success("Session created successfully.");
+      if (response.ok) {
+        toast.success("Session created successfully.");
+      }
     } catch (error: any) {
       console.error("Error creating/fetching session:", error);
       setHostSessionStatus("error");

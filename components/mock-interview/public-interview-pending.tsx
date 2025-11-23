@@ -8,7 +8,7 @@ import { Loader2, Clock, User, CheckCircle2, XCircle } from "lucide-react";
 interface PublicInterviewPendingProps {
   sessionId: string;
   userId: string;
-  onApproved: (sessionCode: string) => void;
+  onApproved: (sessionCode: string, publicSessionId: string) => void;
   onDenied: () => void;
   onCancel: () => void;
 }
@@ -69,7 +69,7 @@ export function PublicInterviewPending({
             if (sessionCode) {
               console.log('✅ Session code found:', sessionCode);
               console.log('Calling onApproved callback...');
-              onApproved(sessionCode);
+              onApproved(sessionCode, sessionId);
             } else {
               console.error('❌ Session code not found in approved session:', currentSession);
             }

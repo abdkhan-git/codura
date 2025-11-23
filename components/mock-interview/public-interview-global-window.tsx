@@ -50,8 +50,8 @@ export function PublicInterviewGlobalWindow() {
     fetchUser();
   }, [activeSession]);
 
-  // Don't render if no active session or no user data
-  if (!activeSession || !user || isLoading) {
+  // Don't render if no active session, no user data, or window is closed
+  if (!activeSession || !user || isLoading || !isWindowOpen) {
     return null;
   }
 

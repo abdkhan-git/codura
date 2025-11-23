@@ -35,8 +35,9 @@ export default function MockInterviewPage() {
   const [publicSessionId, setPublicSessionId] = useState<string | null>(null);
   const [showHostModal, setShowHostModal] = useState(false);
   const [showJoinInterface, setShowJoinInterface] = useState(false);
+  const [callInstanceId, setCallInstanceId] = useState(0); // force a fresh call mount on every join/host start
 
-  const { setActiveSession } = usePublicInterview();
+  const { setActiveSession, setIsWindowOpen } = usePublicInterview();
   const { setStatus } = useInterviewStatus();
 
   useEffect(() => {
@@ -79,12 +80,26 @@ export default function MockInterviewPage() {
   };
 
   const handleJoinSession = (joinSessionId: string) => {
+    setCallInstanceId((id) => id + 1);
     setSessionId(joinSessionId);
     setSessionMode("active");
   };
 
   const handleDevicesReady = () => {
-    setSessionMode("active");
+    setCallInstanceId((id) => id + 1);
+
+    // For public sessions, open the floating window over the current page
+    if (sessionRole === "public-host" || sessionRole === "public-join") {
+      // Open the floating window
+      setIsWindowOpen(true);
+      setStatus("active");
+      // Go back to selection screen so user sees their options
+      // The floating window will be visible via the toggle button
+      setSessionMode("selection");
+    } else {
+      // For private sessions, show the full-page interface
+      setSessionMode("active");
+    }
   };
 
   const handleLeaveSession = async () => {
@@ -110,6 +125,7 @@ export default function MockInterviewPage() {
     setPublicSessionId(null);
     setActiveSession(null);
     setStatus("idle");
+    setCallInstanceId((id) => id + 1);
   };
 
   const handleHostPublicSession = (sessionData: {
@@ -503,6 +519,7 @@ export default function MockInterviewPage() {
         {/* Active Video Call Mode */}
         {sessionMode === "active" && sessionId && (
           <VideoCallInterface
+            key={callInstanceId}
             sessionId={sessionId}
             publicSessionId={publicSessionId || undefined}
             user={user}

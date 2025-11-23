@@ -11,6 +11,7 @@ import { Suspense } from "react";
 import FloatingMessageWidget from "@/components/messaging/floating-message-widget";
 import { PublicInterviewProvider } from "@/contexts/public-interview-context";
 import { InterviewStatusProvider } from "@/contexts/interview-status-context";
+import { PublicInterviewGlobalWindow } from "@/components/mock-interview/public-interview-global-window";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -62,6 +63,7 @@ export default function RootLayout({
                       <FaviconAnimation />
                       {children}
                       <FloatingMessageWidget />
+                      <PublicInterviewGlobalWindow />
                       <Toaster position="top-right" richColors />
                     </InterviewStatusProvider>
                   </PublicInterviewProvider>

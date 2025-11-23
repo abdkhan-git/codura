@@ -71,6 +71,29 @@ export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicI
 
   const handleRequestJoin = async (sessionId: string) => {
     try {
+      // Check for existing requests first so rejoin flows don't error
+      const existing = await fetch('/api/mock-interview/public-sessions/requests?userId=me');
+      if (existing.ok) {
+        const data = await existing.json();
+        const myRequest = data.requests.find((r: any) => r.sessionId === sessionId);
+        if (myRequest?.status === 'approved') {
+          // Fetch session code and jump straight in
+          const sessionsRes = await fetch('/api/mock-interview/public-sessions');
+          if (sessionsRes.ok) {
+            const { sessions: activeSessions } = await sessionsRes.json();
+            const current = activeSessions.find((s: any) => s.id === sessionId);
+            const sessionCode = current?.sessionCode || current?.sessionId;
+            if (sessionCode) {
+              onJoinSession(sessionCode, sessionId);
+              return;
+            }
+          }
+        } else if (myRequest?.status === 'pending') {
+          setPendingSessionId(sessionId);
+          return;
+        }
+      }
+
       const response = await fetch('/api/mock-interview/public-sessions/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,7 +102,15 @@ export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicI
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to request join');
+        const message = error.error || 'Failed to request join';
+
+        // If user already has a pending request, jump them to the pending screen instead of blocking
+        if (response.status === 409 && message.toLowerCase().includes('pending')) {
+          setPendingSessionId(sessionId);
+          return;
+        }
+
+        throw new Error(message);
       }
 
       // Show the pending screen

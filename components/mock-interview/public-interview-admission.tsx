@@ -8,7 +8,11 @@ import { Check, X, User, Clock } from "lucide-react";
 
 interface PublicInterviewAdmissionProps {
   sessionId: string;
-  onApprove: (requestId: string, sessionCode: string) => void;
+  onApprove: (
+    requestId: string,
+    sessionCode: string,
+    timerConfig?: { totalMinutes: number; reminderMinutes: number | null }
+  ) => void;
 }
 
 interface JoinRequest {
@@ -73,7 +77,14 @@ export function PublicInterviewAdmission({ sessionId, onApprove }: PublicIntervi
 
       // Session code is now generated and ready - start the interview
       if (data.request.sessionCode) {
-        onApprove(requestId, data.request.sessionCode);
+        // Default timer: 60 minutes with 15-minute reminders
+        const totalMinutes = 60;
+        const reminderMinutes = 15;
+
+        onApprove(requestId, data.request.sessionCode, {
+          totalMinutes,
+          reminderMinutes,
+        });
       }
     } catch (error) {
       console.error('Error approving request:', error);

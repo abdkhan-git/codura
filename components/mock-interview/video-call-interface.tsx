@@ -85,6 +85,11 @@ export function VideoCallInterface({
   const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [iceConnectionState, setIceConnectionState] = useState<string>("new");
   const [signalingState, setSignalingState] = useState<string>("stable");
+  const [timerEndMs, setTimerEndMs] = useState<number | null>(null);
+  const [timerReminderMinutes, setTimerReminderMinutes] = useState<number | null>(null);
+  const [timerRemainingMs, setTimerRemainingMs] = useState<number>(0);
+  const timerStartRef = useRef<number | null>(null);
+  const lastReminderSlotRef = useRef<number>(0);
 
   // Code editor states
   const [currentCode, setCurrentCode] = useState("");
@@ -96,6 +101,13 @@ export function VideoCallInterface({
 
   useEffect(() => {
     isMountedRef.current = true;
+    // Reset all connection state flags when component mounts/remounts
+    offerSentRef.current = false;
+    answerSentRef.current = false;
+    offerReceivedRef.current = false;
+    pendingIceCandidatesRef.current = [];
+    partnerIdRef.current = null;
+    partnerNameRef.current = null;
     initializeCall();
     return () => {
       isMountedRef.current = false;
@@ -126,6 +138,40 @@ export function VideoCallInterface({
       });
     }
   }, [remoteStream]);
+
+  const formatMs = (ms: number) => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  };
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (!timerEndMs) return;
+
+    const tick = () => {
+      const remaining = Math.max(0, timerEndMs - Date.now());
+      setTimerRemainingMs(remaining);
+
+      if (timerStartRef.current && timerReminderMinutes) {
+        const totalDuration = timerEndMs - timerStartRef.current;
+        const elapsed = totalDuration - remaining;
+        const intervalMs = timerReminderMinutes * 60_000;
+        const slot = Math.floor(elapsed / intervalMs);
+        if (slot > lastReminderSlotRef.current && remaining > 0) {
+          lastReminderSlotRef.current = slot;
+          toast.info(`Time update: ${formatMs(remaining)} remaining`, {
+            description: `Reminder every ${timerReminderMinutes} minutes`,
+          });
+        }
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [timerEndMs, timerReminderMinutes]);
 
   const sendSignalingMessage = useCallback(
     async (message: Partial<SignalingMessage>) => {
@@ -213,16 +259,48 @@ export function VideoCallInterface({
               if (message.data?.name) {
                 updatePartnerName(message.data.name);
               }
+
+              // Ensure peer connection exists for participant (handles rejoin case)
+              if (!peerConnectionRef.current) {
+                console.log("[WebRTC] Participant recreating peer connection for host");
+                await setupPeerConnection(localStream!);
+                // Reset flags for new connection
+                offerReceivedRef.current = false;
+                offerSentRef.current = false;
+                answerSentRef.current = false;
+                pendingIceCandidatesRef.current = [];
+              }
+
               // Participant creates and sends offer to discovered host
               if (!offerSentRef.current) {
                 console.log("[WebRTC] Participant creating initial offer to host");
                 await createAndSendOffer(message.from);
               }
-            } else if (isHost && message.from && !partnerIdRef.current) {
-              console.log(`[WebRTC] Participant discovered: ${message.from}`);
+            } else if (isHost && message.from) {
+              // Check if this is a new participant or the same one rejoining
+              const isNewParticipant = !partnerIdRef.current || partnerIdRef.current !== message.from;
+
+              if (isNewParticipant) {
+                console.log(`[WebRTC] ${partnerIdRef.current ? 'New' : 'First'} participant discovered: ${message.from}`);
+              } else {
+                console.log(`[WebRTC] Same participant rejoining: ${message.from}`);
+              }
+
               partnerIdRef.current = message.from;
               if (message.data?.name) {
                 updatePartnerName(message.data.name);
+              }
+
+              // If this is a public host and peer connection was closed (participant left/rejoining)
+              // Recreate it for the (re)joining participant
+              if (isPublicHost && !peerConnectionRef.current) {
+                console.log("[WebRTC] Public host recreating peer connection for (re)joining participant");
+                await setupPeerConnection(localStream!);
+                // Reset flags and pending candidates for new connection
+                offerReceivedRef.current = false;
+                offerSentRef.current = false;
+                answerSentRef.current = false;
+                pendingIceCandidatesRef.current = [];
               }
             }
             break;
@@ -244,10 +322,11 @@ export function VideoCallInterface({
                   console.error("[WebRTC] Failed to recreate peer connection");
                   return;
                 }
-                // Reset flags for new connection
+                // Reset flags and pending candidates for new connection
                 offerReceivedRef.current = false;
                 offerSentRef.current = false;
                 answerSentRef.current = false;
+                pendingIceCandidatesRef.current = [];
               }
 
               if (!offerReceivedRef.current) {
@@ -477,6 +556,12 @@ export function VideoCallInterface({
           whiteboardRef.current.applyRemoteSettings(message.settings);
         }
         break;
+      case "timer-config": {
+        if (typeof message.endTimeMs === "number") {
+          applyTimerConfig(message.endTimeMs, message.reminderMinutes ?? null, false);
+        }
+        break;
+      }
       default:
         console.warn("Unknown data channel message type:", message.type);
     }
@@ -505,6 +590,36 @@ export function VideoCallInterface({
   const handleLanguageChange = useCallback((language: string) => {
     setCurrentLanguage(language);
   }, []);
+
+  const applyTimerConfig = useCallback(
+    (endTimeMs: number, reminderMinutes: number | null, broadcast = true) => {
+      setTimerEndMs(endTimeMs);
+      setTimerReminderMinutes(reminderMinutes ?? null);
+      timerStartRef.current = Date.now();
+      lastReminderSlotRef.current = 0;
+
+      if (broadcast) {
+        sendDataMessage({
+          type: "timer-config",
+          endTimeMs,
+          reminderMinutes: reminderMinutes ?? null,
+        });
+      }
+    },
+    [sendDataMessage]
+  );
+
+  // Re-broadcast timer when channel opens or config changes
+  useEffect(() => {
+    if (!timerEndMs) return;
+    if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+      sendDataMessage({
+        type: "timer-config",
+        endTimeMs: timerEndMs,
+        reminderMinutes: timerReminderMinutes ?? null,
+      });
+    }
+  }, [timerEndMs, timerReminderMinutes, sendDataMessage]);
 
   const initializeCall = async () => {
     if (!user.user_id) {
@@ -568,10 +683,11 @@ export function VideoCallInterface({
         console.log("[WebRTC] Successfully connected to signaling server");
         setConnectionStatus("connecting");
         // Proactively create an offer on the joiner side after connecting
+        // This handles both initial joins and rejoins
         if (!isHost && !offerSentRef.current) {
           console.log("[WebRTC] Participant scheduling offer creation...");
           setTimeout(() => {
-            if (!offerSentRef.current) {
+            if (!offerSentRef.current && isMountedRef.current) {
               console.log("[WebRTC] Participant creating initial offer");
               createAndSendOffer();
             }
@@ -579,37 +695,48 @@ export function VideoCallInterface({
         }
       }
 
+      // For public participants rejoining: mark session as unavailable again
+      if (!isHost && publicSessionId) {
+        try {
+          await fetch('/api/mock-interview/public-sessions', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId: publicSessionId,
+              action: 'set_unavailable',
+              participantId: user.user_id,
+            }),
+          });
+          console.log("[WebRTC] Public participant marked session as unavailable");
+        } catch (e) {
+          console.error('[WebRTC] Failed to mark session unavailable:', e);
+        }
+      }
+
       // Host marks ready; participant finalizes attendance
       try {
         if (isHost) {
           console.log("[WebRTC] Host marking ready...");
-          await fetch('/api/mock-interview/sessions', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId, action: 'host_ready' }),
-          });
+          // Only for private hosts - mark session ready
+          if (!isPublicHost) {
+            await fetch('/api/mock-interview/sessions', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sessionId, action: 'host_ready' }),
+            });
+          }
 
           // NOTE: Public hosts should NOT mark session unavailable when entering
           // Session stays available until a participant actually connects
         } else {
-          console.log("[WebRTC] Participant marking attendance...");
-          await fetch('/api/mock-interview/sessions/attend', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId }),
-          });
-
-          // If this is a public participant, mark session as unavailable now that we're connected
-          if (!isHost && publicSessionId) {
-            console.log("[WebRTC] Public participant marking session unavailable...");
-            await fetch('/api/mock-interview/public-sessions', {
-              method: 'PATCH',
+          // Public participants: skip availability toggle to avoid blocking reconnects
+          if (!publicSessionId) {
+            // Private participants mark attendance
+            console.log("[WebRTC] Participant marking attendance...");
+            await fetch('/api/mock-interview/sessions/attend', {
+              method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sessionId: publicSessionId,
-                action: 'set_unavailable',
-                participantId: user.user_id,
-              }),
+              body: JSON.stringify({ sessionId }),
             });
           }
         }
@@ -1034,6 +1161,18 @@ export function VideoCallInterface({
           showCodeEditor || showChat ? "w-1/2" : "w-full"
         )}>
           <Card className="h-full border-2 border-border/20 bg-zinc-900 relative overflow-hidden">
+            {timerEndMs && (
+              <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+                <div className="px-3 py-2 rounded-lg bg-black/70 border border-white/10 text-white text-sm font-medium">
+                  Main Timer: {formatMs(timerRemainingMs)}
+                </div>
+                {timerReminderMinutes && (
+                  <div className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/10 text-white/80 text-xs">
+                    Reminders every {timerReminderMinutes} min
+                  </div>
+                )}
+              </div>
+            )}
             {/* Remote Video (Partner) - Large View */}
             <div className="absolute inset-0">
               {remoteStream ? (
@@ -1049,7 +1188,7 @@ export function VideoCallInterface({
                     <div className="w-full max-w-2xl max-h-full overflow-y-auto">
                       <PublicInterviewAdmission
                         sessionId={publicSessionId || sessionId}
-                        onApprove={(_requestId, approvedSessionCode) => {
+                        onApprove={(_requestId, approvedSessionCode, timerConfig) => {
                           console.log('Request approved, session code:', approvedSessionCode);
                           if (activeSession) {
                             setActiveSession({
@@ -1057,6 +1196,10 @@ export function VideoCallInterface({
                               sessionCode: approvedSessionCode,
                               hasPendingRequests: false,
                             });
+                          }
+                          if (timerConfig) {
+                            const endTime = Date.now() + timerConfig.totalMinutes * 60_000;
+                            applyTimerConfig(endTime, timerConfig.reminderMinutes);
                           }
                         }}
                       />
