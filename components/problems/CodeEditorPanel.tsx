@@ -11,6 +11,7 @@ import { LANGUAGES } from '@/utils/languages'
 import TestCasesSection from './TestCasesSection'
 import SubmissionResultModal from './SubmissionResultModal'
 import { createClient } from '@/utils/supabase/client'
+import type { editor } from 'monaco-editor'
 
 // ============================================
 // INTERFACES
@@ -49,6 +50,9 @@ interface CodeEditorPanelProps {
   // required to unlock the AIChatbot in the parent
   onSubmissionComplete: (submission: Submission) => void
 
+  // NEW: Collaboration support
+  onEditorMount?: (editor: editor.IStandaloneCodeEditor) => void
+
   // optional hooks (parent-owned panel state, savedSubmission, etc.)
   onSetActiveLeftPanelTab?: (tab: string) => void
   onSavedSubmission?: (saved: any) => void
@@ -68,6 +72,7 @@ export default function CodeEditorPanel({
   setUsersCode,
   getStarterCode,
   onSubmissionComplete,
+  onEditorMount,
   onSetActiveLeftPanelTab,
   onSavedSubmission,
   onSubmit,
@@ -135,6 +140,19 @@ export default function CodeEditorPanel({
     setUsersCode(value)
   }
 
+  // NEW: Handle editor mount and pass to parent for collaboration
+  const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
+    console.log('🎯 Editor mounted, passing to parent for collaboration')
+    if (onEditorMount) {
+      onEditorMount(editor)
+    }
+    
+    // Log cursor position changes for debugging
+    editor.onDidChangeCursorPosition((e) => {
+      console.log('📍 Cursor moved to:', e.position)
+    })
+  }
+
 // Run (quick execute against first testcase)
 const handleCodeRunning = async () => {
   if (!usersCode?.trim()) return
@@ -165,7 +183,6 @@ const handleCodeRunning = async () => {
     const body = {
       problem_title_slug: problem?.title_slug,
       language_id: userLang.id,
-      language: userLang.value, // ✅ Added language field
       source_code: usersCode,
       stdin: 'test',
     }
@@ -237,7 +254,7 @@ const handleCodeSubmission = async () => {
       };
       onSubmissionComplete(submissionForAI);
 
-      // don't call /api/ai/initial-analysis here because the route verifies a real submission row
+      // don't call /api/ai/initial-analysis here because your route verifies a real submission row
       // (it would 403 when judge is offline). You can enable a bypass flag on the route if you want.
 
       // call legacy hooks (optional) AFTER unlock so UI stays consistent
@@ -252,7 +269,7 @@ const handleCodeSubmission = async () => {
       problem_title_slug: problem?.title_slug,
       problem_id: problem?.id,
       problem_difficulty: problem?.difficulty,
-      language: userLang.value, // ✅ Added language field
+      language: userLang.value,
       language_id: userLang.id,
       source_code: usersCode,
       stdin: 'test',
@@ -280,31 +297,6 @@ const handleCodeSubmission = async () => {
   }
 
   const { judge0Result, savedSubmission, testcaseResults } = responseData;
-
-  // testcaseResults now has this structure:
-// {
-//   label: 'Accepted' | 'Wrong Answer' | 'Runtime Error' | etc.,
-//   passed: 2,
-//   failed: 1,
-//   errors: 0,
-//   total: 3,
-//   results: [
-//     {
-//       testcase_number: 1,
-//       input: { nums: [2,7,11,15], target: 9 },
-//       expected: [0, 1],
-//       actual: [0, 1],
-//       status: 'passed',
-//       error: null,
-//       passed: true
-//     },
-//     // ... more results
-//   ],
-//   stdout: '...',
-//   stderr: '...',
-//   runtime: '0.023',
-//   memory: 9216
-// }
 
     console.log('Label:', testcaseResults.label);
     console.log('Results:', testcaseResults);
@@ -598,6 +590,7 @@ const handleCodeSubmission = async () => {
                   bracketPairColorization: { enabled: true },
                 }}
                 onChange={handleEditorChange}
+                onMount={handleEditorMount}
               />
             </div>
           </div>
