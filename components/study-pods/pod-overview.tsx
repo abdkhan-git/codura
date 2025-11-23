@@ -1,0 +1,558 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
+import { ArrowRight, Play, Plus, TrendingUp, Zap } from "lucide-react";
+import { formatDistanceToNow, format } from "date-fns";
+import { PodSection } from "./pod-sidebar";
+import { DefaultAvatar } from "@/components/ui/default-avatar";
+
+interface PodOverviewProps {
+  pod: any;
+  sessions: any[];
+  challenges: any[];
+  onNavigate: (section: PodSection) => void;
+  onStartSession: () => void;
+  onCreateChallenge: () => void;
+}
+
+// Helper to safely parse dates
+const isValidDate = (dateString: any): boolean => {
+  if (!dateString) return false;
+  const date = new Date(dateString);
+  return !isNaN(date.getTime());
+};
+
+const safeFormatDistance = (dateString: any): string => {
+  if (!isValidDate(dateString)) return "Date not set";
+  try {
+    return formatDistanceToNow(new Date(dateString), { addSuffix: true });
+  } catch {
+    return "Date not set";
+  }
+};
+
+export function PodOverview({
+  pod,
+  sessions,
+  challenges,
+  onNavigate,
+  onStartSession,
+  onCreateChallenge,
+}: PodOverviewProps) {
+  const { theme } = useTheme();
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = pod?.user_role === "owner" || pod?.user_role === "moderator";
+
+  // Trigger animations on mount
+  useEffect(() => {
+    const timer = setTimeout(() => setIsVisible(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Filter upcoming sessions - exclude stale ones
+  const now = new Date();
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const upcomingSessions = sessions
+    .filter(s => {
+      if (!isValidDate(s.scheduled_at)) return false;
+      const scheduledDate = new Date(s.scheduled_at);
+      if (s.status === "in_progress") {
+        return scheduledDate > twentyFourHoursAgo;
+      }
+      return scheduledDate > now && s.status !== "completed" && s.status !== "cancelled";
+    })
+    .slice(0, 3);
+
+  const activeChallenges = challenges
+    .filter(c => c.status === "active" || c.status === "upcoming")
+    .slice(0, 3);
+
+  // Calculate pod health/activity score
+  const activityScore = Math.min(100, (pod?.members?.length || 0) * 15 + (sessions.length * 10) + (challenges.length * 20));
+
+  return (
+    <div ref={containerRef} className="space-y-5">
+      {/* Hero Stats Bar - Bento-style with shine */}
+      <div
+        className={cn(
+          "grid grid-cols-5 gap-px rounded-lg overflow-hidden transition-all duration-700",
+          theme === "light" ? "bg-gray-200" : "bg-white/10",
+          isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        )}
+      >
+        {[
+          { label: "Members", value: pod?.members?.length || 0, accent: "emerald" },
+          { label: "Problems", value: pod?.total_problems || 0, accent: "blue" },
+          { label: "Sessions", value: pod?.total_sessions || 0, accent: "purple" },
+          { label: "Challenges", value: challenges.length, accent: "amber" },
+          { label: "Activity", value: `${activityScore}%`, accent: "cyan" },
+        ].map((stat, i) => (
+          <div
+            key={stat.label}
+            className={cn(
+              "relative overflow-hidden shine-effect group cursor-default",
+              "py-4 px-3 text-center transition-all duration-300",
+              theme === "light"
+                ? "bg-white hover:bg-gray-50"
+                : "bg-zinc-900 hover:bg-zinc-800/80"
+            )}
+            style={{ transitionDelay: `${i * 50}ms` }}
+          >
+            {/* Accent top line */}
+            <div className={cn(
+              "absolute top-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity",
+              stat.accent === "emerald" && "bg-emerald-500",
+              stat.accent === "blue" && "bg-blue-500",
+              stat.accent === "purple" && "bg-purple-500",
+              stat.accent === "amber" && "bg-amber-500",
+              stat.accent === "cyan" && "bg-cyan-500"
+            )} />
+            <p className={cn(
+              "text-2xl font-bold tabular-nums tracking-tight",
+              theme === "light" ? "text-gray-900" : "text-white"
+            )}>
+              {stat.value}
+            </p>
+            <p className={cn(
+              "text-[10px] font-semibold uppercase tracking-widest mt-1",
+              theme === "light" ? "text-gray-400" : "text-white/40"
+            )}>
+              {stat.label}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick Actions - Admin Only */}
+      {isAdmin && (
+        <div
+          className={cn(
+            "grid grid-cols-2 gap-3 transition-all duration-700 delay-100",
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+          )}
+        >
+          <button
+            onClick={onStartSession}
+            className={cn(
+              "group relative overflow-hidden shine-effect",
+              "flex items-center gap-4 p-4 rounded-lg text-left transition-all duration-300",
+              theme === "light"
+                ? "bg-gradient-to-r from-emerald-50 to-cyan-50 hover:from-emerald-100 hover:to-cyan-100 border border-emerald-200/50"
+                : "bg-gradient-to-r from-emerald-500/5 to-cyan-500/5 hover:from-emerald-500/10 hover:to-cyan-500/10 border border-emerald-500/20"
+            )}
+          >
+            <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+              <Play className="w-5 h-5 text-white ml-0.5" />
+            </div>
+            <div>
+              <p className={cn(
+                "font-semibold",
+                theme === "light" ? "text-gray-900" : "text-white"
+              )}>
+                Start Live Session
+              </p>
+              <p className={cn(
+                "text-xs",
+                theme === "light" ? "text-gray-500" : "text-white/50"
+              )}>
+                Real-time collaboration
+              </p>
+            </div>
+            <ArrowRight className={cn(
+              "w-5 h-5 ml-auto opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all",
+              theme === "light" ? "text-emerald-600" : "text-emerald-400"
+            )} />
+          </button>
+
+          <button
+            onClick={onCreateChallenge}
+            className={cn(
+              "group relative overflow-hidden shine-effect",
+              "flex items-center gap-4 p-4 rounded-lg text-left transition-all duration-300",
+              theme === "light"
+                ? "bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border border-amber-200/50"
+                : "bg-gradient-to-r from-amber-500/5 to-orange-500/5 hover:from-amber-500/10 hover:to-orange-500/10 border border-amber-500/20"
+            )}
+          >
+            <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-105 group-hover:rotate-90 transition-all">
+              <Plus className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className={cn(
+                "font-semibold",
+                theme === "light" ? "text-gray-900" : "text-white"
+              )}>
+                Create Challenge
+              </p>
+              <p className={cn(
+                "text-xs",
+                theme === "light" ? "text-gray-500" : "text-white/50"
+              )}>
+                Competitive problem sprint
+              </p>
+            </div>
+            <ArrowRight className={cn(
+              "w-5 h-5 ml-auto opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all",
+              theme === "light" ? "text-amber-600" : "text-amber-400"
+            )} />
+          </button>
+        </div>
+      )}
+
+      {/* Main Content Grid - Asymmetric Bento Layout */}
+      <div
+        className={cn(
+          "grid grid-cols-12 gap-4 transition-all duration-700 delay-200",
+          isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        )}
+      >
+        {/* Sessions Column - Spans 7 cols */}
+        <div className={cn(
+          "col-span-12 lg:col-span-7 relative overflow-hidden shine-effect rounded-xl",
+          theme === "light"
+            ? "bg-white border border-gray-200"
+            : "bg-zinc-900/50 border border-white/5"
+        )}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-inherit">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-2 h-2 rounded-full",
+                upcomingSessions.some(s => s.status === "in_progress")
+                  ? "bg-emerald-500 animate-pulse"
+                  : theme === "light" ? "bg-gray-300" : "bg-white/20"
+              )} />
+              <h3 className={cn(
+                "font-semibold",
+                theme === "light" ? "text-gray-900" : "text-white"
+              )}>
+                Sessions
+              </h3>
+              {upcomingSessions.some(s => s.status === "in_progress") && (
+                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-emerald-500 text-white">
+                  Live
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => onNavigate("live-sessions")}
+              className={cn(
+                "text-xs font-medium flex items-center gap-1 hover:gap-2 transition-all",
+                theme === "light" ? "text-gray-500 hover:text-gray-900" : "text-white/50 hover:text-white"
+              )}
+            >
+              View all <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* Sessions List */}
+          <div className="p-4 space-y-2">
+            {upcomingSessions.length === 0 ? (
+              <div className={cn(
+                "py-12 text-center",
+                theme === "light" ? "text-gray-400" : "text-white/30"
+              )}>
+                <div className={cn(
+                  "w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center",
+                  theme === "light" ? "bg-gray-100" : "bg-white/5"
+                )}>
+                  <Play className="w-5 h-5" />
+                </div>
+                <p className="text-sm font-medium">No upcoming sessions</p>
+                <p className="text-xs mt-1 opacity-60">Schedule one to get started</p>
+              </div>
+            ) : (
+              upcomingSessions.map((session, i) => (
+                <div
+                  key={session.id}
+                  onClick={() => onNavigate("live-sessions")}
+                  className={cn(
+                    "group relative flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-all duration-200",
+                    session.status === "in_progress"
+                      ? theme === "light"
+                        ? "bg-emerald-50 hover:bg-emerald-100"
+                        : "bg-emerald-500/10 hover:bg-emerald-500/15"
+                      : theme === "light"
+                        ? "bg-gray-50 hover:bg-gray-100"
+                        : "bg-white/5 hover:bg-white/10"
+                  )}
+                  style={{ animationDelay: `${i * 100}ms` }}
+                >
+                  {/* Time indicator */}
+                  <div className={cn(
+                    "w-12 h-12 rounded-lg flex flex-col items-center justify-center text-center shrink-0",
+                    session.status === "in_progress"
+                      ? "bg-emerald-500 text-white"
+                      : theme === "light"
+                        ? "bg-gray-200 text-gray-600"
+                        : "bg-white/10 text-white/60"
+                  )}>
+                    {session.status === "in_progress" ? (
+                      <Zap className="w-5 h-5" />
+                    ) : (
+                      <>
+                        <span className="text-xs font-bold uppercase">
+                          {isValidDate(session.scheduled_at)
+                            ? format(new Date(session.scheduled_at), "MMM")
+                            : "TBD"}
+                        </span>
+                        <span className="text-lg font-bold leading-none">
+                          {isValidDate(session.scheduled_at)
+                            ? format(new Date(session.scheduled_at), "d")
+                            : "--"}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      "font-medium truncate",
+                      theme === "light" ? "text-gray-900" : "text-white"
+                    )}>
+                      {session.title}
+                    </p>
+                    <p className={cn(
+                      "text-xs mt-0.5",
+                      theme === "light" ? "text-gray-500" : "text-white/50"
+                    )}>
+                      {session.status === "in_progress" ? "Happening now" : safeFormatDistance(session.scheduled_at)}
+                    </p>
+                  </div>
+
+                  <ArrowRight className={cn(
+                    "w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0",
+                    theme === "light" ? "text-gray-400" : "text-white/40"
+                  )} />
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Right Column - Spans 5 cols */}
+        <div className="col-span-12 lg:col-span-5 space-y-4">
+          {/* Challenges Card */}
+          <div className={cn(
+            "relative overflow-hidden shine-effect rounded-xl",
+            theme === "light"
+              ? "bg-white border border-gray-200"
+              : "bg-zinc-900/50 border border-white/5"
+          )}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-inherit">
+              <h3 className={cn(
+                "font-semibold",
+                theme === "light" ? "text-gray-900" : "text-white"
+              )}>
+                Active Challenges
+              </h3>
+              <button
+                onClick={() => onNavigate("challenges")}
+                className={cn(
+                  "text-xs font-medium flex items-center gap-1 hover:gap-2 transition-all",
+                  theme === "light" ? "text-gray-500 hover:text-gray-900" : "text-white/50 hover:text-white"
+                )}
+              >
+                View all <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-2">
+              {activeChallenges.length === 0 ? (
+                <div className={cn(
+                  "py-8 text-center",
+                  theme === "light" ? "text-gray-400" : "text-white/30"
+                )}>
+                  <p className="text-sm">No active challenges</p>
+                </div>
+              ) : (
+                activeChallenges.map((challenge) => (
+                  <div
+                    key={challenge.id}
+                    onClick={() => onNavigate("challenges")}
+                    className={cn(
+                      "group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors",
+                      challenge.status === "active"
+                        ? theme === "light"
+                          ? "bg-amber-50 hover:bg-amber-100"
+                          : "bg-amber-500/10 hover:bg-amber-500/15"
+                        : theme === "light"
+                          ? "bg-gray-50 hover:bg-gray-100"
+                          : "bg-white/5 hover:bg-white/10"
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className={cn(
+                        "font-medium text-sm truncate",
+                        theme === "light" ? "text-gray-900" : "text-white"
+                      )}>
+                        {challenge.title}
+                      </p>
+                      <p className={cn(
+                        "text-xs mt-0.5",
+                        theme === "light" ? "text-gray-500" : "text-white/50"
+                      )}>
+                        {challenge.total_problems} problems
+                      </p>
+                    </div>
+                    <span className={cn(
+                      "shrink-0 px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded",
+                      challenge.status === "active"
+                        ? "bg-amber-500 text-white"
+                        : "bg-blue-500 text-white"
+                    )}>
+                      {challenge.status === "active" ? "Active" : "Soon"}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Activity Timeline */}
+          <div className={cn(
+            "relative overflow-hidden shine-effect rounded-xl",
+            theme === "light"
+              ? "bg-white border border-gray-200"
+              : "bg-zinc-900/50 border border-white/5"
+          )}>
+            <div className="px-5 py-4 border-b border-inherit">
+              <h3 className={cn(
+                "font-semibold flex items-center gap-2",
+                theme === "light" ? "text-gray-900" : "text-white"
+              )}>
+                <TrendingUp className="w-4 h-4" />
+                Recent Activity
+              </h3>
+            </div>
+
+            <div className="p-4">
+              {pod?.recent_activities && pod.recent_activities.length > 0 ? (
+                <div className="relative">
+                  {/* Timeline line */}
+                  <div className={cn(
+                    "absolute left-3 top-3 bottom-3 w-px",
+                    theme === "light" ? "bg-gray-200" : "bg-white/10"
+                  )} />
+
+                  <div className="space-y-4">
+                    {pod.recent_activities.slice(0, 4).map((activity: any, i: number) => (
+                      <div key={activity.id} className="relative flex items-start gap-4 pl-8">
+                        {/* Timeline dot */}
+                        <div className={cn(
+                          "absolute left-1.5 top-1 w-3 h-3 rounded-full border-2",
+                          i === 0
+                            ? "bg-emerald-500 border-emerald-500"
+                            : theme === "light"
+                              ? "bg-white border-gray-300"
+                              : "bg-zinc-900 border-white/20"
+                        )} />
+
+                        <DefaultAvatar
+                          src={activity.users?.avatar_url}
+                          name={activity.users?.full_name}
+                          username={activity.users?.username}
+                          size="sm"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className={cn(
+                            "text-sm truncate",
+                            theme === "light" ? "text-gray-900" : "text-white"
+                          )}>
+                            {activity.title}
+                          </p>
+                          <p className={cn(
+                            "text-xs",
+                            theme === "light" ? "text-gray-400" : "text-white/40"
+                          )}>
+                            {safeFormatDistance(activity.created_at)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className={cn(
+                  "py-8 text-center",
+                  theme === "light" ? "text-gray-400" : "text-white/30"
+                )}>
+                  <p className="text-sm">No recent activity</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Members Row */}
+      <div
+        className={cn(
+          "relative overflow-hidden shine-effect rounded-xl transition-all duration-700 delay-300",
+          theme === "light"
+            ? "bg-white border border-gray-200"
+            : "bg-zinc-900/50 border border-white/5",
+          isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        )}
+      >
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center gap-4">
+            <h3 className={cn(
+              "font-semibold",
+              theme === "light" ? "text-gray-900" : "text-white"
+            )}>
+              Pod Members
+            </h3>
+
+            {/* Stacked Avatars */}
+            <div className="flex -space-x-2">
+              {pod?.members?.slice(0, 6).map((member: any, index: number) => (
+                <div
+                  key={member.id}
+                  className="relative hover:z-10 transition-transform hover:scale-110"
+                  style={{ zIndex: 6 - index }}
+                >
+                  <DefaultAvatar
+                    src={member.users?.avatar_url}
+                    name={member.users?.full_name}
+                    username={member.users?.username}
+                    size="sm"
+                    className={cn(
+                      "ring-2",
+                      theme === "light" ? "ring-white" : "ring-zinc-900"
+                    )}
+                  />
+                </div>
+              ))}
+              {(pod?.members?.length || 0) > 6 && (
+                <div className={cn(
+                  "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ring-2",
+                  theme === "light"
+                    ? "bg-gray-100 text-gray-600 ring-white"
+                    : "bg-white/10 text-white/70 ring-zinc-900"
+                )}>
+                  +{pod.members.length - 6}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={() => onNavigate("members")}
+            className={cn(
+              "text-xs font-medium flex items-center gap-1 hover:gap-2 transition-all",
+              theme === "light" ? "text-gray-500 hover:text-gray-900" : "text-white/50 hover:text-white"
+            )}
+          >
+            View all {pod?.members?.length || 0} members <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
