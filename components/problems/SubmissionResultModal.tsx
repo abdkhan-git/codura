@@ -1,7 +1,6 @@
 import React from 'react';
-import { X, Clock, HardDrive, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { X, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import ComplexityResultDisplay from '@/components/ui/complexity-result-display';
-import SpaceComplexityBadge from '@/components/ui/space-complexity-badge';
 
 // Type definitions matching the SubmissionResult from CodeEditorPanel
 interface TestcaseResult {
@@ -142,48 +141,14 @@ export default function SubmissionResultModal({
           {submissionResult.spaceComplexity && (
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-white">Space Complexity Analysis</h4>
-              <div className="grid lg:grid-cols-3 gap-4">
-                {/* Space Complexity Graph */}
-                <div className="lg:col-span-2">
-                  <ComplexityResultDisplay
-                    detectedComplexity={submissionResult.spaceComplexity}
-                    confidence={submissionResult.spaceConfidence}
-                    analysis={submissionResult.spaceAnalysis}
-                    layout="horizontal"
-                    animated={true}
-                  />
-                </div>
-                {/* Space Complexity Badge */}
-                <div className="flex items-start">
-                  <SpaceComplexityBadge
-                    spaceComplexity={submissionResult.spaceComplexity}
-                    confidence={submissionResult.spaceConfidence}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Execution Analytics */}
-          {(submissionResult.runtime || submissionResult.memory) && (
-            <div className="space-y-3">
-              <h4 className="font-semibold text-sm text-white">Execution Analytics</h4>
-              <div className="grid grid-cols-2 gap-4">
-                {submissionResult.runtime && (
-                  <StatCard
-                    icon={<Clock className="w-5 h-5" />}
-                    label="Runtime"
-                    value={submissionResult.runtime}
-                  />
-                )}
-                {submissionResult.memory && (
-                  <StatCard
-                    icon={<HardDrive className="w-5 h-5" />}
-                    label="Memory"
-                    value={submissionResult.memory}
-                  />
-                )}
-              </div>
+              <ComplexityResultDisplay
+                detectedComplexity={submissionResult.spaceComplexity}
+                confidence={submissionResult.spaceConfidence}
+                analysis={submissionResult.spaceAnalysis}
+                layout="horizontal"
+                animated={true}
+                complexityType="space"
+              />
             </div>
           )}
 
@@ -198,24 +163,6 @@ export default function SubmissionResultModal({
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-interface StatCardProps {
-  icon: React.ReactElement;
-  label: string;
-  value: string;
-}
-
-function StatCard({ icon, label, value }: StatCardProps) {
-  return (
-    <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-xl p-4 backdrop-blur-sm">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="text-purple-400">{icon}</div>
-        <span className="text-sm text-gray-400">{label}</span>
-      </div>
-      <p className="text-xl font-semibold text-white">{value}</p>
     </div>
   );
 }

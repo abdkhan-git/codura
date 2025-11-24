@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Cpu, HardDrive, Calendar, CheckCircle, XCircle, AlertCircle, Code, Copy } from 'lucide-react';
+import { X, Clock, HardDrive, CheckCircle, XCircle, AlertCircle, Code, Copy } from 'lucide-react';
 import ComplexityResultDisplay from '@/components/ui/complexity-result-display';
-import SpaceComplexityBadge from '@/components/ui/space-complexity-badge';
 
 // Type definitions
 interface Submission {
@@ -240,25 +239,14 @@ export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEdito
               {selectedSubmission.space_complexity && (
                 <div className="space-y-3">
                   <h4 className="font-semibold text-sm text-white">Space Complexity Analysis</h4>
-                  <div className="grid lg:grid-cols-3 gap-4">
-                    {/* Space Complexity Graph */}
-                    <div className="lg:col-span-2">
-                      <ComplexityResultDisplay
-                        detectedComplexity={selectedSubmission.space_complexity}
-                        confidence={selectedSubmission.complexity_confidence}
-                        analysis={selectedSubmission.space_complexity_analysis}
-                        layout="horizontal"
-                        animated={true}
-                      />
-                    </div>
-                    {/* Space Complexity Badge */}
-                    <div className="flex items-start">
-                      <SpaceComplexityBadge
-                        spaceComplexity={selectedSubmission.space_complexity}
-                        confidence={selectedSubmission.complexity_confidence}
-                      />
-                    </div>
-                  </div>
+                  <ComplexityResultDisplay
+                    detectedComplexity={selectedSubmission.space_complexity}
+                    confidence={selectedSubmission.complexity_confidence}
+                    analysis={selectedSubmission.space_complexity_analysis}
+                    layout="horizontal"
+                    animated={true}
+                    complexityType="space"
+                  />
                 </div>
               )}
 

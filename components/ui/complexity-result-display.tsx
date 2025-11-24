@@ -91,6 +91,7 @@ interface ComplexityResultDisplayProps {
   analysis?: string;
   layout?: "horizontal" | "vertical";
   animated?: boolean;
+  complexityType?: "time" | "space";
 }
 
 export default function ComplexityResultDisplay({
@@ -99,6 +100,7 @@ export default function ComplexityResultDisplay({
   analysis,
   layout = "horizontal",
   animated = true,
+  complexityType = "time",
 }: ComplexityResultDisplayProps) {
   const [animationProgress, setAnimationProgress] = useState(animated ? 0 : 100);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -325,7 +327,7 @@ export default function ComplexityResultDisplay({
 
       {/* Details panel */}
       <div className="space-y-3">
-        {/* Performance badge */}
+        {/* Performance badge for both time and space complexity */}
         <div
           className={cn(
             "p-4 rounded-xl bg-gradient-to-br backdrop-blur-md border",
@@ -333,7 +335,9 @@ export default function ComplexityResultDisplay({
           )}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-muted-foreground">Time Complexity</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              {complexityType === "time" ? "Time Complexity" : "Space Complexity"}
+            </span>
             <Badge
               variant="outline"
               className="text-xs capitalize border-current/30 bg-current/10"
