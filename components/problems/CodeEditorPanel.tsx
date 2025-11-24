@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Play, RotateCcw, Loader2, CloudUploadIcon, CheckCircle2, X } from 'lucide-react'
+import { Play, RotateCcw, Loader2, CloudUpload, CheckCircle2, X } from 'lucide-react'
 import Editor, { useMonaco } from '@monaco-editor/react'
 import { LANGUAGES } from '@/utils/languages'
 import TestCasesSection from './TestCasesSection'
@@ -454,12 +454,12 @@ const handleCodeSubmission = async () => {
       <ResizablePanelGroup direction="vertical">
         {/* Code Editor */}
         <ResizablePanel defaultSize={60} minSize={30}>
-          <div className="h-full flex flex-col">
-          <div className="flex justify-between">
+          <div className="h-full flex flex-col bg-gradient-to-br from-card/30 via-card/10 to-transparent backdrop-blur-sm">
+          <div className="flex justify-between border-b border-border/20 bg-gradient-to-r from-card/50 via-card/30 to-transparent backdrop-blur-sm shadow-sm">
             {/* Left: language + actions */}
-            <div className="border-b p-2 flex items-center gap-3">
+            <div className="p-2 flex items-center gap-3">
               <Select value={userLang.value} onValueChange={handleLanguageChange}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] bg-muted/50 border-border/30 hover:border-brand/50 transition-colors backdrop-blur-sm">
                   <SelectValue placeholder="Select Language" />
                 </SelectTrigger>
                 <SelectContent>
@@ -473,18 +473,18 @@ const handleCodeSubmission = async () => {
 
               <Button
                 size="sm"
-                className="cursor-pointer font-weight-300 text-sm text-zinc-300 bg-zinc-700 hover:bg-zinc-600"
+                className="cursor-pointer font-weight-300 text-sm text-zinc-300 bg-zinc-700/80 hover:bg-zinc-600 border border-zinc-600/50 hover:border-zinc-500 hover:scale-105 transition-all duration-300 shadow-lg shine-effect"
                 onClick={handleCodeRunning}
                 disabled={isRunning || isSubmitting}
               >
                 {isRunning ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin mr-1" />
                     Running...
                   </>
                 ) : (
                   <>
-                    <Play className="w-5 h-5" />
+                    <Play className="w-5 h-5 mr-1" />
                     Run
                   </>
                 )}
@@ -492,18 +492,18 @@ const handleCodeSubmission = async () => {
 
               <Button
                 size="sm"
-                className="cursor-pointer font-weight-300 text-sm bg-green-500 hover:bg-green-400"
+                className="cursor-pointer font-weight-300 text-sm bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/30 hover:scale-105 transition-all duration-300 shine-effect"
                 onClick={handleCodeSubmission}
                 disabled={isSubmitting || isRunning}
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin mr-1" />
                     Submitting...
                   </>
                 ) : (
                   <>
-                    <CloudUploadIcon className="w-5 h-5" />
+                    <CloudUpload className="w-5 h-5 mr-1" />
                     Submit
                   </>
                 )}
@@ -513,21 +513,21 @@ const handleCodeSubmission = async () => {
               {hasSubmitted && submissionResult && (
                 <Button
                   size="sm"
-                  className={`cursor-pointer font-weight-300 text-sm ${
+                  className={`cursor-pointer font-weight-300 text-sm hover:scale-105 transition-all duration-300 ${
                     submissionResult.status === 'Accepted'
-                      ? 'bg-green-600 hover:bg-green-500 text-white'
-                      : 'bg-red-600 hover:bg-red-500 text-white'
+                      ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/30'
+                      : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/30'
                   }`}
                   onClick={() => setIsModalOpen(true)}
                 >
                   {submissionResult.status === 'Accepted' ? (
                     <>
-                      <CheckCircle2 className="w-4 h-4" />
+                      <CheckCircle2 className="w-4 h-4 mr-1" />
                       Accepted
                     </>
                   ) : (
                     <>
-                      <X className="w-4 h-4" />
+                      <X className="w-4 h-4 mr-1" />
                       {submissionResult.status}
                     </>
                   )}
@@ -536,11 +536,11 @@ const handleCodeSubmission = async () => {
             </div>
 
             {/* Right: reset */}
-            <div className="flex items-center">
+            <div className="flex items-center p-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer h-[70%]"
+                className="cursor-pointer hover:scale-105 transition-all duration-300 hover:border-brand/50 hover:bg-brand/5"
                 onClick={handleReset}
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
@@ -550,48 +550,52 @@ const handleCodeSubmission = async () => {
           </div>
 
           {/* Editor */}
-          <div className="flex-1 bg-muted/30 p-4">
-            <div className="h-full border rounded-lg bg-background/50 overflow-hidden">
-              <Editor
-                height="100%"
-                language={userLang.value}
-                value={usersCode || getStarterCode()}
-                theme="vs-dark"
-                options={{
-                  fontSize: 14,
-                  fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
-                  minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
-                  lineNumbers: 'on',
-                  renderLineHighlight: 'line',
-                  cursorBlinking: 'blink',
-                  cursorStyle: 'line',
-                  smoothScrolling: true,
-                  padding: { top: 12, bottom: 12 },
-                  automaticLayout: true,
-                  wordWrap: 'off',
-                  lineDecorationsWidth: 8,
-                  lineNumbersMinChars: 3,
-                  glyphMargin: false,
-                  folding: true,
-                  renderWhitespace: 'none',
-                  scrollbar: {
-                    vertical: 'visible',
-                    horizontal: 'visible',
-                    useShadows: false,
-                    verticalScrollbarSize: 10,
-                    horizontalScrollbarSize: 10,
-                  },
-                  suggest: { showKeywords: true, showSnippets: true },
-                  quickSuggestions: { other: true, comments: false, strings: false },
-                  tabSize: 4,
-                  insertSpaces: true,
-                  detectIndentation: false,
-                  bracketPairColorization: { enabled: true },
-                }}
-                onChange={handleEditorChange}
-                onMount={handleEditorMount}
-              />
+          <div className="flex-1 bg-gradient-to-br from-muted/20 via-transparent to-muted/10 p-4">
+            <div className="h-full border-2 border-border/20 rounded-xl bg-background/80 overflow-hidden backdrop-blur-sm shadow-xl hover:border-brand/30 transition-all duration-500 relative group">
+              {/* Glow effect on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+              <div className="relative z-10">
+                <Editor
+                  height="100%"
+                  language={userLang.value}
+                  value={usersCode || getStarterCode()}
+                  theme="vs-dark"
+                  options={{
+                    fontSize: 14,
+                    fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    lineNumbers: 'on',
+                    renderLineHighlight: 'line',
+                    cursorBlinking: 'blink',
+                    cursorStyle: 'line',
+                    smoothScrolling: true,
+                    padding: { top: 12, bottom: 12 },
+                    automaticLayout: true,
+                    wordWrap: 'off',
+                    lineDecorationsWidth: 8,
+                    lineNumbersMinChars: 3,
+                    glyphMargin: false,
+                    folding: true,
+                    renderWhitespace: 'none',
+                    scrollbar: {
+                      vertical: 'visible',
+                      horizontal: 'visible',
+                      useShadows: false,
+                      verticalScrollbarSize: 10,
+                      horizontalScrollbarSize: 10,
+                    },
+                    suggest: { showKeywords: true, showSnippets: true },
+                    quickSuggestions: { other: true, comments: false, strings: false },
+                    tabSize: 4,
+                    insertSpaces: true,
+                    detectIndentation: false,
+                    bracketPairColorization: { enabled: true },
+                  }}
+                  onChange={handleEditorChange}
+                  onMount={handleEditorMount}
+                />
+              </div>
             </div>
           </div>
           </div>

@@ -522,36 +522,36 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
   const unresolvedCount = annotations.filter((a) => !a.resolved).length
 
   return (
-    <div className="h-full flex flex-col bg-background border-l">
-      <div className="p-4 border-b flex items-center justify-between">
-        <h3 className="font-semibold flex items-center gap-2">
-          <Users className="w-4 h-4" />
+    <div className="h-full flex flex-col bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl border-l-2 border-border/20">
+      <div className="p-4 border-b border-border/20 flex items-center justify-between bg-gradient-to-r from-card/30 to-transparent">
+        <h3 className="font-semibold flex items-center gap-2 text-foreground">
+          <Users className="w-4 h-4 text-brand" />
           Collaboration
         </h3>
-        <Button variant="ghost" size="sm" onClick={onClose}>
+        <Button variant="ghost" size="sm" onClick={onClose} className="hover:bg-brand/10 transition-all">
           <X className="w-4 h-4" />
         </Button>
       </div>
 
       {/* Room Link */}
-      <div className="p-4 border-b space-y-2">
-        <label className="text-xs text-muted-foreground">Share Room Link</label>
+      <div className="p-4 border-b border-border/20 space-y-2">
+        <label className="text-xs text-muted-foreground font-medium">Share Room Link</label>
         <div className="flex gap-2">
           <input
             type="text"
             value={`...?room=${roomId}`}
             readOnly
-            className="flex-1 bg-muted border rounded px-3 py-2 text-sm"
+            className="flex-1 bg-muted/50 border border-border/30 rounded-lg px-3 py-2 text-sm backdrop-blur-sm focus:border-brand/50 transition-colors"
           />
-          <Button onClick={copyRoomLink} size="sm" variant="secondary">
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+          <Button onClick={copyRoomLink} size="sm" variant="secondary" className="hover:scale-105 transition-transform">
+            {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
           </Button>
         </div>
       </div>
 
       {/* Active Users */}
-      <div className="p-4 border-b">
-        <h4 className="text-xs text-muted-foreground mb-3 uppercase tracking-wide">
+      <div className="p-4 border-b border-border/20">
+        <h4 className="text-xs text-muted-foreground mb-3 uppercase tracking-wide font-semibold">
           Active Users ({collaborators.length})
         </h4>
         <div className="space-y-2">
@@ -573,12 +573,12 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b">
+      <div className="flex border-b border-border/20">
         <button
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+          className={`flex-1 px-4 py-2 text-sm font-medium transition-all duration-300 ${
             activeTab === 'chat'
-              ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'border-b-2 border-brand text-brand bg-brand/5'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
           }`}
           onClick={() => setActiveTab('chat')}
         >
@@ -586,17 +586,17 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
           Chat
         </button>
         <button
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors relative ${
+          className={`flex-1 px-4 py-2 text-sm font-medium transition-all duration-300 relative ${
             activeTab === 'annotations'
-              ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'border-b-2 border-brand text-brand bg-brand/5'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
           }`}
           onClick={() => setActiveTab('annotations')}
         >
           <MessageCircle className="w-4 h-4 inline mr-2" />
           Comments
           {unresolvedCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
+            <span className="ml-1 px-1.5 py-0.5 bg-brand text-brand-foreground text-xs rounded-full shadow-lg shadow-brand/30">
               {unresolvedCount}
             </span>
           )}
@@ -636,7 +636,7 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-3 border-t">
+            <div className="p-3 border-t border-border/20 bg-gradient-to-r from-muted/20 to-transparent">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -644,9 +644,9 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder="Type a message..."
-                  className="flex-1 bg-muted border rounded px-3 py-2 text-sm"
+                  className="flex-1 bg-muted/50 border border-border/30 rounded-lg px-3 py-2 text-sm backdrop-blur-sm focus:border-brand/50 transition-colors"
                 />
-                <Button onClick={handleSendMessage} size="sm">
+                <Button onClick={handleSendMessage} size="sm" className="bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 shadow-lg shadow-brand/30 transition-all">
                   Send
                 </Button>
               </div>
@@ -680,8 +680,10 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
                   .map((annotation) => (
                     <div
                       key={annotation.id}
-                      className={`border rounded-lg p-3 space-y-2 ${
-                        annotation.resolved ? 'opacity-60 bg-muted/50' : 'bg-card'
+                      className={`border-2 rounded-lg p-3 space-y-2 transition-all duration-300 ${
+                        annotation.resolved
+                          ? 'opacity-60 bg-muted/30 border-green-500/20'
+                          : 'bg-card/50 border-brand/20 hover:border-brand/40 backdrop-blur-sm'
                       }`}
                     >
                       {/* Header */}
@@ -778,7 +780,11 @@ const CollaborationSidebar: React.FC<CollaborationSidebarProps> = ({
                         variant={annotation.resolved ? 'outline' : 'default'}
                         size="sm"
                         onClick={() => onAnnotationResolve(annotation.id)}
-                        className="w-full h-7 text-xs"
+                        className={`w-full h-7 text-xs transition-all ${
+                          annotation.resolved
+                            ? 'hover:border-brand/50'
+                            : 'bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 shadow-lg shadow-brand/30'
+                        }`}
                       >
                         {annotation.resolved ? 'Unresolve' : 'Resolve'}
                       </Button>
@@ -1401,11 +1407,14 @@ export default function ProblemPage() {
     if (params.id) fetchProblem()
   }, [params.id, supabase])
 
-  // Update starter code when language changes
+  // Update starter code when language changes (only if user hasn't written code yet)
   useEffect(() => {
     if (!problem?.code_snippets) return
     const starter = problem.code_snippets.find(s => s.langSlug === userLang.value)?.code || ''
-    setUsersCode(starter)
+    // Only set starter code if user hasn't written anything yet
+    if (!usersCode || usersCode.trim() === '') {
+      setUsersCode(starter)
+    }
   }, [userLang.value, problem])
 
   // Starter code getter
@@ -1455,20 +1464,27 @@ export default function ProblemPage() {
   }
 
   return (
-    <div className="caffeine-theme h-screen w-full bg-background flex flex-col overflow-hidden">
+    <div className="caffeine-theme h-screen w-full bg-background flex flex-col overflow-hidden relative">
       <style jsx global>{tabScrollStyles}</style>
-      
+
+      {/* Animated Background */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute inset-0 bg-background" />
+        <div className="absolute top-[-10%] right-[20%] w-[500px] h-[500px] bg-brand/5 dark:bg-brand/8 rounded-full blur-[100px] animate-pulse-slow" />
+        <div className="absolute bottom-[10%] left-[15%] w-[400px] h-[400px] bg-brand/3 dark:bg-brand/5 rounded-full blur-[80px] animate-float-slow" style={{ animationDelay: '2s' }} />
+      </div>
+
       {/* Annotation Modal */}
       {showAnnotationModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-md"
             onClick={handleCancelAnnotation}
           />
-          
+
           {/* Modal */}
-          <div className="relative bg-background border rounded-lg shadow-2xl w-full max-w-md mx-4 p-6 space-y-4 animate-in fade-in zoom-in duration-200">
+          <div className="relative bg-gradient-to-br from-card/80 via-card/60 to-transparent backdrop-blur-xl border-2 border-border/30 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4 animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Add Comment</h3>
@@ -1512,12 +1528,14 @@ export default function ProblemPage() {
               <Button
                 variant="outline"
                 onClick={handleCancelAnnotation}
+                className="hover:bg-muted/80 transition-all"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSubmitAnnotation}
                 disabled={!annotationText.trim()}
+                className="bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 text-brand-foreground shadow-lg shadow-brand/30 transition-all"
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Add Comment
@@ -1528,7 +1546,7 @@ export default function ProblemPage() {
       )}
       
       {/* Collaboration Header Bar */}
-      <div className="h-12 bg-muted/50 border-b flex items-center justify-between px-4">
+      <div className="relative z-10 h-12 bg-gradient-to-r from-card/80 via-card/50 to-transparent backdrop-blur-xl border-b border-border/20 flex items-center justify-between px-4 shadow-lg">
         <div className="flex items-center gap-4">
           <h2 className="font-semibold text-sm">Live Collaboration</h2>
           <div className="flex items-center gap-2">
@@ -1571,7 +1589,7 @@ export default function ProblemPage() {
             size="sm"
             variant={showRemoteCursors ? 'secondary' : 'outline'}
             title={showRemoteCursors ? 'Hide remote cursors' : 'Show remote cursors'}
-            className='cursor-pointer'
+            className='cursor-pointer hover:scale-105 transition-all duration-300'
           >
             <svg
               className="w-4 h-4 mr-2"
@@ -1596,7 +1614,9 @@ export default function ProblemPage() {
             onClick={() => setShowCollabSidebar(!showCollabSidebar)}
             size="sm"
             variant={showCollabSidebar ? 'default' : 'outline'}
-            className='cursor-pointer'
+            className={`cursor-pointer hover:scale-105 transition-all duration-300 ${
+              showCollabSidebar ? 'bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 shadow-lg shadow-brand/30' : ''
+            }`}
           >
             <Users className="w-4 h-4 mr-2" />
             {showCollabSidebar ? 'Hide' : 'Show'} Collaboration
@@ -1606,20 +1626,34 @@ export default function ProblemPage() {
             onClick={() => setShowWhiteboard(!showWhiteboard)}
             size="sm"
             variant={showWhiteboard ? 'secondary' : 'outline'}
-            className='cursor-pointer'
+            className='cursor-pointer hover:scale-105 transition-all duration-300'
           >
             <Brush className="w-4 h-4" />
           </Button>
 
-          {showWhiteboard && (
-            <CollaborativeWhiteboard />
-          )}
-
         </div>
       </div>
 
+      {/* Whiteboard (rendered at root level for proper positioning) */}
+      {showWhiteboard && (
+        <CollaborativeWhiteboard
+          initialPosition={{ x: 100, y: 150 }}
+          initialSize={{ width: 600, height: 400 }}
+          sendDataMessage={(msg) => {
+            // Broadcast whiteboard changes via collaboration channel if connected
+            if (channelRef.current) {
+              channelRef.current.send({
+                type: 'broadcast',
+                event: 'whiteboard-update',
+                payload: msg
+              })
+            }
+          }}
+        />
+      )}
+
       {/* Main Content Area */}
-      <div className="flex-1 p-2 overflow-hidden">
+      <div className="relative z-10 flex-1 p-2 overflow-hidden">
         <ResizablePanelGroup direction="horizontal" className="h-full">
           {/* LEFT: Problem Description & history */}
           <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>

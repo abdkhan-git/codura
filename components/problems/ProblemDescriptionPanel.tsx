@@ -123,8 +123,8 @@ export default function ProblemDescriptionPanel({
                             {problem.constraints && problem.constraints.length > 0 && (
                                 <div className="space-y-2">
                                     <h3 className="font-semibold">Constraints:</h3>
-                                    <div className="bg-green-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
-                                        <ul className="space-y-1 text-sm font-mono text-slate-700 dark:text-slate-300">
+                                    <div className="bg-card/50 border-2 border-border/20 rounded-xl p-4 backdrop-blur-sm shadow-md hover:border-brand/30 transition-all duration-300">
+                                        <ul className="space-y-1 text-sm font-mono text-foreground">
                                             {problem.constraints.map((constraint: string, index: number) => (
                                                 <li key={index}>{constraint}</li>
                                             ))}
