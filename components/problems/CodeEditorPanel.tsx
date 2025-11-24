@@ -551,16 +551,15 @@ const handleCodeSubmission = async () => {
 
           {/* Editor */}
           <div className="flex-1 bg-gradient-to-br from-muted/20 via-transparent to-muted/10 p-4">
-            <div className="h-full border-2 border-border/20 rounded-xl bg-background/80 overflow-hidden backdrop-blur-sm shadow-xl hover:border-brand/30 transition-all duration-500 relative group">
+            <div className="h-full border-2 border-border/20 rounded-xl bg-background overflow-hidden shadow-xl hover:border-brand/30 transition-all duration-500 relative group">
               {/* Glow effect on hover */}
               <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-              <div className="relative z-10">
-                <Editor
-                  height="100%"
-                  language={userLang.value}
-                  value={usersCode || getStarterCode()}
-                  theme="vs-dark"
-                  options={{
+              <Editor
+                height="100%"
+                language={userLang.value}
+                value={usersCode || getStarterCode()}
+                theme="vs-dark"
+                options={{
                     fontSize: 14,
                     fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
                     minimap: { enabled: false },
@@ -595,7 +594,6 @@ const handleCodeSubmission = async () => {
                   onChange={handleEditorChange}
                   onMount={handleEditorMount}
                 />
-              </div>
             </div>
           </div>
           </div>

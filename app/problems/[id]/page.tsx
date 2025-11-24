@@ -1407,15 +1407,12 @@ export default function ProblemPage() {
     if (params.id) fetchProblem()
   }, [params.id, supabase])
 
-  // Update starter code when language changes (only if user hasn't written code yet)
+  // Initialize starter code when problem loads (only once)
   useEffect(() => {
     if (!problem?.code_snippets) return
     const starter = problem.code_snippets.find(s => s.langSlug === userLang.value)?.code || ''
-    // Only set starter code if user hasn't written anything yet
-    if (!usersCode || usersCode.trim() === '') {
-      setUsersCode(starter)
-    }
-  }, [userLang.value, problem])
+    setUsersCode(starter)
+  }, [problem?.id]) // Only run when problem changes, not language
 
   // Starter code getter
   const getStarterCode = useCallback(() => {
