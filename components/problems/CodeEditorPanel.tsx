@@ -36,6 +36,9 @@ interface SubmissionResult {
   passedTests?: number
   memory?: string
   runtime?: string
+  timeComplexity?: string
+  complexityConfidence?: number
+  complexityAnalysis?: string
 }
 
 interface CodeEditorPanelProps {
@@ -296,13 +299,14 @@ const handleCodeSubmission = async () => {
     throw new Error('Invalid JSON from judge /submit'); 
   }
 
-  const { judge0Result, savedSubmission, testcaseResults } = responseData;
+  const { judge0Result, savedSubmission, testcaseResults, complexityAnalysis } = responseData;
 
     console.log('Label:', testcaseResults.label);
     console.log('Results:', testcaseResults);
     console.log('Stats:', `${testcaseResults.passed}/${testcaseResults.total} passed`);
     console.log('passed:',testcaseResults.passed)
     console.log('total:',testcaseResults.total)
+    console.log('Complexity:', complexityAnalysis)
 
     // bottom panel - keep showing test case results from run
     setTestcaseResults(testcaseResults.results);
@@ -383,6 +387,9 @@ const handleCodeSubmission = async () => {
       passedTests: testsPassed,
       runtime,
       memory,
+      timeComplexity: complexityAnalysis?.timeComplexity,
+      complexityConfidence: complexityAnalysis?.confidence,
+      complexityAnalysis: complexityAnalysis?.analysis,
     };
 
     setSubmissionResult(modalResult);

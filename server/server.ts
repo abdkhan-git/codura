@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
+import { analyzeComplexity } from './complexity-analyzer';
 
 dotenv.config();
 
@@ -239,24 +240,43 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
 
   try {
     const testcases = await getTestCasesForProblem(problem_title_slug, true);
-    
+
     if (testcases.length === 0) {
-      return res.status(404).json({ 
-        error: 'No test cases found. Run the metadata extractor first.' 
+      return res.status(404).json({
+        error: 'No test cases found. Run the metadata extractor first.'
       });
     }
 
+    // Analyze code complexity (with timeout)
+    let complexityResult;
+    try {
+      const complexityPromise = analyzeComplexity(source_code, language || 'python');
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Complexity analysis timeout')), 5000)
+      );
+      complexityResult = await Promise.race([complexityPromise, timeoutPromise]);
+      console.log('Complexity analysis:', complexityResult);
+    } catch (error: any) {
+      console.error('Complexity analysis failed:', error.message);
+      complexityResult = {
+        timeComplexity: 'O(n)',
+        confidence: 0.1,
+        analysis: 'Unable to analyze complexity.',
+        details: { loops: 0, nestedLoops: 0, recursiveCalls: 0, maxNestingDepth: 0 }
+      };
+    }
+
     const wrappedCode = await wrapCodeWithTestcases(
-      source_code, 
-      problem_title_slug, 
+      source_code,
+      problem_title_slug,
       true,
       language || 'python'
     );
 
-    const body = { 
-      source_code: wrappedCode, 
-      language_id, 
-      stdin 
+    const body = {
+      source_code: wrappedCode,
+      language_id,
+      stdin
     };
 
     const response = await fetch(`https://${process.env.RAPIDAPI_HOST}/submissions`, {
@@ -268,26 +288,32 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
       },
       body: JSON.stringify(body)
     });
-     
+
     const data = await response.json();
     const token = data.token;
 
     const judge0Result = await pollSubmissionStatus(token);
     const testcaseResults = parseTestResults(judge0Result, testcases);
-    
+
     const savedSubmission = await storeSubmission(
-      user_id, 
-      problem_id, 
-      problem_title, 
-      problem_difficulty, 
-      language, 
-      judge0Result, 
-      testcaseResults.label, 
-      source_code, 
-      submitted_at
+      user_id,
+      problem_id,
+      problem_title,
+      problem_difficulty,
+      language,
+      judge0Result,
+      testcaseResults.label,
+      source_code,
+      submitted_at,
+      complexityResult
     );
-    
-    res.status(200).json({ judge0Result, testcaseResults, savedSubmission });
+
+    res.status(200).json({
+      judge0Result,
+      testcaseResults,
+      savedSubmission,
+      complexityAnalysis: complexityResult
+    });
   
   } catch (error: any) {
     console.error('Error in /submit:', error);
@@ -304,22 +330,32 @@ async function storeSubmission(
   judge0Result: any,
   status: string,
   source_code: string,
-  submitted_at: string
+  submitted_at: string,
+  complexityResult?: any
 ) {
+  const submissionData: any = {
+    user_id,
+    problem_id,
+    problem_title,
+    difficulty: problem_difficulty,
+    language,
+    status,
+    code: source_code,
+    submitted_at,
+    runtime: judge0Result.time,
+    memory: judge0Result.memory
+  };
+
+  // Add complexity fields if analysis was successful
+  if (complexityResult) {
+    submissionData.time_complexity = complexityResult.timeComplexity;
+    submissionData.complexity_confidence = complexityResult.confidence;
+    submissionData.complexity_analysis = complexityResult.analysis;
+  }
+
   const { data, error } = await supabase
     .from('submissions')
-    .insert({
-      user_id,
-      problem_id,
-      problem_title,
-      difficulty: problem_difficulty,
-      language,
-      status,
-      code: source_code,
-      submitted_at,
-      runtime: judge0Result.time,
-      memory: judge0Result.memory
-    })
+    .insert(submissionData)
     .select()
     .single();
 

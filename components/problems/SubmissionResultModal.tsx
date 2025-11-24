@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Clock, HardDrive, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import ComplexityResultDisplay from '@/components/ui/complexity-result-display';
 
 // Type definitions matching the SubmissionResult from CodeEditorPanel
 interface TestcaseResult {
@@ -26,6 +27,9 @@ interface SubmissionResult {
   passedTests?: number;
   memory?: string;
   runtime?: string;
+  timeComplexity?: string;
+  complexityConfidence?: number;
+  complexityAnalysis?: string;
 }
 
 interface SubmissionResultModalProps {
@@ -115,6 +119,20 @@ export default function SubmissionResultModal({
               </p>
             )}
           </div>
+
+          {/* Complexity Analysis */}
+          {submissionResult.timeComplexity && (
+            <div className="space-y-4">
+              <h4 className="font-semibold text-sm text-white">Algorithm Complexity Analysis:</h4>
+              <ComplexityResultDisplay
+                detectedComplexity={submissionResult.timeComplexity}
+                confidence={submissionResult.complexityConfidence}
+                analysis={submissionResult.complexityAnalysis}
+                layout="horizontal"
+                animated={true}
+              />
+            </div>
+          )}
 
           {/* Statistics Grid */}
           {(submissionResult.runtime || submissionResult.memory) && (
