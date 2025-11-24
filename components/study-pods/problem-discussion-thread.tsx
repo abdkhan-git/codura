@@ -200,6 +200,34 @@ export function ProblemDiscussionThread({
     }
   }, [isOpen, podId, problemId, sort, filter, pagination.page]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+
+      // Escape to close modal or composer
+      if (e.key === 'Escape') {
+        if (showComposer) {
+          e.preventDefault();
+          resetComposer();
+        } else {
+          onClose();
+        }
+      }
+
+      // Ctrl/Cmd + Enter to submit when composer is open
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && showComposer && !submitting) {
+        if (composerContent.trim()) {
+          e.preventDefault();
+          handleSubmit();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, showComposer, submitting, composerContent, onClose]);
+
   const fetchDiscussion = async (preserveExpanded = false) => {
     setLoading(true);
     try {
@@ -390,7 +418,7 @@ export function ProblemDiscussionThread({
       )}>
         {/* Modern Header with glass morphism effect */}
         <div className={cn(
-          "relative px-6 py-6 border-b overflow-hidden",
+          "relative px-6 py-6 border-b overflow-hidden h-[188px] flex-shrink-0",
           theme === 'light'
             ? "bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 border-gray-200/50"
             : "bg-gradient-to-br from-emerald-500/15 via-green-500/10 to-teal-500/5 border-white/10"
@@ -435,58 +463,89 @@ export function ProblemDiscussionThread({
                   </div>
                 </div>
               </div>
-              {thread && (
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full border",
-                    theme === 'light'
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all",
+                  filter === 'all'
+                    ? theme === 'light'
                       ? "bg-white/80 border-gray-200/50 shadow-sm"
                       : "bg-white/5 border-white/10"
+                    : "opacity-60 scale-95",
+                  theme === 'light'
+                    ? "bg-white/80 border-gray-200/50 shadow-sm"
+                    : "bg-white/5 border-white/10"
+                )}>
+                  <MessageSquare className={cn(
+                    "w-4 h-4",
+                    theme === 'light' ? "text-gray-500" : "text-white/60"
+                  )} />
+                  <span className={cn(
+                    "text-sm font-semibold tabular-nums",
+                    theme === 'light' ? "text-gray-700" : "text-white/80"
                   )}>
-                    <MessageSquare className={cn(
-                      "w-4 h-4",
-                      theme === 'light' ? "text-gray-500" : "text-white/60"
-                    )} />
-                    <span className={cn(
-                      "text-sm font-semibold tabular-nums",
-                      theme === 'light' ? "text-gray-700" : "text-white/80"
-                    )}>
-                      {thread.comment_count}
-                    </span>
-                    <span className={cn(
-                      "text-xs",
-                      theme === 'light' ? "text-gray-400" : "text-white/40"
-                    )}>
-                      comments
-                    </span>
-                  </div>
-                  <div className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full border",
-                    theme === 'light'
+                    {thread ? (filter === 'all' ? thread.comment_count : comments.length) : 0}
+                  </span>
+                  <span className={cn(
+                    "text-xs",
+                    theme === 'light' ? "text-gray-400" : "text-white/40"
+                  )}>
+                    {filter === 'all' ? 'total' : 'showing'}
+                  </span>
+                </div>
+                <div className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all",
+                  filter === 'solutions'
+                    ? theme === 'light'
+                      ? "bg-emerald-50 border-emerald-300 shadow-md scale-105"
+                      : "bg-emerald-500/20 border-emerald-500/40 scale-105"
+                    : theme === 'light'
                       ? "bg-emerald-50/80 border-emerald-200/50 shadow-sm"
                       : "bg-emerald-500/10 border-emerald-500/20"
+                )}>
+                  <Code2 className="w-4 h-4 text-emerald-500" />
+                  <span className={cn(
+                    "text-sm font-semibold tabular-nums",
+                    theme === 'light' ? "text-emerald-600" : "text-emerald-400"
                   )}>
-                    <Code2 className="w-4 h-4 text-emerald-500" />
-                    <span className={cn(
-                      "text-sm font-semibold tabular-nums text-emerald-600",
-                      theme === 'light' ? "text-emerald-600" : "text-emerald-400"
-                    )}>
-                      {thread.solution_count}
-                    </span>
-                    <span className={cn(
-                      "text-xs",
-                      theme === 'light' ? "text-emerald-500/70" : "text-emerald-400/60"
-                    )}>
-                      solutions
-                    </span>
-                  </div>
+                    {thread ? (filter === 'all' ? thread.solution_count : comments.filter(c => c.comment_type === 'solution').length) : 0}
+                  </span>
+                  <span className={cn(
+                    "text-xs",
+                    theme === 'light' ? "text-emerald-500/70" : "text-emerald-400/60"
+                  )}>
+                    solutions
+                  </span>
                 </div>
-              )}
+                <div className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all",
+                  filter === 'questions'
+                    ? theme === 'light'
+                      ? "bg-blue-50 border-blue-300 shadow-md scale-105"
+                      : "bg-blue-500/20 border-blue-500/40 scale-105"
+                    : theme === 'light'
+                      ? "bg-blue-50/80 border-blue-200/50 shadow-sm"
+                      : "bg-blue-500/10 border-blue-500/20"
+                )}>
+                  <HelpCircle className="w-4 h-4 text-blue-500" />
+                  <span className={cn(
+                    "text-sm font-semibold tabular-nums",
+                    theme === 'light' ? "text-blue-600" : "text-blue-400"
+                  )}>
+                    {thread ? comments.filter(c => c.comment_type === 'question').length : 0}
+                  </span>
+                  <span className={cn(
+                    "text-xs",
+                    theme === 'light' ? "text-blue-500/70" : "text-blue-400/60"
+                  )}>
+                    questions
+                  </span>
+                </div>
+              </div>
             </DialogTitle>
           </DialogHeader>
         </div>
 
-        <div className="px-6 flex-1 overflow-hidden flex flex-col">
+        <div className="px-6 flex-1 overflow-y-auto flex flex-col">
 
         {/* New Comments Indicator */}
         {newCommentsCount > 0 && (
@@ -752,7 +811,7 @@ export function ProblemDiscussionThread({
         )}
 
         {/* Comments List */}
-        <div className="flex-1 overflow-y-auto space-y-3 py-2">
+        <div className="space-y-3 py-2 pb-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
