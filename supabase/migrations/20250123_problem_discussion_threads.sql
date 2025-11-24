@@ -106,27 +106,27 @@ CREATE TABLE IF NOT EXISTS thread_reactions (
   UNIQUE(comment_id, user_id, reaction)
 );
 
--- Create indexes for performance
-CREATE INDEX idx_threads_pod_id ON study_pod_problem_threads(pod_id);
-CREATE INDEX idx_threads_problem_id ON study_pod_problem_threads(problem_id);
-CREATE INDEX idx_threads_last_activity ON study_pod_problem_threads(last_activity_at DESC);
+-- Create indexes for performance (IF NOT EXISTS for idempotency)
+CREATE INDEX IF NOT EXISTS idx_threads_pod_id ON study_pod_problem_threads(pod_id);
+CREATE INDEX IF NOT EXISTS idx_threads_problem_id ON study_pod_problem_threads(problem_id);
+CREATE INDEX IF NOT EXISTS idx_threads_last_activity ON study_pod_problem_threads(last_activity_at DESC);
 
-CREATE INDEX idx_comments_thread_id ON thread_comments(thread_id);
-CREATE INDEX idx_comments_user_id ON thread_comments(user_id);
-CREATE INDEX idx_comments_parent_id ON thread_comments(parent_id);
-CREATE INDEX idx_comments_type ON thread_comments(comment_type);
-CREATE INDEX idx_comments_created_at ON thread_comments(created_at DESC);
-CREATE INDEX idx_comments_upvotes ON thread_comments(upvotes DESC);
+CREATE INDEX IF NOT EXISTS idx_comments_thread_id ON thread_comments(thread_id);
+CREATE INDEX IF NOT EXISTS idx_comments_user_id ON thread_comments(user_id);
+CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON thread_comments(parent_id);
+CREATE INDEX IF NOT EXISTS idx_comments_type ON thread_comments(comment_type);
+CREATE INDEX IF NOT EXISTS idx_comments_created_at ON thread_comments(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comments_upvotes ON thread_comments(upvotes DESC);
 
-CREATE INDEX idx_votes_comment_id ON thread_votes(comment_id);
-CREATE INDEX idx_votes_user_id ON thread_votes(user_id);
+CREATE INDEX IF NOT EXISTS idx_votes_comment_id ON thread_votes(comment_id);
+CREATE INDEX IF NOT EXISTS idx_votes_user_id ON thread_votes(user_id);
 
-CREATE INDEX idx_bookmarks_user_id ON thread_bookmarks(user_id);
-CREATE INDEX idx_bookmarks_comment_id ON thread_bookmarks(comment_id);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON thread_bookmarks(user_id);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_comment_id ON thread_bookmarks(comment_id);
 
-CREATE INDEX idx_reactions_comment_id ON thread_reactions(comment_id);
-CREATE INDEX idx_reactions_user_id ON thread_reactions(user_id);
-CREATE INDEX idx_reactions_type ON thread_reactions(reaction);
+CREATE INDEX IF NOT EXISTS idx_reactions_comment_id ON thread_reactions(comment_id);
+CREATE INDEX IF NOT EXISTS idx_reactions_user_id ON thread_reactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_reactions_type ON thread_reactions(reaction);
 
 -- Create function to update thread stats on comment changes
 CREATE OR REPLACE FUNCTION update_thread_stats()
@@ -236,6 +236,10 @@ ALTER TABLE thread_bookmarks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE thread_reactions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for study_pod_problem_threads
+-- Drop existing policies first for idempotency
+DROP POLICY IF EXISTS "Pod members can view threads" ON study_pod_problem_threads;
+DROP POLICY IF EXISTS "Pod members can create threads" ON study_pod_problem_threads;
+DROP POLICY IF EXISTS "Pod admins can update threads" ON study_pod_problem_threads;
 
 -- Pod members can view threads
 CREATE POLICY "Pod members can view threads"
@@ -278,6 +282,11 @@ USING (
 );
 
 -- RLS Policies for thread_comments
+-- Drop existing policies first for idempotency
+DROP POLICY IF EXISTS "Pod members can view comments" ON thread_comments;
+DROP POLICY IF EXISTS "Pod members can create comments" ON thread_comments;
+DROP POLICY IF EXISTS "Users can update own comments, admins can update any" ON thread_comments;
+DROP POLICY IF EXISTS "Users can delete own comments, admins can delete any" ON thread_comments;
 
 -- Pod members can view comments
 CREATE POLICY "Pod members can view comments"
@@ -344,6 +353,11 @@ USING (
 );
 
 -- RLS Policies for thread_votes
+-- Drop existing policies first for idempotency
+DROP POLICY IF EXISTS "Pod members can view votes" ON thread_votes;
+DROP POLICY IF EXISTS "Pod members can vote" ON thread_votes;
+DROP POLICY IF EXISTS "Users can update own votes" ON thread_votes;
+DROP POLICY IF EXISTS "Users can delete own votes" ON thread_votes;
 
 -- Pod members can view votes
 CREATE POLICY "Pod members can view votes"
@@ -390,6 +404,10 @@ FOR DELETE
 USING (user_id = auth.uid());
 
 -- RLS Policies for thread_bookmarks
+-- Drop existing policies first for idempotency
+DROP POLICY IF EXISTS "Users can view own bookmarks" ON thread_bookmarks;
+DROP POLICY IF EXISTS "Users can create bookmarks" ON thread_bookmarks;
+DROP POLICY IF EXISTS "Users can delete own bookmarks" ON thread_bookmarks;
 
 -- Users can view their own bookmarks
 CREATE POLICY "Users can view own bookmarks"
@@ -410,6 +428,10 @@ FOR DELETE
 USING (user_id = auth.uid());
 
 -- RLS Policies for thread_reactions
+-- Drop existing policies first for idempotency
+DROP POLICY IF EXISTS "Pod members can view reactions" ON thread_reactions;
+DROP POLICY IF EXISTS "Pod members can add reactions" ON thread_reactions;
+DROP POLICY IF EXISTS "Users can remove own reactions" ON thread_reactions;
 
 -- Pod members can view reactions
 CREATE POLICY "Pod members can view reactions"

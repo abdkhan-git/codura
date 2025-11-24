@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ import {
   Send,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
+  Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 import { DiscussionCommentCard } from "./discussion-comment-card";
@@ -81,8 +83,8 @@ interface Comment {
 
 interface ProblemDiscussionThreadProps {
   podId: string;
-  problemId: number;
-  problemTitle: string;
+  problemId: number | string;
+  problemTitle?: string;
   currentUserId: string;
   isAdmin: boolean;
   isOpen: boolean;
@@ -137,14 +139,68 @@ export function ProblemDiscussionThread({
   // Replies cache
   const [repliesCache, setRepliesCache] = useState<Record<string, Comment[]>>({});
   const [loadingReplies, setLoadingReplies] = useState<Record<string, boolean>>({});
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+
+  // Real-time polling
+  const [pollingEnabled, setPollingEnabled] = useState(true);
+  const [newCommentsCount, setNewCommentsCount] = useState(0);
+  const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
+  const lastCommentCountRef = useRef<number>(0);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const POLL_INTERVAL = 30000; // 30 seconds
+
+  // Check for new comments silently (for indicator)
+  const checkForNewComments = useCallback(async () => {
+    if (!isOpen || !thread) return;
+
+    try {
+      const response = await fetch(
+        `/api/study-pods/${podId}/problems/${problemId}/discussions?sort=${sort}&filter=${filter}&page=1&limit=1`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const currentCount = data.thread?.comment_count || 0;
+
+        if (lastCommentCountRef.current > 0 && currentCount > lastCommentCountRef.current) {
+          const newCount = currentCount - lastCommentCountRef.current;
+          setNewCommentsCount(prev => prev + newCount);
+        }
+
+        lastCommentCountRef.current = currentCount;
+      }
+    } catch (error) {
+      // Silent fail for polling
+    }
+  }, [isOpen, thread, podId, problemId, sort, filter]);
+
+  // Set up polling interval
+  useEffect(() => {
+    if (isOpen && pollingEnabled) {
+      pollIntervalRef.current = setInterval(checkForNewComments, POLL_INTERVAL);
+    }
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [isOpen, pollingEnabled, checkForNewComments]);
+
+  // Reset new comments count when refreshing
+  const handleRefresh = () => {
+    setNewCommentsCount(0);
+    fetchDiscussion();
+  };
 
   useEffect(() => {
     if (isOpen) {
       fetchDiscussion();
+      setNewCommentsCount(0);
     }
   }, [isOpen, podId, problemId, sort, filter, pagination.page]);
 
-  const fetchDiscussion = async () => {
+  const fetchDiscussion = async (preserveExpanded = false) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -163,6 +219,28 @@ export function ProblemDiscussionThread({
         setThread(data.thread);
         setComments(data.comments);
         setPagination(data.pagination);
+        // Update the ref for polling comparison
+        lastCommentCountRef.current = data.thread?.comment_count || 0;
+
+        // Auto-load replies for comments that have replies
+        const commentsWithReplies = (data.comments || []).filter(
+          (c: Comment) => c.reply_count > 0
+        );
+
+        // If not preserving expanded state, expand all comments with replies
+        if (!preserveExpanded) {
+          const newExpanded = new Set<string>();
+          commentsWithReplies.forEach((c: Comment) => newExpanded.add(c.id));
+          setExpandedComments(newExpanded);
+        }
+
+        // Load replies for all comments that have them
+        for (const comment of commentsWithReplies) {
+          // Only load if not already cached or if we're refreshing
+          if (!repliesCache[comment.id] || !preserveExpanded) {
+            loadRepliesForComment(comment.id);
+          }
+        }
       } else {
         const data = await response.json();
         toast.error(data.error || 'Failed to load discussion');
@@ -174,7 +252,7 @@ export function ProblemDiscussionThread({
     }
   };
 
-  const loadReplies = async (parentId: string) => {
+  const loadRepliesForComment = async (parentId: string) => {
     setLoadingReplies(prev => ({ ...prev, [parentId]: true }));
     try {
       const response = await fetch(
@@ -183,13 +261,47 @@ export function ProblemDiscussionThread({
 
       if (response.ok) {
         const data = await response.json();
-        setRepliesCache(prev => ({ ...prev, [parentId]: data.replies }));
+        setRepliesCache(prev => ({ ...prev, [parentId]: data.replies || [] }));
       }
     } catch (error) {
-      toast.error('Failed to load replies');
+      console.error('Failed to load replies for', parentId);
     } finally {
       setLoadingReplies(prev => ({ ...prev, [parentId]: false }));
     }
+  };
+
+  const loadReplies = async (parentId: string) => {
+    // Add to expanded set
+    setExpandedComments(prev => new Set(prev).add(parentId));
+    await loadRepliesForComment(parentId);
+  };
+
+  const toggleExpanded = (commentId: string) => {
+    setExpandedComments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(commentId)) {
+        newSet.delete(commentId);
+      } else {
+        newSet.add(commentId);
+        // Load replies if not cached
+        if (!repliesCache[commentId]) {
+          loadRepliesForComment(commentId);
+        }
+      }
+      return newSet;
+    });
+  };
+
+  const handleCommentDeleted = (deletedCommentId: string, parentId?: string) => {
+    if (parentId) {
+      // Remove from replies cache
+      setRepliesCache(prev => ({
+        ...prev,
+        [parentId]: (prev[parentId] || []).filter(r => r.id !== deletedCommentId),
+      }));
+    }
+    // Refresh to get updated counts
+    fetchDiscussion(true);
   };
 
   const handleSubmit = async () => {
@@ -271,52 +383,182 @@ export function ProblemDiscussionThread({
   return (
     <Dialog open={isOpen} onOpenChange={() => onClose()}>
       <DialogContent className={cn(
-        "max-w-4xl max-h-[90vh] overflow-hidden flex flex-col",
-        theme === 'light' ? "bg-white" : "bg-zinc-900"
+        "max-w-5xl max-h-[92vh] overflow-hidden flex flex-col p-0 rounded-2xl border-0",
+        theme === 'light'
+          ? "bg-white shadow-2xl shadow-black/10"
+          : "bg-zinc-900/98 backdrop-blur-2xl shadow-2xl shadow-black/50"
       )}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <MessageSquare className="w-5 h-5 text-emerald-500" />
-              <span>Discussion: {problemTitle}</span>
-            </div>
-            {thread && (
-              <div className="flex items-center gap-2 text-sm font-normal">
-                <Badge variant="outline" className="gap-1">
-                  <MessageSquare className="w-3 h-3" />
-                  {thread.comment_count} comments
-                </Badge>
-                <Badge variant="outline" className="gap-1 text-emerald-500 border-emerald-500/30">
-                  <Code2 className="w-3 h-3" />
-                  {thread.solution_count} solutions
-                </Badge>
+        {/* Modern Header with glass morphism effect */}
+        <div className={cn(
+          "relative px-6 py-6 border-b overflow-hidden",
+          theme === 'light'
+            ? "bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 border-gray-200/50"
+            : "bg-gradient-to-br from-emerald-500/15 via-green-500/10 to-teal-500/5 border-white/10"
+        )}>
+          {/* Decorative background elements */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className={cn(
+              "absolute -top-20 -right-20 w-40 h-40 rounded-full blur-3xl",
+              theme === 'light' ? "bg-emerald-200/40" : "bg-emerald-500/10"
+            )} />
+            <div className={cn(
+              "absolute -bottom-10 -left-10 w-32 h-32 rounded-full blur-2xl",
+              theme === 'light' ? "bg-teal-200/30" : "bg-teal-500/10"
+            )} />
+          </div>
+
+          <DialogHeader className="p-0 relative z-10">
+            <DialogTitle className="flex flex-col gap-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={cn(
+                    "p-3 rounded-2xl shadow-lg",
+                    theme === 'light'
+                      ? "bg-gradient-to-br from-emerald-500 to-green-600 shadow-emerald-200"
+                      : "bg-gradient-to-br from-emerald-500 to-green-600 shadow-emerald-900/50"
+                  )}>
+                    <MessageSquare className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className={cn(
+                      "text-xl font-bold tracking-tight",
+                      theme === 'light' ? "text-gray-900" : "text-white"
+                    )}>
+                      {problemTitle}
+                    </span>
+                    <span className={cn(
+                      "text-sm font-medium",
+                      theme === 'light' ? "text-gray-500" : "text-white/50"
+                    )}>
+                      Problem Discussion Thread
+                    </span>
+                  </div>
+                </div>
               </div>
+              {thread && (
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full border",
+                    theme === 'light'
+                      ? "bg-white/80 border-gray-200/50 shadow-sm"
+                      : "bg-white/5 border-white/10"
+                  )}>
+                    <MessageSquare className={cn(
+                      "w-4 h-4",
+                      theme === 'light' ? "text-gray-500" : "text-white/60"
+                    )} />
+                    <span className={cn(
+                      "text-sm font-semibold tabular-nums",
+                      theme === 'light' ? "text-gray-700" : "text-white/80"
+                    )}>
+                      {thread.comment_count}
+                    </span>
+                    <span className={cn(
+                      "text-xs",
+                      theme === 'light' ? "text-gray-400" : "text-white/40"
+                    )}>
+                      comments
+                    </span>
+                  </div>
+                  <div className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full border",
+                    theme === 'light'
+                      ? "bg-emerald-50/80 border-emerald-200/50 shadow-sm"
+                      : "bg-emerald-500/10 border-emerald-500/20"
+                  )}>
+                    <Code2 className="w-4 h-4 text-emerald-500" />
+                    <span className={cn(
+                      "text-sm font-semibold tabular-nums text-emerald-600",
+                      theme === 'light' ? "text-emerald-600" : "text-emerald-400"
+                    )}>
+                      {thread.solution_count}
+                    </span>
+                    <span className={cn(
+                      "text-xs",
+                      theme === 'light' ? "text-emerald-500/70" : "text-emerald-400/60"
+                    )}>
+                      solutions
+                    </span>
+                  </div>
+                </div>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+
+        <div className="px-6 flex-1 overflow-hidden flex flex-col">
+
+        {/* New Comments Indicator */}
+        {newCommentsCount > 0 && (
+          <div
+            onClick={handleRefresh}
+            className={cn(
+              "flex items-center justify-center gap-2 py-3 px-4 rounded-xl cursor-pointer transition-all mt-4",
+              theme === 'light'
+                ? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 border border-blue-200/50 hover:from-blue-100 hover:to-indigo-100 shadow-sm"
+                : "bg-gradient-to-r from-blue-500/10 to-indigo-500/10 text-blue-400 border border-blue-500/20 hover:from-blue-500/15 hover:to-indigo-500/15"
             )}
-          </DialogTitle>
-        </DialogHeader>
+          >
+            <div className="relative">
+              <Bell className="w-4 h-4" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500" />
+            </div>
+            <span className="font-semibold text-sm">
+              {newCommentsCount} new {newCommentsCount === 1 ? 'comment' : 'comments'}
+            </span>
+            <span className={cn(
+              "text-xs px-2 py-0.5 rounded-full",
+              theme === 'light' ? "bg-white/60" : "bg-white/10"
+            )}>
+              Click to refresh
+            </span>
+          </div>
+        )}
 
-        {/* Toolbar */}
-        <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-white/10">
+        {/* Modern Toolbar */}
+        <div className={cn(
+          "flex items-center justify-between py-4 border-b",
+          theme === 'light' ? "border-gray-100" : "border-white/5"
+        )}>
           <div className="flex items-center gap-2">
-            {/* Filter */}
-            <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
-              <SelectTrigger className="w-[140px] h-8">
-                <Filter className="w-3.5 h-3.5 mr-1.5" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="solutions">Solutions</SelectItem>
-                <SelectItem value="questions">Questions</SelectItem>
-                <SelectItem value="discussions">Discussions</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Filter Pills */}
+            <div className={cn(
+              "flex items-center p-1 rounded-xl",
+              theme === 'light' ? "bg-gray-100" : "bg-white/5"
+            )}>
+              {[
+                { value: 'all', label: 'All' },
+                { value: 'solutions', label: 'Solutions' },
+                { value: 'questions', label: 'Questions' },
+              ].map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setFilter(f.value as any)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    filter === f.value
+                      ? theme === 'light'
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "bg-white/10 text-white"
+                      : theme === 'light'
+                        ? "text-gray-500 hover:text-gray-700"
+                        : "text-white/50 hover:text-white/70"
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
 
-            {/* Sort */}
+            {/* Sort Dropdown */}
             <Select value={sort} onValueChange={(v: any) => setSort(v)}>
-              <SelectTrigger className="w-[120px] h-8">
+              <SelectTrigger className={cn(
+                "w-[130px] h-8 text-xs rounded-lg border-0",
+                theme === 'light' ? "bg-gray-100 text-gray-600" : "bg-white/5 text-white/60"
+              )}>
                 <ArrowUpDown className="w-3.5 h-3.5 mr-1.5" />
-                <SelectValue />
+                <SelectValue placeholder="Sort" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="newest">Newest</SelectItem>
@@ -324,25 +566,42 @@ export function ProblemDiscussionThread({
                 <SelectItem value="top">Top Voted</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Refresh button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={loading}
+              className={cn(
+                "h-8 w-8 p-0 rounded-lg",
+                theme === 'light' ? "hover:bg-gray-100" : "hover:bg-white/10"
+              )}
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
+            </Button>
           </div>
 
           <Button
             onClick={() => setShowComposer(true)}
-            className="bg-gradient-to-r from-emerald-500 to-green-500"
-            size="sm"
+            className={cn(
+              "h-9 px-4 rounded-xl font-medium text-sm gap-2",
+              "bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600",
+              "shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all"
+            )}
           >
-            <Plus className="w-4 h-4 mr-1.5" />
+            <Plus className="w-4 h-4" />
             New Post
           </Button>
         </div>
 
-        {/* Composer */}
+        {/* Modern Composer */}
         {showComposer && (
           <div className={cn(
-            "p-4 rounded-xl border-2 my-3",
+            "p-5 rounded-2xl border my-4 transition-all",
             theme === 'light'
-              ? "bg-gray-50 border-gray-200"
-              : "bg-white/5 border-white/10"
+              ? "bg-gradient-to-br from-gray-50 to-white border-gray-200/50 shadow-lg shadow-black/5"
+              : "bg-gradient-to-br from-white/5 to-transparent border-white/10"
           )}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -537,11 +796,19 @@ export function ProblemDiscussionThread({
                 currentUserId={currentUserId}
                 isAdmin={isAdmin}
                 onReply={handleReply}
-                onUpdate={fetchDiscussion}
-                onDelete={fetchDiscussion}
+                onUpdate={() => fetchDiscussion(true)}
+                onDelete={() => handleCommentDeleted(comment.id)}
                 replies={repliesCache[comment.id] || []}
                 onLoadReplies={() => loadReplies(comment.id)}
                 loadingReplies={loadingReplies[comment.id]}
+                isExpanded={expandedComments.has(comment.id)}
+                onToggleExpanded={() => toggleExpanded(comment.id)}
+                onReplyDeleted={(replyId) => handleCommentDeleted(replyId, comment.id)}
+                allRepliesCache={repliesCache}
+                allLoadingReplies={loadingReplies}
+                allExpandedComments={expandedComments}
+                onToggleAnyExpanded={toggleExpanded}
+                onLoadAnyReplies={loadReplies}
               />
             ))
           )}
@@ -549,18 +816,23 @@ export function ProblemDiscussionThread({
 
         {/* Pagination */}
         {pagination.totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 py-3 border-t border-gray-200 dark:border-white/10">
+          <div className={cn(
+            "flex items-center justify-center gap-3 py-4 border-t",
+            theme === 'light' ? "border-gray-200" : "border-white/10"
+          )}>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
               disabled={pagination.page === 1}
+              className="h-9"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Previous
             </Button>
             <span className={cn(
-              "text-sm",
-              theme === 'light' ? "text-gray-600" : "text-white/60"
+              "text-sm px-4 py-1.5 rounded-lg",
+              theme === 'light' ? "bg-gray-100 text-gray-600" : "bg-white/5 text-white/60"
             )}>
               Page {pagination.page} of {pagination.totalPages}
             </span>
@@ -569,11 +841,14 @@ export function ProblemDiscussionThread({
               size="sm"
               onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
               disabled={pagination.page === pagination.totalPages}
+              className="h-9"
             >
-              <ChevronRight className="w-4 h-4" />
+              Next
+              <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -31,6 +31,7 @@ import { CreateChallengeModal } from "@/components/study-pods/create-challenge-m
 import { ChallengeCard } from "@/components/study-pods/challenge-card";
 import { ChallengeDetailModal } from "@/components/study-pods/challenge-detail-modal";
 import { MembersTabSection } from "@/components/study-pods/members-tab-section";
+import { ProblemDiscussionThread } from "@/components/study-pods/problem-discussion-thread";
 
 export default function StudyPodDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { theme } = useTheme();
@@ -51,6 +52,8 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
   const [showCreateChallengeModal, setShowCreateChallengeModal] = useState(false);
   const [showChallengeDetailModal, setShowChallengeDetailModal] = useState(false);
   const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
+  const [showDiscussionModal, setShowDiscussionModal] = useState(false);
+  const [discussionProblemId, setDiscussionProblemId] = useState<string | null>(null);
 
   // Sessions state
   const [sessions, setSessions] = useState<any[]>([]);
@@ -380,6 +383,10 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                   onNavigate={setActiveSection}
                   onStartSession={() => setActiveSection("live-sessions")}
                   onCreateChallenge={() => setShowCreateChallengeModal(true)}
+                  onOpenDiscussion={(problemId: string) => {
+                    setDiscussionProblemId(problemId);
+                    setShowDiscussionModal(true);
+                  }}
                 />
               )}
 
@@ -630,6 +637,20 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
           podId={podId}
           onJoined={fetchChallenges}
           isAdmin={isAdmin}
+        />
+      )}
+
+      {discussionProblemId && (
+        <ProblemDiscussionThread
+          podId={podId}
+          problemId={discussionProblemId}
+          currentUserId={user?.id}
+          isAdmin={isAdmin}
+          isOpen={showDiscussionModal}
+          onClose={() => {
+            setShowDiscussionModal(false);
+            setDiscussionProblemId(null);
+          }}
         />
       )}
     </div>

@@ -6,6 +6,81 @@ export const dynamic = 'force-dynamic';
 type Params = { id: string; problemId: string; commentId: string };
 
 /**
+ * GET /api/study-pods/[id]/problems/[problemId]/discussions/comments/[commentId]/vote
+ * Get who has voted on this comment
+ */
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<Params> }
+) {
+  try {
+    const supabase = await createClient();
+    const { id: podId, commentId } = await params;
+
+    // Get authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get all votes for this comment
+    const { data: votes, error: votesError } = await supabase
+      .from('thread_votes')
+      .select('user_id, vote_type')
+      .eq('comment_id', commentId);
+
+    if (votesError) {
+      console.error('Error fetching votes:', votesError);
+      return NextResponse.json({ error: 'Failed to fetch votes' }, { status: 500 });
+    }
+
+    // Get user details for voters
+    const userIds = [...new Set(votes?.map(v => v.user_id) || [])];
+    let userDetails: Record<string, { username: string; full_name: string; avatar_url: string }> = {};
+
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('user_id, username, full_name, avatar_url')
+        .in('user_id', userIds);
+
+      users?.forEach(u => {
+        userDetails[u.user_id] = u;
+      });
+    }
+
+    // Group votes by type
+    const upvoters: Array<{ id: string; name: string; avatar?: string }> = [];
+    const downvoters: Array<{ id: string; name: string; avatar?: string }> = [];
+
+    votes?.forEach(v => {
+      const userInfo = userDetails[v.user_id];
+      const voter = {
+        id: v.user_id,
+        name: userInfo?.full_name || userInfo?.username || 'Anonymous',
+        avatar: userInfo?.avatar_url,
+      };
+
+      if (v.vote_type === 1) {
+        upvoters.push(voter);
+      } else if (v.vote_type === -1) {
+        downvoters.push(voter);
+      }
+    });
+
+    return NextResponse.json({
+      upvoters,
+      downvoters,
+      userVote: votes?.find(v => v.user_id === user.id)?.vote_type || null,
+    });
+  } catch (error) {
+    console.error('Unexpected error fetching votes:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
  * POST /api/study-pods/[id]/problems/[problemId]/discussions/comments/[commentId]/vote
  * Vote on a comment (upvote or downvote)
  */

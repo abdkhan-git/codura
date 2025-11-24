@@ -41,6 +41,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -80,9 +86,15 @@ interface Comment {
   is_bookmarked: boolean;
 }
 
+interface ReactionUser {
+  id: string;
+  name: string;
+  avatar?: string;
+}
+
 interface Reaction {
   count: number;
-  users: string[];
+  users: ReactionUser[];
   userReacted: boolean;
 }
 
@@ -100,6 +112,16 @@ interface DiscussionCommentCardProps {
   onLoadReplies?: () => void;
   loadingReplies?: boolean;
   depth?: number;
+  // New props for proper state management
+  isExpanded?: boolean;
+  onToggleExpanded?: () => void;
+  onReplyDeleted?: (replyId: string) => void;
+  // Props for nested replies
+  allRepliesCache?: Record<string, Comment[]>;
+  allLoadingReplies?: Record<string, boolean>;
+  allExpandedComments?: Set<string>;
+  onToggleAnyExpanded?: (commentId: string) => void;
+  onLoadAnyReplies?: (commentId: string) => void;
 }
 
 const TYPE_COLORS = {
@@ -141,6 +163,14 @@ export function DiscussionCommentCard({
   onLoadReplies,
   loadingReplies = false,
   depth = 0,
+  isExpanded,
+  onToggleExpanded,
+  onReplyDeleted,
+  allRepliesCache,
+  allLoadingReplies,
+  allExpandedComments,
+  onToggleAnyExpanded,
+  onLoadAnyReplies,
 }: DiscussionCommentCardProps) {
   const { theme } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
@@ -154,7 +184,6 @@ export function DiscussionCommentCard({
   const [localBookmarked, setLocalBookmarked] = useState(comment.is_bookmarked);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [showRepliesExpanded, setShowRepliesExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [reactions, setReactions] = useState<Record<string, Reaction>>({});
   const [loadingReactions, setLoadingReactions] = useState(false);
@@ -162,15 +191,41 @@ export function DiscussionCommentCard({
   const [aiReview, setAiReview] = useState<string | null>(comment.metadata?.ai_review?.content || null);
   const [loadingAiReview, setLoadingAiReview] = useState(false);
   const [showAiReview, setShowAiReview] = useState(false);
+  const [voters, setVoters] = useState<{
+    upvoters: Array<{ id: string; name: string; avatar?: string }>;
+    downvoters: Array<{ id: string; name: string; avatar?: string }>;
+  }>({ upvoters: [], downvoters: [] });
+
+  // Use controlled expanded state if provided, otherwise use local state
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const showRepliesExpanded = isExpanded !== undefined ? isExpanded : localExpanded;
 
   const isAuthor = comment.user_id === currentUserId;
   const canEdit = isAuthor || isAdmin;
   const canDelete = isAuthor || isAdmin;
 
-  // Fetch reactions on mount
+  // Fetch reactions and voters on mount
   useEffect(() => {
     fetchReactions();
+    fetchVoters();
   }, [comment.id]);
+
+  const fetchVoters = async () => {
+    try {
+      const response = await fetch(
+        `/api/study-pods/${podId}/problems/${problemId}/discussions/comments/${comment.id}/vote`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setVoters({
+          upvoters: data.upvoters || [],
+          downvoters: data.downvoters || [],
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch voters');
+    }
+  };
 
   const fetchReactions = async () => {
     try {
@@ -273,6 +328,8 @@ export function DiscussionCommentCard({
         setLocalUpvotes(data.upvotes);
         setLocalDownvotes(data.downvotes);
         setLocalVote(data.vote);
+        // Refresh voters list
+        fetchVoters();
       } else {
         const data = await response.json();
         toast.error(data.error || 'Failed to vote');
@@ -370,29 +427,43 @@ export function DiscussionCommentCard({
   };
 
   const handleToggleReplies = () => {
-    if (!showRepliesExpanded && replies.length === 0 && comment.reply_count > 0) {
-      onLoadReplies?.();
+    if (onToggleExpanded) {
+      // Use controlled state
+      onToggleExpanded();
+    } else {
+      // Use local state
+      if (!localExpanded && replies.length === 0 && comment.reply_count > 0) {
+        onLoadReplies?.();
+      }
+      setLocalExpanded(!localExpanded);
     }
-    setShowRepliesExpanded(!showRepliesExpanded);
   };
 
   // Get reaction counts for display
   const reactionList = Object.entries(reactions).filter(([_, r]) => r.count > 0);
 
   return (
-    <div
-      className={cn(
-        "group rounded-xl border-2 transition-all",
-        depth > 0 && "ml-8 border-l-4",
-        comment.is_accepted_solution
-          ? theme === 'light'
-            ? "bg-emerald-50/50 border-emerald-200"
-            : "bg-emerald-500/5 border-emerald-500/30"
-          : theme === 'light'
-            ? "bg-white border-gray-200 hover:border-gray-300"
-            : "bg-white/5 border-white/10 hover:border-white/20"
+    <div className={cn("relative", depth > 0 && "mt-3")}>
+      {/* Threading line for replies */}
+      {depth > 0 && (
+        <div className={cn(
+          "absolute left-2.5 top-0 bottom-0 w-0.5 rounded-full",
+          theme === 'light' ? "bg-gradient-to-b from-emerald-200 to-transparent" : "bg-gradient-to-b from-emerald-500/30 to-transparent"
+        )} />
       )}
-    >
+      <div
+        className={cn(
+          "group rounded-xl border-2 transition-all",
+          depth > 0 && "ml-6",
+          comment.is_accepted_solution
+            ? theme === 'light'
+              ? "bg-emerald-50/50 border-emerald-300 shadow-sm shadow-emerald-100"
+              : "bg-emerald-500/5 border-emerald-500/30"
+            : theme === 'light'
+              ? "bg-white border-gray-200 hover:border-gray-300 hover:shadow-md transition-shadow"
+              : "bg-white/5 border-white/10 hover:border-white/20"
+        )}
+      >
       {/* Header */}
       <div className="p-4 pb-2">
         <div className="flex items-start justify-between">
@@ -442,23 +513,41 @@ export function DiscussionCommentCard({
           <div className="flex items-center gap-1">
             {/* AI Review Button (for solutions with code) */}
             {comment.comment_type === 'solution' && comment.code_snippet && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleGetAiReview}
-                disabled={loadingAiReview}
-                className={cn(
-                  "gap-1.5 px-2 opacity-0 group-hover:opacity-100 transition-opacity",
-                  aiReview && "opacity-100 text-purple-500"
-                )}
-                title="Get AI Code Review"
-              >
-                {loadingAiReview ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Bot className="w-4 h-4" />
-                )}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={aiReview ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleGetAiReview}
+                      disabled={loadingAiReview}
+                      className={cn(
+                        "gap-1.5 px-3 h-8 transition-all",
+                        aiReview
+                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-md shadow-purple-500/20"
+                          : theme === 'light'
+                            ? "border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300"
+                            : "border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                      )}
+                    >
+                      {loadingAiReview ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Bot className="w-4 h-4" />
+                          <Sparkles className="w-3 h-3" />
+                        </>
+                      )}
+                      <span className="text-xs font-medium">
+                        {aiReview ? 'AI Review' : 'Get AI Review'}
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="text-xs">Get AI-powered code review and suggestions</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
 
             {canEdit && (
@@ -467,7 +556,12 @@ export function DiscussionCommentCard({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    className={cn(
+                      "transition-opacity",
+                      theme === 'light'
+                        ? "opacity-50 hover:opacity-100"
+                        : "opacity-40 hover:opacity-100"
+                    )}
                   >
                     <MoreHorizontal className="w-4 h-4" />
                   </Button>
@@ -666,26 +760,62 @@ export function DiscussionCommentCard({
 
       {/* Reactions */}
       {reactionList.length > 0 && (
-        <div className="px-4 pb-2 flex flex-wrap gap-1">
-          {reactionList.map(([type, data]) => (
-            <button
-              key={type}
-              onClick={() => handleReaction(type)}
-              className={cn(
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-all",
-                data.userReacted
-                  ? theme === 'light'
-                    ? "bg-blue-100 border-blue-300 text-blue-700"
-                    : "bg-blue-500/20 border-blue-500/40 text-blue-400"
-                  : theme === 'light'
-                    ? "bg-gray-100 border-gray-200 hover:bg-gray-200"
-                    : "bg-white/5 border-white/10 hover:bg-white/10"
-              )}
-            >
-              <span>{REACTION_EMOJIS[type]}</span>
-              <span className="font-medium">{data.count}</span>
-            </button>
-          ))}
+        <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+          <TooltipProvider>
+            {reactionList.map(([type, data]) => (
+              <Tooltip key={type}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => handleReaction(type)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-all hover:scale-105",
+                      data.userReacted
+                        ? theme === 'light'
+                          ? "bg-blue-100 border-blue-300 text-blue-700 shadow-sm shadow-blue-100"
+                          : "bg-blue-500/20 border-blue-500/40 text-blue-400"
+                        : theme === 'light'
+                          ? "bg-gray-100 border-gray-200 hover:bg-gray-200"
+                          : "bg-white/5 border-white/10 hover:bg-white/10"
+                    )}
+                  >
+                    <span className="text-sm">{REACTION_EMOJIS[type]}</span>
+                    <span className="font-semibold">{data.count}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className={cn(
+                    "max-w-[250px] p-2",
+                    theme === 'light' ? "bg-white border-gray-200" : "bg-zinc-900 border-white/10"
+                  )}
+                >
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="text-base">{REACTION_EMOJIS[type]}</span>
+                    <span className={cn(
+                      "font-medium text-xs",
+                      theme === 'light' ? "text-gray-900" : "text-white"
+                    )}>
+                      {type.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className={cn(
+                    "text-xs",
+                    theme === 'light' ? "text-gray-600" : "text-white/70"
+                  )}>
+                    {data.users.slice(0, 8).map((u, i) => (
+                      <span key={u.id}>
+                        {u.name}
+                        {i < Math.min(data.users.length - 1, 7) ? ', ' : ''}
+                      </span>
+                    ))}
+                    {data.users.length > 8 && (
+                      <span className="opacity-70"> and {data.users.length - 8} more</span>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </TooltipProvider>
         </div>
       )}
 
@@ -694,54 +824,183 @@ export function DiscussionCommentCard({
         "px-4 py-3 flex items-center justify-between border-t",
         theme === 'light' ? "border-gray-100" : "border-white/5"
       )}>
-        <div className="flex items-center gap-1">
-          {/* Upvote */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleVote(1)}
-            disabled={voting || isAuthor}
-            className={cn(
-              "gap-1.5 px-2",
-              localVote === 1 && "text-emerald-500"
-            )}
-          >
-            <ThumbsUp className={cn("w-4 h-4", localVote === 1 && "fill-emerald-500")} />
-            <span className="text-xs font-medium">{localUpvotes}</span>
-          </Button>
+        <div className="flex items-center gap-2">
+          {/* Vote buttons with score */}
+          <TooltipProvider>
+            <div className={cn(
+              "flex items-center rounded-lg border overflow-hidden",
+              theme === 'light' ? "border-gray-200 bg-gray-50" : "border-white/10 bg-white/5"
+            )}>
+              {/* Upvote */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleVote(1)}
+                    disabled={voting || isAuthor}
+                    className={cn(
+                      "gap-1 px-2.5 h-8 rounded-none border-r",
+                      theme === 'light' ? "border-gray-200" : "border-white/10",
+                      localVote === 1 && "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10"
+                    )}
+                  >
+                    {voting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <ThumbsUp className={cn("w-3.5 h-3.5", localVote === 1 && "fill-emerald-500")} />
+                    )}
+                    <span className="text-xs font-semibold">{localUpvotes}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className={cn(
+                    "max-w-[250px] p-2",
+                    theme === 'light' ? "bg-white border-gray-200" : "bg-zinc-900 border-white/10"
+                  )}
+                >
+                  {isAuthor ? (
+                    <p className="text-xs">You can't vote on your own comment</p>
+                  ) : voters.upvoters.length > 0 ? (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <ThumbsUp className="w-3.5 h-3.5 text-emerald-500" />
+                        <span className={cn(
+                          "font-medium text-xs",
+                          theme === 'light' ? "text-gray-900" : "text-white"
+                        )}>
+                          Upvoted by
+                        </span>
+                      </div>
+                      <div className={cn(
+                        "text-xs",
+                        theme === 'light' ? "text-gray-600" : "text-white/70"
+                      )}>
+                        {voters.upvoters.slice(0, 8).map((u, i) => (
+                          <span key={u.id}>
+                            {u.name}
+                            {i < Math.min(voters.upvoters.length - 1, 7) ? ', ' : ''}
+                          </span>
+                        ))}
+                        {voters.upvoters.length > 8 && (
+                          <span className="opacity-70"> and {voters.upvoters.length - 8} more</span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs">Upvote this comment</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
 
-          {/* Downvote */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleVote(-1)}
-            disabled={voting || isAuthor}
-            className={cn(
-              "gap-1.5 px-2",
-              localVote === -1 && "text-red-500"
-            )}
-          >
-            <ThumbsDown className={cn("w-4 h-4", localVote === -1 && "fill-red-500")} />
-            <span className="text-xs font-medium">{localDownvotes}</span>
-          </Button>
+              {/* Net score */}
+              <div className={cn(
+                "px-2.5 h-8 flex items-center justify-center min-w-[40px] border-r",
+                theme === 'light' ? "border-gray-200" : "border-white/10",
+                (localUpvotes - localDownvotes) > 0 && "text-emerald-600",
+                (localUpvotes - localDownvotes) < 0 && "text-red-500"
+              )}>
+                <span className="text-xs font-bold">
+                  {(localUpvotes - localDownvotes) > 0 ? '+' : ''}{localUpvotes - localDownvotes}
+                </span>
+              </div>
+
+              {/* Downvote */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleVote(-1)}
+                    disabled={voting || isAuthor}
+                    className={cn(
+                      "gap-1 px-2.5 h-8 rounded-none",
+                      localVote === -1 && "text-red-500 bg-red-50 dark:bg-red-500/10"
+                    )}
+                  >
+                    <ThumbsDown className={cn("w-3.5 h-3.5", localVote === -1 && "fill-red-500")} />
+                    <span className="text-xs font-semibold">{localDownvotes}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className={cn(
+                    "max-w-[250px] p-2",
+                    theme === 'light' ? "bg-white border-gray-200" : "bg-zinc-900 border-white/10"
+                  )}
+                >
+                  {isAuthor ? (
+                    <p className="text-xs">You can't vote on your own comment</p>
+                  ) : voters.downvoters.length > 0 ? (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <ThumbsDown className="w-3.5 h-3.5 text-red-500" />
+                        <span className={cn(
+                          "font-medium text-xs",
+                          theme === 'light' ? "text-gray-900" : "text-white"
+                        )}>
+                          Downvoted by
+                        </span>
+                      </div>
+                      <div className={cn(
+                        "text-xs",
+                        theme === 'light' ? "text-gray-600" : "text-white/70"
+                      )}>
+                        {voters.downvoters.slice(0, 8).map((u, i) => (
+                          <span key={u.id}>
+                            {u.name}
+                            {i < Math.min(voters.downvoters.length - 1, 7) ? ', ' : ''}
+                          </span>
+                        ))}
+                        {voters.downvoters.length > 8 && (
+                          <span className="opacity-70"> and {voters.downvoters.length - 8} more</span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs">Downvote this comment</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
 
           {/* Reaction Picker */}
           <Popover open={showReactionPicker} onOpenChange={setShowReactionPicker}>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="px-2">
-                <span className="text-sm">😀</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "px-2.5 h-8 rounded-lg",
+                  theme === 'light' ? "hover:bg-gray-100" : "hover:bg-white/10"
+                )}
+              >
+                <span className="text-base">😊</span>
+                <ChevronDown className="w-3 h-3 ml-1 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" align="start">
-              <div className="flex gap-1">
+            <PopoverContent className={cn(
+              "w-auto p-3",
+              theme === 'light' ? "bg-white" : "bg-zinc-900"
+            )} align="start">
+              <p className={cn(
+                "text-xs font-medium mb-2",
+                theme === 'light' ? "text-gray-500" : "text-white/50"
+              )}>
+                Add reaction
+              </p>
+              <div className="flex gap-1 flex-wrap max-w-[200px]">
                 {Object.entries(REACTION_EMOJIS).map(([type, emoji]) => (
                   <button
                     key={type}
                     onClick={() => handleReaction(type)}
                     disabled={loadingReactions}
                     className={cn(
-                      "p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-lg",
-                      reactions[type]?.userReacted && "bg-blue-100 dark:bg-blue-500/20"
+                      "p-2 rounded-lg hover:scale-110 transition-all text-xl",
+                      theme === 'light' ? "hover:bg-gray-100" : "hover:bg-white/10",
+                      reactions[type]?.userReacted && (theme === 'light' ? "bg-blue-100 ring-2 ring-blue-300" : "bg-blue-500/20 ring-2 ring-blue-500/40")
                     )}
                     title={type.replace('_', ' ')}
                   >
@@ -789,12 +1048,20 @@ export function DiscussionCommentCard({
           onClick={handleBookmark}
           disabled={bookmarking}
           className={cn(
-            "px-2",
-            localBookmarked && "text-amber-500"
+            "px-2.5 gap-1.5 transition-all",
+            localBookmarked
+              ? "text-amber-500 bg-amber-50 dark:bg-amber-500/10"
+              : "hover:text-amber-500"
           )}
+          title={localBookmarked ? "Remove bookmark" : "Bookmark this comment"}
         >
-          {localBookmarked ? (
-            <BookmarkCheck className="w-4 h-4 fill-amber-500" />
+          {bookmarking ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : localBookmarked ? (
+            <>
+              <BookmarkCheck className="w-4 h-4 fill-amber-500" />
+              <span className="text-xs hidden sm:inline">Saved</span>
+            </>
           ) : (
             <Bookmark className="w-4 h-4" />
           )}
@@ -804,31 +1071,59 @@ export function DiscussionCommentCard({
       {/* Nested Replies */}
       {showRepliesExpanded && (
         <div className={cn(
-          "px-4 pb-4 space-y-3",
-          theme === 'light' ? "bg-gray-50/50" : "bg-white/2"
+          "px-4 pb-4 mt-2",
+          theme === 'light' ? "bg-gray-50/50 border-t border-gray-100" : "bg-white/2 border-t border-white/5"
         )}>
-          {loadingReplies ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
-            </div>
-          ) : (
-            replies.map((reply) => (
-              <DiscussionCommentCard
-                key={reply.id}
-                comment={reply}
-                podId={podId}
-                problemId={problemId}
-                currentUserId={currentUserId}
-                isAdmin={isAdmin}
-                onUpdate={onUpdate}
-                onDelete={onDelete}
-                showReplies={false}
-                depth={depth + 1}
-              />
-            ))
-          )}
+          <div className="pt-3 space-y-0">
+            {loadingReplies ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
+                <span className={cn(
+                  "ml-2 text-sm",
+                  theme === 'light' ? "text-gray-500" : "text-white/50"
+                )}>
+                  Loading replies...
+                </span>
+              </div>
+            ) : replies.length === 0 ? (
+              <p className={cn(
+                "text-sm text-center py-4",
+                theme === 'light' ? "text-gray-400" : "text-white/40"
+              )}>
+                No replies yet
+              </p>
+            ) : (
+              replies.map((reply) => (
+                <DiscussionCommentCard
+                  key={reply.id}
+                  comment={reply}
+                  podId={podId}
+                  problemId={problemId}
+                  currentUserId={currentUserId}
+                  isAdmin={isAdmin}
+                  onUpdate={onUpdate}
+                  onDelete={() => onReplyDeleted?.(reply.id)}
+                  onReply={onReply}
+                  showReplies={true}
+                  replies={allRepliesCache?.[reply.id] || []}
+                  loadingReplies={allLoadingReplies?.[reply.id]}
+                  isExpanded={allExpandedComments?.has(reply.id)}
+                  onToggleExpanded={() => onToggleAnyExpanded?.(reply.id)}
+                  onLoadReplies={() => onLoadAnyReplies?.(reply.id)}
+                  onReplyDeleted={(nestedReplyId) => onReplyDeleted?.(nestedReplyId)}
+                  allRepliesCache={allRepliesCache}
+                  allLoadingReplies={allLoadingReplies}
+                  allExpandedComments={allExpandedComments}
+                  onToggleAnyExpanded={onToggleAnyExpanded}
+                  onLoadAnyReplies={onLoadAnyReplies}
+                  depth={depth + 1}
+                />
+              ))
+            )}
+          </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

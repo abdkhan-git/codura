@@ -29,7 +29,7 @@ export async function GET(
     // Get reactions for the comment
     const { data: reactions, error: reactionsError } = await supabase
       .from('thread_reactions')
-      .select('reaction, user_id')
+      .select('id, reaction, user_id')
       .eq('comment_id', commentId);
 
     if (reactionsError) {
@@ -37,15 +37,39 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch reactions' }, { status: 500 });
     }
 
-    // Group reactions by type and count
-    const reactionCounts: Record<string, { count: number; users: string[]; userReacted: boolean }> = {};
+    // Get unique user IDs and fetch their details separately
+    const userIds = [...new Set(reactions?.map(r => r.user_id) || [])];
+    let userDetails: Record<string, { username: string; full_name: string; avatar_url: string }> = {};
 
-    reactions?.forEach(r => {
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('user_id, username, full_name, avatar_url')
+        .in('user_id', userIds);
+
+      users?.forEach(u => {
+        userDetails[u.user_id] = u;
+      });
+    }
+
+    // Group reactions by type and count with user details
+    const reactionCounts: Record<string, {
+      count: number;
+      users: Array<{ id: string; name: string; avatar?: string }>;
+      userReacted: boolean
+    }> = {};
+
+    reactions?.forEach((r: any) => {
       if (!reactionCounts[r.reaction]) {
         reactionCounts[r.reaction] = { count: 0, users: [], userReacted: false };
       }
       reactionCounts[r.reaction].count++;
-      reactionCounts[r.reaction].users.push(r.user_id);
+      const userInfo = userDetails[r.user_id];
+      reactionCounts[r.reaction].users.push({
+        id: r.user_id,
+        name: userInfo?.full_name || userInfo?.username || 'Anonymous',
+        avatar: userInfo?.avatar_url,
+      });
       if (r.user_id === user.id) {
         reactionCounts[r.reaction].userReacted = true;
       }

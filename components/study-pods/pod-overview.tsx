@@ -3,10 +3,34 @@
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
-import { ArrowRight, Play, Plus, TrendingUp, Zap } from "lucide-react";
-import { formatDistanceToNow, format } from "date-fns";
+import {
+  ArrowRight,
+  Play,
+  Plus,
+  TrendingUp,
+  Zap,
+  MessageSquare,
+  Bookmark,
+  Code2,
+  HelpCircle,
+  Lightbulb,
+  BarChart3,
+} from "lucide-react";
+import { formatDistanceToNow, format, isPast, isFuture } from "date-fns";
 import { PodSection } from "./pod-sidebar";
 import { DefaultAvatar } from "@/components/ui/default-avatar";
+import { Badge } from "@/components/ui/badge";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 interface PodOverviewProps {
   pod: any;
@@ -15,6 +39,7 @@ interface PodOverviewProps {
   onNavigate: (section: PodSection) => void;
   onStartSession: () => void;
   onCreateChallenge: () => void;
+  onOpenDiscussion?: (problemId: string) => void;
 }
 
 // Helper to safely parse dates
@@ -33,6 +58,9 @@ const safeFormatDistance = (dateString: any): string => {
   }
 };
 
+// Chart colors
+const CHART_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
+
 export function PodOverview({
   pod,
   sessions,
@@ -40,9 +68,13 @@ export function PodOverview({
   onNavigate,
   onStartSession,
   onCreateChallenge,
+  onOpenDiscussion,
 }: PodOverviewProps) {
   const { theme } = useTheme();
   const [isVisible, setIsVisible] = useState(false);
+  const [recentDiscussions, setRecentDiscussions] = useState<any[]>([]);
+  const [bookmarks, setBookmarks] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = pod?.user_role === "owner" || pod?.user_role === "moderator";
@@ -52,6 +84,37 @@ export function PodOverview({
     const timer = setTimeout(() => setIsVisible(true), 100);
     return () => clearTimeout(timer);
   }, []);
+
+  // Fetch recent discussions and bookmarks
+  useEffect(() => {
+    if (pod?.id) {
+      fetchOverviewData();
+    }
+  }, [pod?.id]);
+
+  const fetchOverviewData = async () => {
+    setLoadingData(true);
+    try {
+      const [discussionsRes, bookmarksRes] = await Promise.all([
+        fetch(`/api/study-pods/${pod.id}/recent-discussions`),
+        fetch(`/api/study-pods/${pod.id}/bookmarks`),
+      ]);
+
+      if (discussionsRes.ok) {
+        const data = await discussionsRes.json();
+        setRecentDiscussions(data.discussions || []);
+      }
+
+      if (bookmarksRes.ok) {
+        const data = await bookmarksRes.json();
+        setBookmarks(data.bookmarks || []);
+      }
+    } catch (error) {
+      console.error('Error fetching overview data:', error);
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
   // Filter upcoming sessions - exclude stale ones
   const now = new Date();
@@ -68,12 +131,47 @@ export function PodOverview({
     })
     .slice(0, 3);
 
+  // Filter active challenges - exclude expired and completed ones
   const activeChallenges = challenges
-    .filter(c => c.status === "active" || c.status === "upcoming")
+    .filter(c => {
+      // Must be active or upcoming status
+      if (c.status !== "active" && c.status !== "upcoming") return false;
+      // Check if end_time exists and is not in the past
+      if (c.end_time && isValidDate(c.end_time)) {
+        return !isPast(new Date(c.end_time));
+      }
+      return true;
+    })
     .slice(0, 3);
 
   // Calculate pod health/activity score
   const activityScore = Math.min(100, (pod?.members?.length || 0) * 15 + (sessions.length * 10) + (challenges.length * 20));
+
+  // Mock data for charts (in real app, calculate from actual data)
+  const problemsSolvedData = [
+    { name: 'Mon', solved: 4 },
+    { name: 'Tue', solved: 3 },
+    { name: 'Wed', solved: 7 },
+    { name: 'Thu', solved: 5 },
+    { name: 'Fri', solved: 8 },
+    { name: 'Sat', solved: 12 },
+    { name: 'Sun', solved: 6 },
+  ];
+
+  const difficultyData = [
+    { name: 'Easy', value: pod?.easy_solved || 35, color: '#10b981' },
+    { name: 'Medium', value: pod?.medium_solved || 45, color: '#f59e0b' },
+    { name: 'Hard', value: pod?.hard_solved || 20, color: '#ef4444' },
+  ];
+
+  const getCommentTypeIcon = (type: string) => {
+    switch (type) {
+      case 'solution': return <Code2 className="w-3.5 h-3.5 text-emerald-500" />;
+      case 'question': return <HelpCircle className="w-3.5 h-3.5 text-blue-500" />;
+      case 'hint': return <Lightbulb className="w-3.5 h-3.5 text-amber-500" />;
+      default: return <MessageSquare className="w-3.5 h-3.5 text-gray-500" />;
+    }
+  };
 
   return (
     <div ref={containerRef} className="space-y-5">
@@ -486,6 +584,366 @@ export function PodOverview({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts Row - Data Visualization */}
+      <div
+        className={cn(
+          "grid grid-cols-12 gap-4 transition-all duration-700 delay-250",
+          isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        )}
+      >
+        {/* Problems Solved Chart */}
+        <div className={cn(
+          "col-span-12 lg:col-span-8 relative overflow-hidden shine-effect rounded-xl",
+          theme === "light"
+            ? "bg-white border border-gray-200"
+            : "bg-zinc-900/50 border border-white/5"
+        )}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-inherit">
+            <div className="flex items-center gap-3">
+              <BarChart3 className={cn(
+                "w-4 h-4",
+                theme === "light" ? "text-blue-500" : "text-blue-400"
+              )} />
+              <h3 className={cn(
+                "font-semibold",
+                theme === "light" ? "text-gray-900" : "text-white"
+              )}>
+                Problems Solved This Week
+              </h3>
+            </div>
+          </div>
+          <div className="p-4 h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={problemsSolvedData}>
+                <defs>
+                  <linearGradient id="colorSolved" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: theme === "light" ? '#6b7280' : '#9ca3af', fontSize: 11 }}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: theme === "light" ? '#6b7280' : '#9ca3af', fontSize: 11 }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: theme === "light" ? '#fff' : '#18181b',
+                    border: theme === "light" ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="solved"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorSolved)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Difficulty Distribution */}
+        <div className={cn(
+          "col-span-12 lg:col-span-4 relative overflow-hidden shine-effect rounded-xl",
+          theme === "light"
+            ? "bg-white border border-gray-200"
+            : "bg-zinc-900/50 border border-white/5"
+        )}>
+          <div className="px-5 py-4 border-b border-inherit">
+            <h3 className={cn(
+              "font-semibold",
+              theme === "light" ? "text-gray-900" : "text-white"
+            )}>
+              Difficulty Breakdown
+            </h3>
+          </div>
+          <div className="p-4 h-48 flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={difficultyData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={40}
+                  outerRadius={60}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {difficultyData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: theme === "light" ? '#fff' : '#18181b',
+                    border: theme === "light" ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          {/* Legend */}
+          <div className="px-4 pb-4 flex justify-center gap-4">
+            {difficultyData.map((item) => (
+              <div key={item.name} className="flex items-center gap-1.5">
+                <div
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className={cn(
+                  "text-xs",
+                  theme === "light" ? "text-gray-600" : "text-white/60"
+                )}>
+                  {item.name}: {item.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Discussions & Bookmarks Row */}
+      <div
+        className={cn(
+          "grid grid-cols-12 gap-4 transition-all duration-700 delay-300",
+          isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        )}
+      >
+        {/* Recent Discussions */}
+        <div className={cn(
+          "col-span-12 lg:col-span-7 relative overflow-hidden shine-effect rounded-xl",
+          theme === "light"
+            ? "bg-white border border-gray-200"
+            : "bg-zinc-900/50 border border-white/5"
+        )}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-inherit">
+            <div className="flex items-center gap-3">
+              <MessageSquare className={cn(
+                "w-4 h-4",
+                theme === "light" ? "text-purple-500" : "text-purple-400"
+              )} />
+              <h3 className={cn(
+                "font-semibold",
+                theme === "light" ? "text-gray-900" : "text-white"
+              )}>
+                Recent Discussions
+              </h3>
+            </div>
+            <button
+              onClick={() => onNavigate("problems")}
+              className={cn(
+                "text-xs font-medium flex items-center gap-1 hover:gap-2 transition-all",
+                theme === "light" ? "text-gray-500 hover:text-gray-900" : "text-white/50 hover:text-white"
+              )}
+            >
+              View problems <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
+            {loadingData ? (
+              <div className={cn(
+                "py-8 text-center",
+                theme === "light" ? "text-gray-400" : "text-white/30"
+              )}>
+                <div className="animate-pulse">Loading discussions...</div>
+              </div>
+            ) : recentDiscussions.length === 0 ? (
+              <div className={cn(
+                "py-8 text-center",
+                theme === "light" ? "text-gray-400" : "text-white/30"
+              )}>
+                <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No discussions yet</p>
+                <p className="text-xs mt-1 opacity-60">Start a discussion on any problem</p>
+              </div>
+            ) : (
+              recentDiscussions.map((discussion) => (
+                <div
+                  key={discussion.id}
+                  className={cn(
+                    "group flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors",
+                    theme === "light"
+                      ? "hover:bg-gray-50"
+                      : "hover:bg-white/5"
+                  )}
+                  onClick={() => {
+                    if (discussion.thread?.problem_id && onOpenDiscussion) {
+                      onOpenDiscussion(discussion.thread.problem_id);
+                    } else {
+                      onNavigate("problems");
+                    }
+                  }}
+                >
+                  <DefaultAvatar
+                    src={discussion.user?.avatar_url}
+                    name={discussion.user?.full_name}
+                    username={discussion.user?.username}
+                    size="sm"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={cn(
+                        "text-sm font-medium truncate",
+                        theme === "light" ? "text-gray-900" : "text-white"
+                      )}>
+                        {discussion.user?.full_name || discussion.user?.username || 'Anonymous'}
+                      </span>
+                      {getCommentTypeIcon(discussion.comment_type)}
+                      {discussion.approach_title && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                          {discussion.approach_title}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className={cn(
+                      "text-xs line-clamp-2",
+                      theme === "light" ? "text-gray-600" : "text-white/70"
+                    )}>
+                      {discussion.content}
+                    </p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <span className={cn(
+                        "text-[10px]",
+                        theme === "light" ? "text-gray-400" : "text-white/40"
+                      )}>
+                        {safeFormatDistance(discussion.created_at)}
+                      </span>
+                      {discussion.thread?.problem && (
+                        <span className={cn(
+                          "text-[10px] px-1.5 py-0.5 rounded",
+                          discussion.thread.problem.difficulty === 'Easy'
+                            ? "bg-emerald-500/10 text-emerald-500"
+                            : discussion.thread.problem.difficulty === 'Medium'
+                              ? "bg-amber-500/10 text-amber-500"
+                              : "bg-red-500/10 text-red-500"
+                        )}>
+                          {discussion.thread.problem.title}
+                        </span>
+                      )}
+                      <span className={cn(
+                        "text-[10px] flex items-center gap-1",
+                        theme === "light" ? "text-gray-400" : "text-white/40"
+                      )}>
+                        <TrendingUp className="w-3 h-3" />
+                        {discussion.upvotes || 0}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Bookmarked Discussions */}
+        <div className={cn(
+          "col-span-12 lg:col-span-5 relative overflow-hidden shine-effect rounded-xl",
+          theme === "light"
+            ? "bg-white border border-gray-200"
+            : "bg-zinc-900/50 border border-white/5"
+        )}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-inherit">
+            <div className="flex items-center gap-3">
+              <Bookmark className={cn(
+                "w-4 h-4",
+                theme === "light" ? "text-amber-500" : "text-amber-400"
+              )} />
+              <h3 className={cn(
+                "font-semibold",
+                theme === "light" ? "text-gray-900" : "text-white"
+              )}>
+                Your Bookmarks
+              </h3>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
+            {loadingData ? (
+              <div className={cn(
+                "py-8 text-center",
+                theme === "light" ? "text-gray-400" : "text-white/30"
+              )}>
+                <div className="animate-pulse">Loading bookmarks...</div>
+              </div>
+            ) : bookmarks.length === 0 ? (
+              <div className={cn(
+                "py-8 text-center",
+                theme === "light" ? "text-gray-400" : "text-white/30"
+              )}>
+                <Bookmark className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No bookmarks yet</p>
+                <p className="text-xs mt-1 opacity-60">Save helpful discussions for later</p>
+              </div>
+            ) : (
+              bookmarks.map((bookmark) => (
+                <div
+                  key={bookmark.id}
+                  className={cn(
+                    "group p-3 rounded-lg cursor-pointer transition-colors",
+                    theme === "light"
+                      ? "hover:bg-amber-50"
+                      : "hover:bg-amber-500/5"
+                  )}
+                  onClick={() => {
+                    if (bookmark.comment?.thread?.problem_id && onOpenDiscussion) {
+                      onOpenDiscussion(bookmark.comment.thread.problem_id);
+                    } else {
+                      onNavigate("problems");
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    {getCommentTypeIcon(bookmark.comment?.comment_type)}
+                    <span className={cn(
+                      "text-sm font-medium truncate",
+                      theme === "light" ? "text-gray-900" : "text-white"
+                    )}>
+                      {bookmark.comment?.approach_title ||
+                        (bookmark.comment?.comment_type === 'solution' ? 'Solution' : 'Discussion')}
+                    </span>
+                  </div>
+                  <p className={cn(
+                    "text-xs line-clamp-2 mb-2",
+                    theme === "light" ? "text-gray-600" : "text-white/70"
+                  )}>
+                    {bookmark.comment?.content}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className={cn(
+                      "text-[10px]",
+                      theme === "light" ? "text-gray-400" : "text-white/40"
+                    )}>
+                      by {bookmark.comment?.user?.full_name || bookmark.comment?.user?.username || 'Anonymous'}
+                    </span>
+                    {bookmark.note && (
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500"
+                      )}>
+                        Note added
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
