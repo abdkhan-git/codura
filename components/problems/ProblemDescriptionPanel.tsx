@@ -5,8 +5,9 @@ import React, { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { Tag, ChevronDown, ChevronUp } from 'lucide-react'
+import { Tag, ChevronDown, ChevronUp, AlignLeft } from 'lucide-react'
 import SubmissionHistory from './SubmissionHistory'
+import { Slider } from '@/components/ui/slider'
 
 interface ProblemDescriptionPanelProps {
     problem: any
@@ -14,14 +15,15 @@ interface ProblemDescriptionPanelProps {
     onCopyToEditor?: (code: string) => void 
 }
 
-export default function ProblemDescriptionPanel({ 
-    problem, 
+export default function ProblemDescriptionPanel({
+    problem,
     allOfUsersSubmissions,
-    onCopyToEditor 
+    onCopyToEditor
 }: ProblemDescriptionPanelProps) {
     const [showTags, setShowTags] = useState(false)
     const [showAcceptanceRate, setShowAcceptanceRate] = useState(false)
     const [activeTab, setActiveTab] = useState('description')
+    const [maxWidth, setMaxWidth] = useState(100) // Percentage of container width
 
     const getDifficultyColor = (difficulty: string) => {
         switch (difficulty) {
@@ -41,7 +43,7 @@ export default function ProblemDescriptionPanel({
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
                 <div className="border-b border-zinc-800/50 overflow-x-scroll">
                     <TabsList className="inline-flex w-auto min-w-full justify-start h-auto px-6 bg-transparent gap-6">
-                        {['Description', 'Solution', 'Discussion', 'Community', 'Submissions'].map(tab => (
+                        {['Description', 'Solution', 'Community', 'Submissions'].map(tab => (
                             <TabsTrigger 
                                 key={tab.toLowerCase()}
                                 value={tab.toLowerCase()} 
@@ -100,7 +102,7 @@ export default function ProblemDescriptionPanel({
                                         {showTags ? 'Hide Topics' : 'View Topics'}
                                         {showTags ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                     </button>
-                                    
+
                                     {showTags && (
                                         <div className="flex flex-wrap gap-2">
                                             {problem.topic_tags.map((tag: any) => (
@@ -113,9 +115,29 @@ export default function ProblemDescriptionPanel({
                                 </div>
                             )}
 
+                            {/* Text Width Control */}
+                            <div className="space-y-2 py-2 border-y border-zinc-800/50">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm text-zinc-400">Text Width: {maxWidth}%</label>
+                                </div>
+                                <Slider
+                                    value={[maxWidth]}
+                                    onValueChange={(value) => setMaxWidth(value[0])}
+                                    min={30}
+                                    max={100}
+                                    step={5}
+                                    className="w-full"
+                                />
+                                <div className="flex justify-between text-xs text-zinc-500">
+                                    <span>Narrow</span>
+                                    <span>Full Width</span>
+                                </div>
+                            </div>
+
                             <div className="space-y-2">
                                 <div
-                                    className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
+                                    className="text-sm text-muted-foreground prose prose-sm dark:prose-invert transition-all duration-300"
+                                    style={{ maxWidth: `${maxWidth}%` }}
                                     dangerouslySetInnerHTML={{ __html: problem.description }}
                                 />
                             </div>
@@ -140,15 +162,6 @@ export default function ProblemDescriptionPanel({
                             <h2 className="text-xl font-bold">Solution Approach</h2>
                             <p className="text-sm text-muted-foreground">
                                 The solution content will go here.
-                            </p>
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="discussion" className="p-4 mt-0">
-                        <div className="space-y-4">
-                            <h2 className="text-xl font-bold">Discussion</h2>
-                            <p className="text-sm text-muted-foreground">
-                                Community discussions will appear here.
                             </p>
                         </div>
                     </TabsContent>

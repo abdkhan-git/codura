@@ -1653,7 +1653,7 @@ export default function ProblemPage() {
       <div className="relative z-10 flex-1 p-2 overflow-hidden">
         <ResizablePanelGroup direction="horizontal" className="h-full">
           {/* LEFT: Problem Description & history */}
-          <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>
+          <ResizablePanel defaultSize={35} minSize={15} maxSize={60}>
             <ProblemDescriptionPanel
               problem={problem}
               allOfUsersSubmissions={allOfUsersSubmissions}
