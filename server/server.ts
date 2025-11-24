@@ -351,6 +351,8 @@ async function storeSubmission(
     submissionData.time_complexity = complexityResult.timeComplexity;
     submissionData.complexity_confidence = complexityResult.confidence;
     submissionData.complexity_analysis = complexityResult.analysis;
+    submissionData.space_complexity = complexityResult.spaceComplexity;
+    submissionData.space_complexity_analysis = complexityResult.spaceAnalysis;
   }
 
   const { data, error } = await supabase

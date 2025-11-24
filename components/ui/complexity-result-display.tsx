@@ -402,27 +402,6 @@ export default function ComplexityResultDisplay({
           </div>
         )}
 
-        {/* Examples */}
-        <div className="p-3 rounded-xl bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/30">
-          <h5 className="text-xs font-semibold text-foreground/80 mb-2 flex items-center gap-2">
-            <div
-              className="w-1 h-3 rounded-full"
-              style={{ backgroundColor: selectedComplexity.color }}
-            />
-            Common Examples
-          </h5>
-          <div className="space-y-1.5">
-            {selectedComplexity.examples.map((example, idx) => (
-              <div key={idx} className="flex items-start gap-2 text-xs text-muted-foreground">
-                <div
-                  className="w-1 h-1 rounded-full mt-1.5 flex-shrink-0"
-                  style={{ backgroundColor: selectedComplexity.color }}
-                />
-                <span className="leading-relaxed">{example}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

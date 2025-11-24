@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Clock, HardDrive, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import ComplexityResultDisplay from '@/components/ui/complexity-result-display';
+import SpaceComplexityBadge from '@/components/ui/space-complexity-badge';
 
 // Type definitions matching the SubmissionResult from CodeEditorPanel
 interface TestcaseResult {
@@ -30,6 +31,9 @@ interface SubmissionResult {
   timeComplexity?: string;
   complexityConfidence?: number;
   complexityAnalysis?: string;
+  spaceComplexity?: string;
+  spaceConfidence?: number;
+  spaceAnalysis?: string;
 }
 
 interface SubmissionResultModalProps {
@@ -120,10 +124,10 @@ export default function SubmissionResultModal({
             )}
           </div>
 
-          {/* Complexity Analysis */}
+          {/* Time Complexity Analysis */}
           {submissionResult.timeComplexity && (
-            <div className="space-y-4">
-              <h4 className="font-semibold text-sm text-white">Algorithm Complexity Analysis:</h4>
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm text-white">Time Complexity Analysis</h4>
               <ComplexityResultDisplay
                 detectedComplexity={submissionResult.timeComplexity}
                 confidence={submissionResult.complexityConfidence}
@@ -134,23 +138,52 @@ export default function SubmissionResultModal({
             </div>
           )}
 
-          {/* Statistics Grid */}
+          {/* Space Complexity Analysis */}
+          {submissionResult.spaceComplexity && (
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm text-white">Space Complexity Analysis</h4>
+              <div className="grid lg:grid-cols-3 gap-4">
+                {/* Space Complexity Graph */}
+                <div className="lg:col-span-2">
+                  <ComplexityResultDisplay
+                    detectedComplexity={submissionResult.spaceComplexity}
+                    confidence={submissionResult.spaceConfidence}
+                    analysis={submissionResult.spaceAnalysis}
+                    layout="horizontal"
+                    animated={true}
+                  />
+                </div>
+                {/* Space Complexity Badge */}
+                <div className="flex items-start">
+                  <SpaceComplexityBadge
+                    spaceComplexity={submissionResult.spaceComplexity}
+                    confidence={submissionResult.spaceConfidence}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Execution Analytics */}
           {(submissionResult.runtime || submissionResult.memory) && (
-            <div className="grid grid-cols-2 gap-4">
-              {submissionResult.runtime && (
-                <StatCard
-                  icon={<Clock className="w-5 h-5" />}
-                  label="Runtime"
-                  value={submissionResult.runtime}
-                />
-              )}
-              {submissionResult.memory && (
-                <StatCard
-                  icon={<HardDrive className="w-5 h-5" />}
-                  label="Memory"
-                  value={submissionResult.memory}
-                />
-              )}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm text-white">Execution Analytics</h4>
+              <div className="grid grid-cols-2 gap-4">
+                {submissionResult.runtime && (
+                  <StatCard
+                    icon={<Clock className="w-5 h-5" />}
+                    label="Runtime"
+                    value={submissionResult.runtime}
+                  />
+                )}
+                {submissionResult.memory && (
+                  <StatCard
+                    icon={<HardDrive className="w-5 h-5" />}
+                    label="Memory"
+                    value={submissionResult.memory}
+                  />
+                )}
+              </div>
             </div>
           )}
 

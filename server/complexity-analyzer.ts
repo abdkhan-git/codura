@@ -3,13 +3,23 @@ import * as walk from 'acorn-walk';
 
 interface ComplexityResult {
   timeComplexity: string;
+  spaceComplexity: string;
   confidence: number;
+  spaceConfidence: number;
   analysis: string;
+  spaceAnalysis: string;
   details: {
     loops: number;
     nestedLoops: number;
     recursiveCalls: number;
     maxNestingDepth: number;
+  };
+  spaceDetails: {
+    variables: number;
+    arrays: number;
+    objects: number;
+    recursionDepth: number;
+    auxiliaryStructures: number;
   };
 }
 
@@ -32,13 +42,23 @@ export async function analyzeComplexity(
       // Fallback for unsupported languages
       return {
         timeComplexity: 'O(n)',
+        spaceComplexity: 'O(1)',
         confidence: 0.3,
+        spaceConfidence: 0.3,
         analysis: `Complexity analysis not yet supported for ${language}. Assuming linear time.`,
+        spaceAnalysis: 'Assuming constant space as a conservative estimate.',
         details: {
           loops: 0,
           nestedLoops: 0,
           recursiveCalls: 0,
           maxNestingDepth: 0,
+        },
+        spaceDetails: {
+          variables: 0,
+          arrays: 0,
+          objects: 0,
+          recursionDepth: 0,
+          auxiliaryStructures: 0,
         },
       };
     }
@@ -46,13 +66,23 @@ export async function analyzeComplexity(
     console.error('Error analyzing complexity:', error.message);
     return {
       timeComplexity: 'O(n)',
+      spaceComplexity: 'O(1)',
       confidence: 0.1,
+      spaceConfidence: 0.1,
       analysis: 'Unable to analyze complexity due to parsing error.',
+      spaceAnalysis: 'Unable to analyze space complexity.',
       details: {
         loops: 0,
         nestedLoops: 0,
         recursiveCalls: 0,
         maxNestingDepth: 0,
+      },
+      spaceDetails: {
+        variables: 0,
+        arrays: 0,
+        objects: 0,
+        recursionDepth: 0,
+        auxiliaryStructures: 0,
       },
     };
   }
@@ -77,10 +107,13 @@ function analyzeJavaScriptComplexity(sourceCode: string): ComplexityResult {
     let currentDepth = 0;
     let functionName: string | null = null;
 
-    // Track loop nesting
-    const loopStack: number[] = [];
+    // Space complexity tracking
+    let arrays = 0;
+    let objects = 0;
+    let auxiliaryStructures = 0;
+    const variableNames = new Set<string>();
 
-    walk.ancestor(ast, {
+    walk.simple(ast, {
       // Detect function declarations to track recursion
       FunctionDeclaration(node: any) {
         if (node.id && node.id.name) {
@@ -88,15 +121,10 @@ function analyzeJavaScriptComplexity(sourceCode: string): ComplexityResult {
         }
       },
 
-      // Detect arrow functions and function expressions
-      ArrowFunctionExpression() {},
-      FunctionExpression() {},
-
       // Detect loops
       ForStatement() {
         loops++;
         currentDepth++;
-        loopStack.push(currentDepth);
         maxNestingDepth = Math.max(maxNestingDepth, currentDepth);
         if (currentDepth > 1) {
           nestedLoops++;
@@ -106,7 +134,6 @@ function analyzeJavaScriptComplexity(sourceCode: string): ComplexityResult {
       WhileStatement() {
         loops++;
         currentDepth++;
-        loopStack.push(currentDepth);
         maxNestingDepth = Math.max(maxNestingDepth, currentDepth);
         if (currentDepth > 1) {
           nestedLoops++;
@@ -116,7 +143,6 @@ function analyzeJavaScriptComplexity(sourceCode: string): ComplexityResult {
       DoWhileStatement() {
         loops++;
         currentDepth++;
-        loopStack.push(currentDepth);
         maxNestingDepth = Math.max(maxNestingDepth, currentDepth);
         if (currentDepth > 1) {
           nestedLoops++;
@@ -126,7 +152,6 @@ function analyzeJavaScriptComplexity(sourceCode: string): ComplexityResult {
       ForInStatement() {
         loops++;
         currentDepth++;
-        loopStack.push(currentDepth);
         maxNestingDepth = Math.max(maxNestingDepth, currentDepth);
         if (currentDepth > 1) {
           nestedLoops++;
@@ -136,7 +161,6 @@ function analyzeJavaScriptComplexity(sourceCode: string): ComplexityResult {
       ForOfStatement() {
         loops++;
         currentDepth++;
-        loopStack.push(currentDepth);
         maxNestingDepth = Math.max(maxNestingDepth, currentDepth);
         if (currentDepth > 1) {
           nestedLoops++;
@@ -152,24 +176,68 @@ function analyzeJavaScriptComplexity(sourceCode: string): ComplexityResult {
         ) {
           recursiveCalls++;
         }
+
+        // Detect auxiliary structures (Map, Set, etc.)
+        if (node.callee.type === 'NewExpression' ||
+            (node.callee.type === 'Identifier' &&
+             ['Map', 'Set', 'WeakMap', 'WeakSet'].includes(node.callee.name))) {
+          auxiliaryStructures++;
+        }
+      },
+
+      // Detect variable declarations
+      VariableDeclarator(node: any) {
+        if (node.id.type === 'Identifier') {
+          variableNames.add(node.id.name);
+        }
+
+        // Detect array literals
+        if (node.init && node.init.type === 'ArrayExpression') {
+          arrays++;
+        }
+
+        // Detect object literals
+        if (node.init && node.init.type === 'ObjectExpression') {
+          objects++;
+        }
+
+        // Detect new Array() or Array.from()
+        if (node.init && node.init.type === 'NewExpression' &&
+            node.init.callee.name === 'Array') {
+          arrays++;
+        }
+
+        // Detect new Object() or Object.create()
+        if (node.init && node.init.type === 'NewExpression' &&
+            node.init.callee.name === 'Object') {
+          objects++;
+        }
+      },
+
+      // Detect array/object expressions
+      ArrayExpression() {
+        arrays++;
+      },
+
+      ObjectExpression() {
+        objects++;
       },
     });
 
-    // Exit loop tracking
-    walk.ancestor(ast, {
-      'ForStatement:exit': () => { currentDepth--; },
-      'WhileStatement:exit': () => { currentDepth--; },
-      'DoWhileStatement:exit': () => { currentDepth--; },
-      'ForInStatement:exit': () => { currentDepth--; },
-      'ForOfStatement:exit': () => { currentDepth--; },
-    });
+    const spaceDetails = {
+      variables: variableNames.size,
+      arrays,
+      objects,
+      recursionDepth: recursiveCalls > 0 ? maxNestingDepth : 0,
+      auxiliaryStructures,
+    };
 
     return determineComplexity({
       loops,
       nestedLoops,
       recursiveCalls,
       maxNestingDepth,
-    });
+    }, spaceDetails);
   } catch (error: any) {
     // If parsing fails, try regex-based heuristic
     return analyzeWithRegex(sourceCode, 'javascript');
@@ -190,6 +258,11 @@ function analyzeWithRegex(sourceCode: string, language: string): ComplexityResul
   let loops = 0;
   let nestedLoops = 0;
   let recursiveCalls = 0;
+
+  // Space complexity tracking
+  let arrays = 0;
+  let objects = 0;
+  let auxiliaryStructures = 0;
 
   const lines = sourceCode.split('\n');
   let maxIndent = 0;
@@ -212,7 +285,20 @@ function analyzeWithRegex(sourceCode: string, language: string): ComplexityResul
     ],
   };
 
+  // Space patterns
+  const arrayPatterns: { [key: string]: RegExp[] } = {
+    javascript: [/\[.*\]/, /new Array\(/, /Array\.from\(/],
+    python: [/\[.*\]/, /list\(/],
+  };
+
+  const objectPatterns: { [key: string]: RegExp[] } = {
+    javascript: [/\{.*\}/, /new Object\(/, /new Map\(/, /new Set\(/],
+    python: [/\{.*\}/, /dict\(/],
+  };
+
   const patterns = loopPatterns[language] || loopPatterns.javascript;
+  const arrayPat = arrayPatterns[language] || arrayPatterns.javascript;
+  const objectPat = objectPatterns[language] || objectPatterns.javascript;
 
   lines.forEach((line) => {
     // Calculate indentation level (approximation)
@@ -246,28 +332,119 @@ function analyzeWithRegex(sourceCode: string, language: string): ComplexityResul
         }
       }
     }
+
+    // Detect arrays
+    if (arrayPat.some(p => p.test(line))) {
+      arrays++;
+    }
+
+    // Detect objects/maps
+    if (objectPat.some(p => p.test(line))) {
+      objects++;
+    }
+
+    // Detect auxiliary structures
+    if (/new (Map|Set|WeakMap|WeakSet)\(/.test(line)) {
+      auxiliaryStructures++;
+    }
   });
 
   const maxNestingDepth = Math.floor(maxIndent / 2);
+
+  const spaceDetails = {
+    variables: 0,
+    arrays,
+    objects,
+    recursionDepth: recursiveCalls > 0 ? maxNestingDepth : 0,
+    auxiliaryStructures,
+  };
 
   return determineComplexity({
     loops,
     nestedLoops,
     recursiveCalls,
     maxNestingDepth,
-  });
+  }, spaceDetails);
 }
 
 /**
  * Determines Big O complexity based on detected patterns
  */
-function determineComplexity(details: {
-  loops: number;
-  nestedLoops: number;
-  recursiveCalls: number;
-  maxNestingDepth: number;
-}): ComplexityResult {
+function determineComplexity(
+  details: {
+    loops: number;
+    nestedLoops: number;
+    recursiveCalls: number;
+    maxNestingDepth: number;
+  },
+  spaceDetails?: {
+    variables: number;
+    arrays: number;
+    objects: number;
+    recursionDepth: number;
+    auxiliaryStructures: number;
+  }
+): ComplexityResult {
   const { loops, nestedLoops, recursiveCalls, maxNestingDepth } = details;
+
+  // Default space details if not provided
+  const space = spaceDetails || {
+    variables: 0,
+    arrays: 0,
+    objects: 0,
+    recursionDepth: 0,
+    auxiliaryStructures: 0,
+  };
+
+  // Helper function to determine space complexity
+  const determineSpaceComplexity = () => {
+    const totalDataStructures = space.arrays + space.objects + space.auxiliaryStructures;
+
+    // O(1) - No extra space
+    if (totalDataStructures === 0 && space.recursionDepth === 0) {
+      return {
+        spaceComplexity: 'O(1)',
+        spaceConfidence: 0.85,
+        spaceAnalysis: 'No auxiliary data structures detected. Uses constant space.',
+      };
+    }
+
+    // O(n²) - 2D arrays or nested structures
+    if (space.arrays >= 2 || (space.arrays >= 1 && maxNestingDepth >= 2)) {
+      return {
+        spaceComplexity: 'O(n²)',
+        spaceConfidence: 0.75,
+        spaceAnalysis: `Multiple arrays or nested structures detected. Space grows quadratically.`,
+      };
+    }
+
+    // O(log n) - Recursion with divide-and-conquer
+    if (space.recursionDepth > 0 && recursiveCalls === 1) {
+      return {
+        spaceComplexity: 'O(log n)',
+        spaceConfidence: 0.65,
+        spaceAnalysis: 'Recursive call stack with divide-and-conquer pattern. Logarithmic stack space.',
+      };
+    }
+
+    // O(n) - Single array or proportional structures
+    if (totalDataStructures >= 1 || space.recursionDepth > 0) {
+      return {
+        spaceComplexity: 'O(n)',
+        spaceConfidence: 0.8,
+        spaceAnalysis: `${totalDataStructures} auxiliary data structure(s) detected. Space scales linearly with input size.`,
+      };
+    }
+
+    // Default O(1)
+    return {
+      spaceComplexity: 'O(1)',
+      spaceConfidence: 0.5,
+      spaceAnalysis: 'Unable to determine exact space complexity. Assuming constant space.',
+    };
+  };
+
+  const spaceResult = determineSpaceComplexity();
 
   // O(1) - Constant time
   if (loops === 0 && recursiveCalls === 0) {
@@ -276,6 +453,8 @@ function determineComplexity(details: {
       confidence: 0.9,
       analysis: 'No loops or recursion detected. Code runs in constant time.',
       details,
+      ...spaceResult,
+      spaceDetails: space,
     };
   }
 
@@ -286,6 +465,8 @@ function determineComplexity(details: {
       confidence: 0.7,
       analysis: `Multiple recursive calls detected (${recursiveCalls}). This suggests exponential time complexity, typical of brute-force recursive solutions.`,
       details,
+      ...spaceResult,
+      spaceDetails: space,
     };
   }
 
@@ -296,6 +477,8 @@ function determineComplexity(details: {
       confidence: 0.6,
       analysis: 'Single recursive call detected with no loops. This may indicate logarithmic complexity, common in binary search or divide-and-conquer algorithms.',
       details,
+      ...spaceResult,
+      spaceDetails: space,
     };
   }
 
@@ -306,6 +489,8 @@ function determineComplexity(details: {
       confidence: 0.85,
       analysis: `Nested loops detected (${nestedLoops} nested, max depth: ${maxNestingDepth}). Time complexity grows quadratically with input size.`,
       details,
+      ...spaceResult,
+      spaceDetails: space,
     };
   }
 
@@ -316,6 +501,8 @@ function determineComplexity(details: {
       confidence: 0.65,
       analysis: 'Loop with recursive call detected. This pattern is common in efficient sorting algorithms like merge sort.',
       details,
+      ...spaceResult,
+      spaceDetails: space,
     };
   }
 
@@ -326,6 +513,8 @@ function determineComplexity(details: {
       confidence: 0.8,
       analysis: `${loops} loop(s) detected without nesting. Time complexity scales linearly with input size.`,
       details,
+      ...spaceResult,
+      spaceDetails: space,
     };
   }
 
@@ -335,5 +524,7 @@ function determineComplexity(details: {
     confidence: 0.4,
     analysis: 'Unable to determine exact complexity. Assuming linear time as a conservative estimate.',
     details,
+    ...spaceResult,
+    spaceDetails: space,
   };
 }

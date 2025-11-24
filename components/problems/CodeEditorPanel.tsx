@@ -39,6 +39,9 @@ interface SubmissionResult {
   timeComplexity?: string
   complexityConfidence?: number
   complexityAnalysis?: string
+  spaceComplexity?: string
+  spaceConfidence?: number
+  spaceAnalysis?: string
 }
 
 interface CodeEditorPanelProps {
@@ -390,6 +393,9 @@ const handleCodeSubmission = async () => {
       timeComplexity: complexityAnalysis?.timeComplexity,
       complexityConfidence: complexityAnalysis?.confidence,
       complexityAnalysis: complexityAnalysis?.analysis,
+      spaceComplexity: complexityAnalysis?.spaceComplexity,
+      spaceConfidence: complexityAnalysis?.spaceConfidence,
+      spaceAnalysis: complexityAnalysis?.spaceAnalysis,
     };
 
     setSubmissionResult(modalResult);

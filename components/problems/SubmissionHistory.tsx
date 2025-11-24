@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock, Cpu, HardDrive, Calendar, CheckCircle, XCircle, AlertCircle, Code, Copy } from 'lucide-react';
 import ComplexityResultDisplay from '@/components/ui/complexity-result-display';
+import SpaceComplexityBadge from '@/components/ui/space-complexity-badge';
 
 // Type definitions
 interface Submission {
@@ -17,6 +18,8 @@ interface Submission {
   time_complexity?: string;
   complexity_confidence?: number;
   complexity_analysis?: string;
+  space_complexity?: string;
+  space_complexity_analysis?: string;
 }
 
 interface SubmissionWithNumber extends Submission {
@@ -219,10 +222,10 @@ export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEdito
                 </p>
               </div>
 
-              {/* Complexity Analysis */}
+              {/* Time Complexity Analysis */}
               {selectedSubmission.time_complexity && (
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-sm text-white">Algorithm Complexity Analysis:</h4>
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm text-white">Time Complexity Analysis</h4>
                   <ComplexityResultDisplay
                     detectedComplexity={selectedSubmission.time_complexity}
                     confidence={selectedSubmission.complexity_confidence}
@@ -233,24 +236,53 @@ export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEdito
                 </div>
               )}
 
-              {/* Statistics Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <StatCard
-                  icon={<Clock className="w-5 h-5" />}
-                  label="Runtime"
-                  value={`${selectedSubmission.runtime ? selectedSubmission.runtime.toFixed(3) : "N/A"}s`}
-                />
-                <StatCard
-                  icon={<HardDrive className="w-5 h-5" />}
-                  label="Memory"
-                  value={`${selectedSubmission.memory ? (selectedSubmission.memory / 1024).toFixed(2) : "N/A"} MB`}
-                  subtext={`${selectedSubmission.memory || "N/A"} KB`}
-                />
-                <StatCard
-                  icon={<Code className="w-5 h-5" />}
-                  label="Language"
-                  value={selectedSubmission.language || "N/A"}
-                />
+              {/* Space Complexity Analysis */}
+              {selectedSubmission.space_complexity && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm text-white">Space Complexity Analysis</h4>
+                  <div className="grid lg:grid-cols-3 gap-4">
+                    {/* Space Complexity Graph */}
+                    <div className="lg:col-span-2">
+                      <ComplexityResultDisplay
+                        detectedComplexity={selectedSubmission.space_complexity}
+                        confidence={selectedSubmission.complexity_confidence}
+                        analysis={selectedSubmission.space_complexity_analysis}
+                        layout="horizontal"
+                        animated={true}
+                      />
+                    </div>
+                    {/* Space Complexity Badge */}
+                    <div className="flex items-start">
+                      <SpaceComplexityBadge
+                        spaceComplexity={selectedSubmission.space_complexity}
+                        confidence={selectedSubmission.complexity_confidence}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Execution Analytics */}
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm text-white">Execution Analytics</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <StatCard
+                    icon={<Clock className="w-5 h-5" />}
+                    label="Runtime"
+                    value={`${selectedSubmission.runtime ? selectedSubmission.runtime.toFixed(3) : "N/A"}s`}
+                  />
+                  <StatCard
+                    icon={<HardDrive className="w-5 h-5" />}
+                    label="Memory"
+                    value={`${selectedSubmission.memory ? (selectedSubmission.memory / 1024).toFixed(2) : "N/A"} MB`}
+                    subtext={`${selectedSubmission.memory || "N/A"} KB`}
+                  />
+                  <StatCard
+                    icon={<Code className="w-5 h-5" />}
+                    label="Language"
+                    value={selectedSubmission.language || "N/A"}
+                  />
+                </div>
               </div>
 
               {/* Code Section */}
