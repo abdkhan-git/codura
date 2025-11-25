@@ -6,10 +6,12 @@ export const revalidate = 60; // Cache for 60 seconds
 export const dynamic = 'force-dynamic';
 
 /**
- * Leaderboard API - Returns ranked users from the same school
+ * Leaderboard API - Returns ranked users from a school
  * Filters by federal_school_code and only shows public profiles
+ * Query params:
+ *  - school_code (optional): View leaderboard for a specific school
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient();
 
@@ -20,7 +22,11 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get current user's profile to find their federal_school_code
+    // Get query params
+    const { searchParams } = new URL(request.url);
+    const requestedSchoolCode = searchParams.get('school_code');
+
+    // Get current user's profile
     const { data: currentUserProfile, error: profileError } = await supabase
       .from('users')
       .select('federal_school_code')
@@ -32,18 +38,22 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
     }
 
-    // If user doesn't have a school code, return empty leaderboard
-    if (!currentUserProfile?.federal_school_code) {
+    // Determine which school code to use
+    const schoolCode = requestedSchoolCode || currentUserProfile?.federal_school_code;
+
+    // If no school code available, return empty leaderboard
+    if (!schoolCode) {
       return NextResponse.json({
         leaderboard: [],
         userRank: null,
         totalUsers: 0,
         schoolCode: null,
+        isOwnSchool: false,
         message: 'No school affiliation found. Update your profile to see your school leaderboard.'
       });
     }
 
-    const schoolCode = currentUserProfile.federal_school_code;
+    const isOwnSchool = schoolCode === currentUserProfile?.federal_school_code;
 
     // Fetch all public users from the same school
     const { data: usersData, error: usersError } = await supabase
@@ -135,6 +145,7 @@ export async function GET() {
       userRank,
       totalUsers: rankedLeaderboard.length,
       schoolCode,
+      isOwnSchool,
       message: null
     });
 

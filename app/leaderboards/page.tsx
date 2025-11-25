@@ -9,6 +9,7 @@ import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { LeaderboardEntry } from "@/types/database";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import dynamic from 'next/dynamic';
 
 // @ts-ignore
@@ -28,7 +29,15 @@ interface LeaderboardResponse {
   userRank: number | null;
   totalUsers: number;
   schoolCode: string | null;
+  isOwnSchool: boolean;
   message: string | null;
+}
+
+interface School {
+  code: string;
+  name: string;
+  city: string | null;
+  state: string | null;
 }
 
 type FilterType = 'total' | 'easy' | 'medium' | 'hard';
@@ -39,12 +48,17 @@ export default function LeaderboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardResponse | null>(null);
   const [filter, setFilter] = useState<FilterType>('total');
+  const [schoolSearchQuery, setSchoolSearchQuery] = useState('');
+  const [schoolResults, setSchoolResults] = useState<School[]>([]);
+  const [searchingSchools, setSearchingSchools] = useState(false);
+  const [showSchoolResults, setShowSchoolResults] = useState(false);
+  const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
 
   useEffect(() => {
     fetchUserAndLeaderboard();
   }, []);
 
-  const fetchUserAndLeaderboard = async () => {
+  const fetchUserAndLeaderboard = async (schoolCode?: string) => {
     try {
       setError(null);
       setLoading(true);
@@ -72,8 +86,11 @@ export default function LeaderboardPage() {
       };
       setUser(userData);
 
-      // Fetch leaderboard
-      const leaderboardResponse = await fetch('/api/leaderboard');
+      // Fetch leaderboard with optional school code
+      const url = schoolCode
+        ? `/api/leaderboard?school_code=${encodeURIComponent(schoolCode)}`
+        : '/api/leaderboard';
+      const leaderboardResponse = await fetch(url);
       if (!leaderboardResponse.ok) {
         throw new Error('Failed to load leaderboard data');
       }
@@ -86,6 +103,69 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Search for schools by name
+  const searchSchools = async (query: string) => {
+    if (!query || query.trim().length < 2) {
+      setSchoolResults([]);
+      setShowSchoolResults(false);
+      return;
+    }
+
+    setSearchingSchools(true);
+    try {
+      const response = await fetch(`/api/schools?q=${encodeURIComponent(query)}`);
+      if (response.ok) {
+        const schools = await response.json();
+        setSchoolResults(schools);
+        setShowSchoolResults(true);
+      } else {
+        setSchoolResults([]);
+      }
+    } catch (error) {
+      console.error('Error searching schools:', error);
+      setSchoolResults([]);
+    } finally {
+      setSearchingSchools(false);
+    }
+  };
+
+  // Debounce school search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchSchools(schoolSearchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [schoolSearchQuery]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.school-search-container')) {
+        setShowSchoolResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectSchool = (school: School) => {
+    setSelectedSchool(school);
+    setSchoolSearchQuery(school.name);
+    setShowSchoolResults(false);
+    fetchUserAndLeaderboard(school.code);
+  };
+
+  const handleViewMySchool = () => {
+    setSchoolSearchQuery('');
+    setSelectedSchool(null);
+    setSchoolResults([]);
+    setShowSchoolResults(false);
+    fetchUserAndLeaderboard();
   };
 
   const getRankIcon = (rank: number) => {
@@ -212,6 +292,104 @@ export default function LeaderboardPage() {
             Compete with students from your school and climb the ranks
           </p>
         </div>
+
+        {/* School Search Card */}
+        {!loading && leaderboardData && (
+          <Card className="mb-6 border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl shadow-xl">
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                {/* Current School Display */}
+                {leaderboardData.schoolCode && (
+                  <div className="flex items-center justify-between pb-4 border-b border-border/20">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Viewing Leaderboard</p>
+                      <p className="text-lg font-semibold">
+                        {leaderboardData.isOwnSchool ? (
+                          <span className="text-amber-500">Your School</span>
+                        ) : selectedSchool ? (
+                          <span>{selectedSchool.name}</span>
+                        ) : (
+                          <span>School Code: {leaderboardData.schoolCode}</span>
+                        )}
+                      </p>
+                      {selectedSchool && !leaderboardData.isOwnSchool && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {selectedSchool.city && selectedSchool.state ? `${selectedSchool.city}, ${selectedSchool.state}` : ''} {selectedSchool.city && selectedSchool.state ? '•' : ''} Code: {selectedSchool.code}
+                        </p>
+                      )}
+                    </div>
+                    {!leaderboardData.isOwnSchool && (
+                      <Button
+                        onClick={handleViewMySchool}
+                        variant="outline"
+                        size="sm"
+                        className="text-amber-500 border-amber-500/30 hover:bg-amber-500/10"
+                      >
+                        Back to My School
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Search Input */}
+                <div className="relative school-search-container">
+                  <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-muted-foreground" />
+                    Search Other Schools
+                  </h3>
+                  <div className="relative">
+                    <Input
+                      placeholder="Search by school name (e.g., Stanford University)"
+                      value={schoolSearchQuery}
+                      onChange={(e) => setSchoolSearchQuery(e.target.value)}
+                      onFocus={() => {
+                        if (schoolResults.length > 0) {
+                          setShowSchoolResults(true);
+                        }
+                      }}
+                      className="flex-1"
+                    />
+                    {searchingSchools && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500" />
+                      </div>
+                    )}
+
+                    {/* School Results Dropdown */}
+                    {showSchoolResults && schoolResults.length > 0 && (
+                      <div className="absolute z-50 w-full mt-2 bg-card border-2 border-border/20 rounded-lg shadow-xl max-h-[300px] overflow-y-auto">
+                        {schoolResults.map((school) => (
+                          <button
+                            key={school.code}
+                            onClick={() => handleSelectSchool(school)}
+                            className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/10 last:border-b-0"
+                          >
+                            <div className="font-medium">{school.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {school.city && school.state ? `${school.city}, ${school.state}` : 'Location not available'} • Code: {school.code}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* No Results */}
+                    {showSchoolResults && schoolResults.length === 0 && schoolSearchQuery.trim().length >= 2 && !searchingSchools && (
+                      <div className="absolute z-50 w-full mt-2 bg-card border-2 border-border/20 rounded-lg shadow-xl p-4">
+                        <p className="text-sm text-muted-foreground text-center">
+                          No schools found matching "{schoolSearchQuery}"
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Search for any school to view their leaderboard
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Loading State */}
         {loading && (
