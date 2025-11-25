@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Cpu, HardDrive, Calendar, CheckCircle, XCircle, AlertCircle, Code, Copy } from 'lucide-react';
+import { X, Clock, HardDrive, CheckCircle, XCircle, AlertCircle, Code, Copy } from 'lucide-react';
+import ComplexityResultDisplay from '@/components/ui/complexity-result-display';
 
 // Type definitions
 interface Submission {
@@ -13,6 +14,13 @@ interface Submission {
   memory?: number;
   language?: string;
   code?: string;
+  time_complexity?: string;
+  complexity_confidence?: number;
+  complexity_analysis?: string;
+  space_complexity?: string;
+  space_complexity_analysis?: string;
+  time_complexity_snippets?: string[];
+  space_complexity_snippets?: string[];
 }
 
 interface SubmissionWithNumber extends Submission {
@@ -136,6 +144,13 @@ export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEdito
                 <span className={`text-sm font-semibold ${getStatusColor(submission.status)}`}>
                   {submission.status || "Unknown"}
                 </span>
+                {submission.time_complexity && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono px-2 py-1 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30">
+                      {submission.time_complexity}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-gray-400">
                   <Clock className="w-4 h-4" />
                   <span className="text-sm">{submission.runtime ? submission.runtime.toFixed(3) : "N/A"}s</span>
@@ -208,24 +223,58 @@ export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEdito
                 </p>
               </div>
 
-              {/* Statistics Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <StatCard 
-                  icon={<Clock className="w-5 h-5" />}
-                  label="Runtime"
-                  value={`${selectedSubmission.runtime ? selectedSubmission.runtime.toFixed(3) : "N/A"}s`}
-                />
-                <StatCard 
-                  icon={<HardDrive className="w-5 h-5" />}
-                  label="Memory"
-                  value={`${selectedSubmission.memory ? (selectedSubmission.memory / 1024).toFixed(2) : "N/A"} MB`}
-                  subtext={`${selectedSubmission.memory || "N/A"} KB`}
-                />
-                <StatCard 
-                  icon={<Code className="w-5 h-5" />}
-                  label="Language"
-                  value={selectedSubmission.language || "N/A"}
-                />
+              {/* Time Complexity Analysis */}
+              {selectedSubmission.time_complexity && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm text-white">Time Complexity Analysis</h4>
+                  <ComplexityResultDisplay
+                    detectedComplexity={selectedSubmission.time_complexity}
+                    confidence={selectedSubmission.complexity_confidence}
+                    analysis={selectedSubmission.complexity_analysis}
+                    layout="horizontal"
+                    animated={true}
+                    complexitySnippets={selectedSubmission.time_complexity_snippets}
+                  />
+                </div>
+              )}
+
+              {/* Space Complexity Analysis */}
+              {selectedSubmission.space_complexity && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm text-white">Space Complexity Analysis</h4>
+                  <ComplexityResultDisplay
+                    detectedComplexity={selectedSubmission.space_complexity}
+                    confidence={selectedSubmission.complexity_confidence}
+                    analysis={selectedSubmission.space_complexity_analysis}
+                    layout="horizontal"
+                    animated={true}
+                    complexityType="space"
+                    complexitySnippets={selectedSubmission.space_complexity_snippets}
+                  />
+                </div>
+              )}
+
+              {/* Execution Analytics */}
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm text-white">Execution Analytics</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <StatCard
+                    icon={<Clock className="w-5 h-5" />}
+                    label="Runtime"
+                    value={`${selectedSubmission.runtime ? selectedSubmission.runtime.toFixed(3) : "N/A"}s`}
+                  />
+                  <StatCard
+                    icon={<HardDrive className="w-5 h-5" />}
+                    label="Memory"
+                    value={`${selectedSubmission.memory ? (selectedSubmission.memory / 1024).toFixed(2) : "N/A"} MB`}
+                    subtext={`${selectedSubmission.memory || "N/A"} KB`}
+                  />
+                  <StatCard
+                    icon={<Code className="w-5 h-5" />}
+                    label="Language"
+                    value={selectedSubmission.language || "N/A"}
+                  />
+                </div>
               </div>
 
               {/* Code Section */}
