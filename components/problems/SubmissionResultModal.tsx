@@ -33,6 +33,8 @@ interface SubmissionResult {
   spaceComplexity?: string;
   spaceConfidence?: number;
   spaceAnalysis?: string;
+  timeComplexitySnippets?: string[];
+  spaceComplexitySnippets?: string[];
 }
 
 interface SubmissionResultModalProps {
@@ -133,6 +135,7 @@ export default function SubmissionResultModal({
                 analysis={submissionResult.complexityAnalysis}
                 layout="horizontal"
                 animated={true}
+                complexitySnippets={submissionResult.timeComplexitySnippets}
               />
             </div>
           )}
@@ -148,6 +151,7 @@ export default function SubmissionResultModal({
                 layout="horizontal"
                 animated={true}
                 complexityType="space"
+                complexitySnippets={submissionResult.spaceComplexitySnippets}
               />
             </div>
           )}

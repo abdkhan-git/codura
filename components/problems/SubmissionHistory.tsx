@@ -19,6 +19,8 @@ interface Submission {
   complexity_analysis?: string;
   space_complexity?: string;
   space_complexity_analysis?: string;
+  time_complexity_snippets?: string[];
+  space_complexity_snippets?: string[];
 }
 
 interface SubmissionWithNumber extends Submission {
@@ -231,6 +233,7 @@ export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEdito
                     analysis={selectedSubmission.complexity_analysis}
                     layout="horizontal"
                     animated={true}
+                    complexitySnippets={selectedSubmission.time_complexity_snippets}
                   />
                 </div>
               )}
@@ -246,6 +249,7 @@ export default function SubmissionHistory({ allOfUsersSubmissions, onCopyToEdito
                     layout="horizontal"
                     animated={true}
                     complexityType="space"
+                    complexitySnippets={selectedSubmission.space_complexity_snippets}
                   />
                 </div>
               )}

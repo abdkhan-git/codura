@@ -92,6 +92,7 @@ interface ComplexityResultDisplayProps {
   layout?: "horizontal" | "vertical";
   animated?: boolean;
   complexityType?: "time" | "space";
+  complexitySnippets?: string[];
 }
 
 export default function ComplexityResultDisplay({
@@ -101,6 +102,7 @@ export default function ComplexityResultDisplay({
   layout = "horizontal",
   animated = true,
   complexityType = "time",
+  complexitySnippets,
 }: ComplexityResultDisplayProps) {
   const [animationProgress, setAnimationProgress] = useState(animated ? 0 : 100);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -390,7 +392,7 @@ export default function ComplexityResultDisplay({
       </div>
 
       {/* Bottom Section: Analysis (Full Width) */}
-      {analysis && (
+      {(analysis || (complexitySnippets && complexitySnippets.length > 0)) && (
         <div className="p-4 rounded-xl bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/30">
           <h5 className="text-sm font-semibold text-foreground/80 mb-3 flex items-center gap-2">
             <div
@@ -399,9 +401,45 @@ export default function ComplexityResultDisplay({
             />
             Analysis
           </h5>
-          <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-            {analysis}
-          </p>
+
+          {/* Original Analysis Text */}
+          {analysis && (
+            <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap mb-4">
+              {analysis}
+            </p>
+          )}
+
+          {/* AI-Generated Code Snippets */}
+          {complexitySnippets && complexitySnippets.length > 0 && (
+            <div className="space-y-3">
+              <h6 className="text-xs font-semibold text-foreground/70">Code Contributing to Complexity:</h6>
+              <ul className="space-y-3 list-none">
+                {complexitySnippets.map((snippet, index) => (
+                  <li key={index} className="text-xs text-muted-foreground leading-relaxed">
+                    <div className="flex gap-2">
+                      <span className="text-purple-400 font-semibold mt-0.5">•</span>
+                      <div className="flex-1">
+                        {snippet.split('`').map((part, i) => {
+                          // Odd indices are code blocks (between backticks)
+                          if (i % 2 === 1) {
+                            return (
+                              <code
+                                key={i}
+                                className="px-2 py-1 rounded bg-zinc-900/60 border border-zinc-700/40 text-purple-300 font-mono text-[11px] inline-block my-1"
+                              >
+                                {part}
+                              </code>
+                            );
+                          }
+                          return <span key={i}>{part}</span>;
+                        })}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

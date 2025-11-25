@@ -42,6 +42,8 @@ interface SubmissionResult {
   spaceComplexity?: string
   spaceConfidence?: number
   spaceAnalysis?: string
+  timeComplexitySnippets?: string[]
+  spaceComplexitySnippets?: string[]
 }
 
 interface CodeEditorPanelProps {
@@ -381,6 +383,38 @@ const handleCodeSubmission = async () => {
       console.warn('AI initial-analysis POST failed (non-fatal):', e);
     }
 
+    // ---------- 6) Get complexity code snippets (only for accepted submissions) ----------
+    let timeComplexitySnippets: string[] | undefined;
+    let spaceComplexitySnippets: string[] | undefined;
+
+    if (status === 'Accepted' && complexityAnalysis?.timeComplexity && complexityAnalysis?.spaceComplexity) {
+      try {
+        const snippetsRes = await fetch('/api/ai/analyze-complexity-snippets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: usersCode || '',
+            language: userLang.value,
+            timeComplexity: complexityAnalysis.timeComplexity,
+            spaceComplexity: complexityAnalysis.spaceComplexity,
+          }),
+        });
+
+        if (snippetsRes.ok) {
+          const snippetsData = await snippetsRes.json();
+          if (snippetsData.success) {
+            timeComplexitySnippets = snippetsData.timeSnippets;
+            spaceComplexitySnippets = snippetsData.spaceSnippets;
+            console.log('AI Snippets:', { timeComplexitySnippets, spaceComplexitySnippets });
+          }
+        } else {
+          console.warn('AI snippets analysis non-OK:', snippetsRes.status);
+        }
+      } catch (e) {
+        console.warn('AI snippets analysis failed (non-fatal):', e);
+      }
+    }
+
     // Create submission result for modal
     const modalResult: SubmissionResult = {
       status,
@@ -396,6 +430,8 @@ const handleCodeSubmission = async () => {
       spaceComplexity: complexityAnalysis?.spaceComplexity,
       spaceConfidence: complexityAnalysis?.spaceConfidence,
       spaceAnalysis: complexityAnalysis?.spaceAnalysis,
+      timeComplexitySnippets,
+      spaceComplexitySnippets,
     };
 
     setSubmissionResult(modalResult);
