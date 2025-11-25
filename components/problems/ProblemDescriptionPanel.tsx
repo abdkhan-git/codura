@@ -1,4 +1,3 @@
-// components/problem/ProblemDescriptionPanel.tsx
 'use client'
 
 import React, { useState } from 'react'
@@ -39,8 +38,8 @@ export default function ProblemDescriptionPanel({
 
     return (
         <div className="h-full flex flex-col">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-                <div className="border-b border-zinc-800/50 overflow-x-scroll">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+                <div className="border-b border-zinc-800/50 overflow-x-scroll shrink-0">
                     <TabsList className="inline-flex w-auto min-w-full justify-start h-auto px-6 bg-transparent gap-6">
                         {['Description', 'Solution', 'Community', 'Submissions'].map(tab => (
                             <TabsTrigger
@@ -54,9 +53,9 @@ export default function ProblemDescriptionPanel({
                     </TabsList>
                 </div>
 
-                <ScrollArea className="flex-1">
-                    <TabsContent value="description" className="p-4 mt-0">
-                        <div className="space-y-4">
+                <TabsContent value="description" className="flex-1 mt-0 overflow-hidden min-h-0">
+                    <ScrollArea className="h-full">
+                        <div className="p-4 space-y-4">
                             <div>
                                 <button
                                     onClick={() => window.location.href = '/problems'}
@@ -142,34 +141,42 @@ export default function ProblemDescriptionPanel({
                                 </div>
                             )}
                         </div>
-                    </TabsContent>
+                    </ScrollArea>
+                </TabsContent>
 
-                    <TabsContent value="solution" className="p-4 mt-0">
-                        <div className="space-y-4">
+                <TabsContent value="solution" className="flex-1 mt-0 overflow-hidden min-h-0">
+                    <ScrollArea className="h-full">
+                        <div className="p-4 space-y-4">
                             <h2 className="text-xl font-bold">Solution Approach</h2>
                             <p className="text-sm text-muted-foreground">
                                 The solution content will go here.
                             </p>
                         </div>
-                    </TabsContent>
+                    </ScrollArea>
+                </TabsContent>
 
-                    <TabsContent value="community" className="p-4 mt-0">
-                        <div className="space-y-4">
+                <TabsContent value="community" className="flex-1 mt-0 overflow-hidden min-h-0">
+                    <ScrollArea className="h-full">
+                        <div className="p-4 space-y-4">
                             <h2 className="text-xl font-bold">Community Solutions</h2>
                             <p className="text-sm text-muted-foreground">
                                 Top community solutions will be displayed here.
                             </p>
                         </div>
-                    </TabsContent>
+                    </ScrollArea>
+                </TabsContent>
 
-                    <TabsContent value="submissions" className="p-4 mt-0 h-[100vh] overflow-y-scroll">
-                        <h2 className="text-xl font-bold mb-3">My Submissions</h2>
-                        <SubmissionHistory
-                            allOfUsersSubmissions={allOfUsersSubmissions}
-                            onCopyToEditor={onCopyToEditor}  // Add this line
-                        />
-                    </TabsContent>
-                </ScrollArea>
+                <TabsContent value="submissions" className="flex-1 mt-0 overflow-hidden min-h-0">
+                    <ScrollArea className="h-full">
+                        <div className="p-4 space-y-4">
+                            <h2 className="text-xl font-bold mb-3">My Submissions</h2>
+                            <SubmissionHistory
+                                allOfUsersSubmissions={allOfUsersSubmissions}
+                                onCopyToEditor={onCopyToEditor}
+                            />
+                        </div>
+                    </ScrollArea>
+                </TabsContent>
             </Tabs>
         </div>
     )
