@@ -1,4 +1,3 @@
-// components/problem/ProblemDescriptionPanel.tsx
 'use client'
 
 import React, { useState } from 'react'
@@ -7,17 +6,18 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Tag, ChevronDown, ChevronUp } from 'lucide-react'
 import SubmissionHistory from './SubmissionHistory'
+import parse from 'html-react-parser'
 
 interface ProblemDescriptionPanelProps {
     problem: any
     allOfUsersSubmissions: any[]
-    onCopyToEditor?: (code: string) => void 
+    onCopyToEditor?: (code: string) => void
 }
 
-export default function ProblemDescriptionPanel({ 
-    problem, 
+export default function ProblemDescriptionPanel({
+    problem,
     allOfUsersSubmissions,
-    onCopyToEditor 
+    onCopyToEditor
 }: ProblemDescriptionPanelProps) {
     const [showTags, setShowTags] = useState(false)
     const [showAcceptanceRate, setShowAcceptanceRate] = useState(false)
@@ -38,13 +38,13 @@ export default function ProblemDescriptionPanel({
 
     return (
         <div className="h-full flex flex-col">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-                <div className="border-b border-zinc-800/50 overflow-x-scroll">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+                <div className="border-b border-zinc-800/50 overflow-x-scroll shrink-0">
                     <TabsList className="inline-flex w-auto min-w-full justify-start h-auto px-6 bg-transparent gap-6">
-                        {['Description', 'Solution', 'Discussion', 'Community', 'Submissions'].map(tab => (
-                            <TabsTrigger 
+                        {['Description', 'Solution', 'Community', 'Submissions'].map(tab => (
+                            <TabsTrigger
                                 key={tab.toLowerCase()}
-                                value={tab.toLowerCase()} 
+                                value={tab.toLowerCase()}
                                 className="cursor-pointer relative flex-shrink-0 !bg-transparent data-[state=active]:!bg-transparent border-0 rounded-none px-3 pb-3 pt-4 !text-zinc-500 data-[state=active]:!text-white hover:!text-zinc-300 transition-all font-medium after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-gradient-to-r after:from-transparent after:via-white after:to-transparent after:opacity-0 data-[state=active]:after:opacity-80 after:transition-opacity after:shadow-[0_0_8px_rgba(255,255,255,0.5)]"
                             >
                                 {tab}
@@ -53,16 +53,18 @@ export default function ProblemDescriptionPanel({
                     </TabsList>
                 </div>
 
-                <ScrollArea className="flex-1">
-                    <TabsContent value="description" className="p-4 mt-0">
-                        <div className="space-y-4">
+                <TabsContent value="description" className="flex-1 mt-0 overflow-hidden min-h-0">
+                    <ScrollArea className="h-full">
+                        <div className="p-4 space-y-4">
                             <div>
                                 <button
-                                  onClick={() => window.location.href = '/problems'}
-                                  className="mb-4 text-sm text-green-400 hover:text-green-300 flex items-center gap-2 transition-colors"
+                                    onClick={() => window.location.href = '/problems'}
+                                    className="mb-4 text-sm text-green-400 hover:text-green-300 flex items-center gap-2 transition-colors"
                                 >
-                                  ← Back to Problems
+                                    ← Back to Problems
                                 </button>
+
+                                {/* Topic title and leetcode id */}
                                 <h1 className="text-2xl font-bold mb-5">
                                     {problem.leetcode_id}. {problem.title}
                                 </h1>
@@ -70,8 +72,10 @@ export default function ProblemDescriptionPanel({
                                     <Badge variant="default" className={`${getDifficultyColor(problem.difficulty)} border-1`}>
                                         {problem.difficulty}
                                     </Badge>
-                                    
-                                    <div 
+
+
+                                    {/* Acceptance Rate */}
+                                    <div
                                         className="relative cursor-pointer group ml-2"
                                         onClick={() => setShowAcceptanceRate(true)}
                                     >
@@ -90,6 +94,8 @@ export default function ProblemDescriptionPanel({
                                 </div>
                             </div>
 
+
+                            {/* Topic tags */}
                             {problem.topic_tags && problem.topic_tags.length > 0 && (
                                 <div className="space-y-2">
                                     <button
@@ -100,7 +106,7 @@ export default function ProblemDescriptionPanel({
                                         {showTags ? 'Hide Topics' : 'View Topics'}
                                         {showTags ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                     </button>
-                                    
+
                                     {showTags && (
                                         <div className="flex flex-wrap gap-2">
                                             {problem.topic_tags.map((tag: any) => (
@@ -113,18 +119,20 @@ export default function ProblemDescriptionPanel({
                                 </div>
                             )}
 
+
+                            {/* Problem Description */}
                             <div className="space-y-2">
-                                <div
-                                    className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
-                                    dangerouslySetInnerHTML={{ __html: problem.description }}
-                                />
+                                <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none [&>*]:break-words [&>*]:whitespace-normal overflow-wrap-anywhere leading-relaxed">
+                                    {parse(problem.description)}
+                                </div>
                             </div>
 
+                            {/* Constraints */}
                             {problem.constraints && problem.constraints.length > 0 && (
                                 <div className="space-y-2">
                                     <h3 className="font-semibold">Constraints:</h3>
-                                    <div className="bg-green-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
-                                        <ul className="space-y-1 text-sm font-mono text-slate-700 dark:text-slate-300">
+                                    <div className="bg-card/50 border-2 border-border/20 rounded-xl p-4 backdrop-blur-sm shadow-md hover:border-brand/30 transition-all duration-300">
+                                        <ul className="space-y-1 text-sm font-mono text-foreground">
                                             {problem.constraints.map((constraint: string, index: number) => (
                                                 <li key={index}>{constraint}</li>
                                             ))}
@@ -133,43 +141,42 @@ export default function ProblemDescriptionPanel({
                                 </div>
                             )}
                         </div>
-                    </TabsContent>
+                    </ScrollArea>
+                </TabsContent>
 
-                    <TabsContent value="solution" className="p-4 mt-0">
-                        <div className="space-y-4">
+                <TabsContent value="solution" className="flex-1 mt-0 overflow-hidden min-h-0">
+                    <ScrollArea className="h-full">
+                        <div className="p-4 space-y-4">
                             <h2 className="text-xl font-bold">Solution Approach</h2>
                             <p className="text-sm text-muted-foreground">
                                 The solution content will go here.
                             </p>
                         </div>
-                    </TabsContent>
+                    </ScrollArea>
+                </TabsContent>
 
-                    <TabsContent value="discussion" className="p-4 mt-0">
-                        <div className="space-y-4">
-                            <h2 className="text-xl font-bold">Discussion</h2>
-                            <p className="text-sm text-muted-foreground">
-                                Community discussions will appear here.
-                            </p>
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="community" className="p-4 mt-0">
-                        <div className="space-y-4">
+                <TabsContent value="community" className="flex-1 mt-0 overflow-hidden min-h-0">
+                    <ScrollArea className="h-full">
+                        <div className="p-4 space-y-4">
                             <h2 className="text-xl font-bold">Community Solutions</h2>
                             <p className="text-sm text-muted-foreground">
                                 Top community solutions will be displayed here.
                             </p>
                         </div>
-                    </TabsContent>
+                    </ScrollArea>
+                </TabsContent>
 
-                    <TabsContent value="submissions" className="p-4 mt-0 h-[100vh] overflow-y-scroll">
-                        <h2 className="text-xl font-bold mb-3">My Submissions</h2>
-                        <SubmissionHistory 
-                            allOfUsersSubmissions={allOfUsersSubmissions}
-                            onCopyToEditor={onCopyToEditor}  // Add this line
-                        />
-                    </TabsContent>
-                </ScrollArea>
+                <TabsContent value="submissions" className="flex-1 mt-0 overflow-hidden min-h-0">
+                    <ScrollArea className="h-full">
+                        <div className="p-4 space-y-4">
+                            <h2 className="text-xl font-bold mb-3">My Submissions</h2>
+                            <SubmissionHistory
+                                allOfUsersSubmissions={allOfUsersSubmissions}
+                                onCopyToEditor={onCopyToEditor}
+                            />
+                        </div>
+                    </ScrollArea>
+                </TabsContent>
             </Tabs>
         </div>
     )
