@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Clock, Users, User } from "lucide-react";
 import { PublicInterviewPending } from "./public-interview-pending";
+import { cn } from "@/lib/utils";
 
 interface JoinPublicInterviewProps {
   user: {
@@ -27,6 +28,7 @@ interface PublicSession {
   hostUserId: string;
   hostName: string;
   isAvailable: boolean;
+  category: "technical" | "behavioral" | "general";
 }
 
 export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicInterviewProps) {
@@ -41,6 +43,16 @@ export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicI
     return () => clearInterval(interval);
   }, []);
 
+  const detectCategory = (title: string) => {
+    if (title.startsWith("[Technical]")) {
+      return { category: "technical" as const, cleanTitle: title.replace(/^\[Technical\]\s*/i, "") };
+    }
+    if (title.startsWith("[Behavioral]")) {
+      return { category: "behavioral" as const, cleanTitle: title.replace(/^\[Behavioral\]\s*/i, "") };
+    }
+    return { category: "general" as const, cleanTitle: title };
+  };
+
   const fetchPublicSessions = async () => {
     try {
       const response = await fetch('/api/mock-interview/public-sessions');
@@ -51,15 +63,19 @@ export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicI
 
       const data = await response.json();
 
-      const sessions: PublicSession[] = data.sessions.map((s: any) => ({
-        id: s.id,
-        title: s.title,
-        description: s.description || '',
-        endTime: s.endTime,
-        hostUserId: s.hostUserId,
-        hostName: s.hostName,
-        isAvailable: s.isAvailable,
-      }));
+      const sessions: PublicSession[] = data.sessions.map((s: any) => {
+        const { category, cleanTitle } = detectCategory(s.title || "");
+        return {
+          id: s.id,
+          title: cleanTitle,
+          description: s.description || '',
+          endTime: s.endTime,
+          hostUserId: s.hostUserId,
+          hostName: s.hostName,
+          isAvailable: s.isAvailable,
+          category,
+        };
+      });
 
       setSessions(sessions);
     } catch (error) {
@@ -172,9 +188,9 @@ export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicI
         Back
       </Button>
 
-      <Card className="border-2 border-teal-500/20 bg-card/50 backdrop-blur-sm mb-6">
+      <Card className="border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl shadow-xl mb-6">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl bg-gradient-to-r from-teal-500 to-cyan-600 bg-clip-text text-transparent">
+          <CardTitle className="text-3xl bg-gradient-to-r from-emerald-500 to-teal-400 bg-clip-text text-transparent">
             Available Public Sessions
           </CardTitle>
           <CardDescription className="text-lg mt-2">
@@ -190,7 +206,7 @@ export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicI
           <p className="text-muted-foreground">Loading sessions...</p>
         </div>
       ) : sessions.length === 0 ? (
-        <Card className="border-border/20 bg-card/30">
+        <Card className="border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
           <CardContent className="text-center py-12">
             <Users className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">No Sessions Available</h3>
@@ -200,96 +216,108 @@ export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicI
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {sessions.map((session) => (
-            <Card
-              key={session.id}
-              className={`border-2 ${
-                session.isAvailable
-                  ? "border-teal-500/20 hover:border-teal-500/40"
-                  : "border-border/20 opacity-75"
-              } bg-card/50 backdrop-blur-sm transition-all duration-300`}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between gap-4">
-                  {/* Left: Session Info */}
-                  <div className="flex-1 min-w-0">
-                    {/* Host Name */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white text-sm font-semibold">
-                        {session.hostName.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Hosted by</p>
-                        <p className="font-semibold">{session.hostName}</p>
-                      </div>
-                    </div>
-
-                    {/* Title */}
-                    <h3 className="text-xl font-bold mb-2 text-foreground">
-                      {session.title}
-                    </h3>
-
-                    {/* Description */}
-                    {session.description && (
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {session.description}
-                      </p>
-                    )}
-
-                    {/* Time Remaining */}
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="w-4 h-4 text-teal-500" />
-                      <span className="text-muted-foreground">
-                        {getTimeRemaining(session.endTime)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Right: Status and Action */}
-                  <div className="flex flex-col items-end gap-3">
-                    {/* Status Badge */}
-                    <Badge
-                      variant={session.isAvailable ? "default" : "secondary"}
-                      className={
-                        session.isAvailable
-                          ? "bg-green-500/20 text-green-500 hover:bg-green-500/30 border-green-500/40"
-                          : "bg-muted text-muted-foreground"
-                      }
+        ["technical", "behavioral"].map((category) => {
+          const list = sessions.filter((s) => s.category === category);
+          return (
+            <div key={category} className="space-y-3 mb-6">
+              <h4 className={cn(
+                "text-lg font-semibold capitalize",
+                category === "technical" ? "text-teal-500" : "text-amber-500"
+              )}>
+                {category} Sessions
+              </h4>
+              {list.length === 0 ? (
+                <Card className="border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
+                  <CardContent className="text-center py-6 text-sm text-muted-foreground">
+                    No {category} sessions available right now.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {list.map((session) => (
+                    <Card
+                      key={session.id}
+                      className={cn(
+                        "border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl transition-all duration-300 shadow-lg",
+                        session.isAvailable ? "hover:border-emerald-500/40" : "opacity-80"
+                      )}
                     >
-                      <div
-                        className={`w-2 h-2 rounded-full mr-2 ${
-                          session.isAvailable ? "bg-green-500 animate-pulse" : "bg-muted-foreground"
-                        }`}
-                      />
-                      {session.isAvailable ? "Available" : "Unavailable"}
-                    </Badge>
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-sm font-semibold shadow-lg">
+                                {session.hostName.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Hosted by</p>
+                                <p className="font-semibold">{session.hostName}</p>
+                              </div>
+                            </div>
 
-                    {/* Request Button */}
-                    <Button
-                      onClick={() => handleRequestJoin(session.id)}
-                      disabled={!session.isAvailable}
-                      className={`${
-                        session.isAvailable
-                          ? "bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-500/90 hover:to-cyan-600/90"
-                          : "bg-muted text-muted-foreground cursor-not-allowed"
-                      } min-w-[140px]`}
-                    >
-                      <User className="w-4 h-4 mr-2" />
-                      Request to Join
-                    </Button>
-                  </div>
+                            <h3 className="text-xl font-bold mb-2">
+                              {session.title}
+                            </h3>
+
+                            {session.description && (
+                              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                                {session.description}
+                              </p>
+                            )}
+
+                            <div className="flex items-center gap-2 text-sm">
+                              <Clock className="w-4 h-4 text-emerald-500" />
+                              <span className="text-muted-foreground">
+                                {getTimeRemaining(session.endTime)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col items-end gap-3">
+                            <Badge
+                              variant={session.isAvailable ? "default" : "secondary"}
+                              className={
+                                session.isAvailable
+                                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
+                                  : "bg-muted text-muted-foreground"
+                              }
+                            >
+                              <div
+                                className={`w-2 h-2 rounded-full mr-2 ${
+                                  session.isAvailable ? "bg-green-500 animate-pulse" : "bg-muted-foreground"
+                                }`}
+                              />
+                              {session.isAvailable ? "Available" : "Unavailable"}
+                            </Badge>
+
+                              <Button
+                                onClick={() => handleRequestJoin(session.id)}
+                                disabled={!session.isAvailable}
+                                className={`${
+                                  session.isAvailable
+                                  ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-500/90 hover:to-teal-600/90"
+                                  : "bg-muted text-muted-foreground cursor-not-allowed"
+                                } min-w-[140px]`}
+                              >
+                              <User className="w-4 h-4 mr-2" />
+                              Request to Join
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              )}
+            </div>
+          );
+        })
       )}
 
       {/* Info Box */}
-      <Card className="mt-6 border-border/20 bg-teal-500/5">
+      <Card className="mt-6 border-2 border-border/20 bg-card/50 backdrop-blur-sm">
         <CardContent className="pt-6">
-          <h4 className="font-semibold text-sm mb-2 text-teal-500">How it works:</h4>
+          <h4 className="font-semibold text-sm mb-2 text-emerald-500">How it works:</h4>
           <ul className="space-y-1 text-xs text-muted-foreground">
             <li>• Click "Request to Join" on any available session</li>
             <li>• The host will receive your request and can approve or deny it</li>

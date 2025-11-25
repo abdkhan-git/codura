@@ -252,7 +252,7 @@ export function PublicVideoCall({
   }
 
   return (
-    <div className="h-[calc(100vh-6rem)] flex flex-col">
+    <div className="h-[calc(100vh-6rem)] flex flex-col bg-gradient-to-br from-zinc-950 via-zinc-900 to-black">
       <SessionNavbar
         sessionId={sessionId}
         isHost={isHost}

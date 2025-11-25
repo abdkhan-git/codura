@@ -159,9 +159,9 @@ export function PublicInterviewAdmission({ sessionId, onApprove }: PublicIntervi
 
   if (isLoading) {
     return (
-      <Card className="border-border/20 bg-card/50">
+      <Card className="border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
         <CardContent className="py-8 text-center">
-          <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Loading requests...</p>
         </CardContent>
       </Card>
@@ -172,10 +172,10 @@ export function PublicInterviewAdmission({ sessionId, onApprove }: PublicIntervi
     <div className="space-y-4">
       {/* Pending Requests */}
       {pendingRequests.length > 0 && (
-        <Card className="border-2 border-green-500/20 bg-card/50 backdrop-blur-sm">
+        <Card className="border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <User className="w-5 h-5 text-green-500" />
+              <User className="w-5 h-5 text-emerald-500" />
               Pending Join Requests ({pendingRequests.length})
             </CardTitle>
           </CardHeader>
@@ -186,7 +186,7 @@ export function PublicInterviewAdmission({ sessionId, onApprove }: PublicIntervi
                 className="flex items-center justify-between p-4 rounded-lg bg-background/50 border border-border/20"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-semibold">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-semibold">
                     {request.requesterName?.charAt(0) || 'U'}
                   </div>
                   <div>
@@ -216,7 +216,7 @@ export function PublicInterviewAdmission({ sessionId, onApprove }: PublicIntervi
                     size="sm"
                     onClick={() => handleApprove(request.id)}
                     disabled={processingId === request.id}
-                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-500/90 hover:to-emerald-600/90"
+                    className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-500/90 hover:to-teal-600/90"
                   >
                     <Check className="w-4 h-4 mr-1" />
                     {processingId === request.id ? 'Approving...' : 'Approve'}
@@ -230,7 +230,7 @@ export function PublicInterviewAdmission({ sessionId, onApprove }: PublicIntervi
 
       {/* No Pending Requests */}
       {pendingRequests.length === 0 && (
-        <Card className="border-border/20 bg-card/30">
+        <Card className="border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
           <CardContent className="py-8 text-center">
             <User className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-muted-foreground">No pending join requests</p>
@@ -243,7 +243,7 @@ export function PublicInterviewAdmission({ sessionId, onApprove }: PublicIntervi
 
       {/* Processed Requests History */}
       {processedRequests.length > 0 && (
-        <Card className="border-border/20 bg-card/30">
+        <Card className="border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
           <CardHeader>
             <CardTitle className="text-sm text-muted-foreground">
               Recent Activity

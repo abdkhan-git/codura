@@ -104,9 +104,9 @@ export function PublicInterviewPending({
 
   if (isLoading) {
     return (
-      <Card className="border-border/20 bg-card/50">
+      <Card className="border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
         <CardContent className="py-12 text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-teal-500" />
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-emerald-500" />
           <p className="text-muted-foreground">Checking request status...</p>
         </CardContent>
       </Card>
@@ -115,7 +115,7 @@ export function PublicInterviewPending({
 
   if (status === 'approved') {
     return (
-      <Card className="border-2 border-green-500/40 bg-card/50">
+      <Card className="border-2 border-green-500/40 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
         <CardContent className="py-12 text-center">
           <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h3 className="text-xl font-semibold mb-2">Request Approved!</h3>
@@ -127,7 +127,7 @@ export function PublicInterviewPending({
 
   if (status === 'denied') {
     return (
-      <Card className="border-2 border-red-500/40 bg-card/50">
+      <Card className="border-2 border-red-500/40 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
         <CardContent className="py-12 text-center">
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h3 className="text-xl font-semibold mb-2">Request Denied</h3>
@@ -141,9 +141,9 @@ export function PublicInterviewPending({
   }
 
   return (
-    <Card className="border-2 border-teal-500/20 bg-card/50 backdrop-blur-sm">
+    <Card className="border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
       <CardHeader className="text-center">
-        <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
+        <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
           <Clock className="w-10 h-10 text-white animate-pulse" />
         </div>
         <CardTitle className="text-2xl">Waiting for Host Approval</CardTitle>
@@ -158,11 +158,11 @@ export function PublicInterviewPending({
           </p>
         </div>
 
-        <div className="bg-teal-500/10 border border-teal-500/20 rounded-lg p-4">
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <User className="w-5 h-5 text-teal-500 mt-0.5 flex-shrink-0" />
+            <User className="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" />
             <div className="flex-1">
-              <h4 className="font-semibold text-sm mb-1 text-teal-500">What happens next?</h4>
+              <h4 className="font-semibold text-sm mb-1 text-emerald-500">What happens next?</h4>
               <ul className="space-y-1 text-xs text-muted-foreground">
                 <li>• The host will review your request</li>
                 <li>• If approved, you'll automatically enter the interview room</li>
@@ -173,7 +173,7 @@ export function PublicInterviewPending({
         </div>
 
         <div className="flex items-center justify-center gap-2 pt-4">
-          <Loader2 className="w-5 h-5 animate-spin text-teal-500" />
+          <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
           <span className="text-sm text-muted-foreground">Waiting for response...</span>
         </div>
 

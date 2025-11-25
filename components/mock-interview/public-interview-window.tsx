@@ -48,7 +48,7 @@ export function PublicInterviewWindow({ user, onClose }: PublicInterviewWindowPr
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <Card
         className={cn(
-          "flex flex-col bg-background shadow-2xl transition-all duration-300",
+          "flex flex-col border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl shadow-2xl transition-all duration-300",
           isMaximized
             ? "w-full h-full rounded-none"
             : "w-[95vw] h-[90vh] rounded-xl"

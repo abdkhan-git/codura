@@ -31,6 +31,7 @@ interface HostPublicInterviewModalProps {
     description: string | null;
     endTime: string;
     sessionCode: string;
+    category?: "technical" | "behavioral";
   }) => void;
 }
 
@@ -44,6 +45,7 @@ export function HostPublicInterviewModal({
     title: "",
     description: "",
     duration: "15", // in minutes, default to 15
+    category: "technical" as "technical" | "behavioral",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,6 +64,8 @@ export function HostPublicInterviewModal({
     setLoading(true);
 
     try {
+      const categoryPrefix = formData.category === "technical" ? "[Technical]" : "[Behavioral]";
+      const normalizedTitle = `${categoryPrefix} ${formData.title.trim()}`;
       // Calculate end time based on selected duration
       const durationMinutes = parseInt(formData.duration);
       const endTime = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
@@ -70,7 +74,7 @@ export function HostPublicInterviewModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: formData.title.trim(),
+          title: normalizedTitle,
           description: formData.description.trim() || null,
           endTime,
         }),
@@ -90,6 +94,7 @@ export function HostPublicInterviewModal({
         description: data.session.description,
         endTime: data.session.endTime,
         sessionCode: data.session.sessionCode,
+        category: formData.category,
       });
       handleClose();
     } catch (error) {
@@ -105,6 +110,7 @@ export function HostPublicInterviewModal({
       title: "",
       description: "",
       duration: "15",
+      category: "technical",
     });
     onClose();
   };
@@ -179,6 +185,26 @@ export function HostPublicInterviewModal({
             </Select>
           </div>
 
+          {/* Category Select */}
+          <div className="space-y-2">
+            <Label htmlFor="category">Interview Type *</Label>
+            <Select
+              value={formData.category}
+              onValueChange={(value: "technical" | "behavioral") =>
+                setFormData({ ...formData, category: value })
+              }
+              disabled={loading}
+            >
+              <SelectTrigger id="category">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="technical">Technical</SelectItem>
+                <SelectItem value="behavioral">Behavioral</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Action Buttons */}
           <div className="flex gap-2 pt-2">
             <Button
@@ -193,7 +219,7 @@ export function HostPublicInterviewModal({
             <Button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
+              className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-500/90 hover:to-teal-600/90"
             >
               {loading ? (
                 <>
