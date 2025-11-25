@@ -53,6 +53,7 @@ export default function LeaderboardPage() {
   const [searchingSchools, setSearchingSchools] = useState(false);
   const [showSchoolResults, setShowSchoolResults] = useState(false);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
+  const [userSchool, setUserSchool] = useState<School | null>(null);
 
   useEffect(() => {
     fetchUserAndLeaderboard();
@@ -85,6 +86,24 @@ export default function LeaderboardPage() {
         username: profileData.profile?.username || '',
       };
       setUser(userData);
+
+      // Fetch user's school information if they have one
+      const userSchoolCode = profileData.profile?.federal_school_code;
+      if (userSchoolCode && !userSchool) {
+        try {
+          // Search for the user's school to get its name
+          const schoolResponse = await fetch(`/api/schools?q=${encodeURIComponent(userSchoolCode)}`);
+          if (schoolResponse.ok) {
+            const schools = await schoolResponse.json();
+            const matchingSchool = schools.find((s: School) => s.code === userSchoolCode);
+            if (matchingSchool) {
+              setUserSchool(matchingSchool);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching user school info:', err);
+        }
+      }
 
       // Fetch leaderboard with optional school code
       const url = schoolCode
@@ -305,16 +324,27 @@ export default function LeaderboardPage() {
                       <p className="text-sm text-muted-foreground mb-1">Viewing Leaderboard</p>
                       <p className="text-lg font-semibold">
                         {leaderboardData.isOwnSchool ? (
-                          <span className="text-amber-500">Your School</span>
+                          <span className="text-amber-500">
+                            {userSchool ? userSchool.name : 'Your School'}
+                          </span>
                         ) : selectedSchool ? (
                           <span>{selectedSchool.name}</span>
                         ) : (
                           <span>School Code: {leaderboardData.schoolCode}</span>
                         )}
                       </p>
-                      {selectedSchool && !leaderboardData.isOwnSchool && (
+                      {/* Show location info for user's own school or selected school */}
+                      {((leaderboardData.isOwnSchool && userSchool) || (selectedSchool && !leaderboardData.isOwnSchool)) && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          {selectedSchool.city && selectedSchool.state ? `${selectedSchool.city}, ${selectedSchool.state}` : ''} {selectedSchool.city && selectedSchool.state ? '•' : ''} Code: {selectedSchool.code}
+                          {leaderboardData.isOwnSchool && userSchool ? (
+                            <>
+                              {userSchool.city && userSchool.state ? `${userSchool.city}, ${userSchool.state}` : ''} {userSchool.city && userSchool.state ? '•' : ''} Code: {userSchool.code}
+                            </>
+                          ) : selectedSchool ? (
+                            <>
+                              {selectedSchool.city && selectedSchool.state ? `${selectedSchool.city}, ${selectedSchool.state}` : ''} {selectedSchool.city && selectedSchool.state ? '•' : ''} Code: {selectedSchool.code}
+                            </>
+                          ) : null}
                         </p>
                       )}
                     </div>
@@ -339,7 +369,7 @@ export default function LeaderboardPage() {
                   </h3>
                   <div className="relative">
                     <Input
-                      placeholder="Search by school name (e.g., Stanford University)"
+                      placeholder="Search by name or code (e.g., Stanford University or 001305)"
                       value={schoolSearchQuery}
                       onChange={(e) => setSchoolSearchQuery(e.target.value)}
                       onFocus={() => {
@@ -383,7 +413,7 @@ export default function LeaderboardPage() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Search for any school to view their leaderboard
+                    Search by school name or enter a 6-digit federal school code
                   </p>
                 </div>
               </div>
