@@ -3,12 +3,18 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Trophy, Medal, Award, TrendingUp, Lock, AlertCircle } from "lucide-react";
+import { Trophy, Award, TrendingUp, Shield, Settings } from "lucide-react";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { LeaderboardEntry } from "@/types/database";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import dynamic from 'next/dynamic';
+
+// @ts-ignore
+const Info: any = dynamic(() => import('lucide-react').then(mod => mod.Info), { ssr: false });
+// @ts-ignore
+const XCircle: any = dynamic(() => import('lucide-react').then(mod => mod.XCircle || mod.X), { ssr: false });
 
 interface UserData {
   name: string;
@@ -25,11 +31,14 @@ interface LeaderboardResponse {
   message: string | null;
 }
 
+type FilterType = 'total' | 'easy' | 'medium' | 'hard';
+
 export default function LeaderboardPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardResponse | null>(null);
+  const [filter, setFilter] = useState<FilterType>('total');
 
   useEffect(() => {
     fetchUserAndLeaderboard();
@@ -84,7 +93,7 @@ export default function LeaderboardPage() {
       case 1:
         return <Trophy className="w-6 h-6 text-yellow-500" />;
       case 2:
-        return <Medal className="w-6 h-6 text-gray-400" />;
+        return <Award className="w-6 h-6 text-gray-400" />;
       case 3:
         return <Award className="w-6 h-6 text-amber-600" />;
       default:
@@ -102,6 +111,78 @@ export default function LeaderboardPage() {
         return "bg-gradient-to-br from-amber-600 to-orange-500 shadow-lg shadow-amber-500/25";
       default:
         return "bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-lg shadow-zinc-500/25";
+    }
+  };
+
+  // Get filtered and re-ranked leaderboard based on selected filter
+  const getFilteredLeaderboard = () => {
+    if (!leaderboardData?.leaderboard) return [];
+
+    const leaderboard = [...leaderboardData.leaderboard];
+
+    // Sort based on selected filter
+    leaderboard.sort((a, b) => {
+      let primarySort = 0;
+
+      switch (filter) {
+        case 'easy':
+          primarySort = b.easy_solved - a.easy_solved;
+          break;
+        case 'medium':
+          primarySort = b.medium_solved - a.medium_solved;
+          break;
+        case 'hard':
+          primarySort = b.hard_solved - a.hard_solved;
+          break;
+        case 'total':
+        default:
+          primarySort = b.total_solved - a.total_solved;
+          break;
+      }
+
+      // If primary sort is tied, use total_solved as tiebreaker (unless already sorting by total)
+      if (primarySort === 0 && filter !== 'total') {
+        primarySort = b.total_solved - a.total_solved;
+      }
+
+      // If still tied, use total_points
+      if (primarySort === 0) {
+        primarySort = b.total_points - a.total_points;
+      }
+
+      // Final tiebreaker: contest_rating
+      if (primarySort === 0) {
+        primarySort = b.contest_rating - a.contest_rating;
+      }
+
+      return primarySort;
+    });
+
+    // Re-assign ranks based on new sort order
+    return leaderboard.map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+  };
+
+  const filteredLeaderboard = getFilteredLeaderboard();
+  const userRankInFiltered = filteredLeaderboard.find(entry => entry.user_id === user?.username)?.rank || null;
+
+  const getFilterLabel = (filterType: FilterType) => {
+    switch (filterType) {
+      case 'easy': return 'Easy';
+      case 'medium': return 'Medium';
+      case 'hard': return 'Hard';
+      case 'total': return 'Total';
+    }
+  };
+
+  const getFilterColor = (filterType: FilterType) => {
+    switch (filterType) {
+      case 'easy': return 'from-green-500 to-emerald-500';
+      case 'medium': return 'from-yellow-500 to-amber-500';
+      case 'hard': return 'from-red-500 to-rose-500';
+      case 'total': return 'from-blue-500 to-purple-500';
     }
   };
 
@@ -149,7 +230,7 @@ export default function LeaderboardPage() {
           <Card className="border-2 border-destructive/30 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
             <CardContent className="flex items-center gap-4 p-6">
               <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                <AlertCircle className="w-6 h-6 text-destructive" />
+                <XCircle className="w-6 h-6 text-destructive" />
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-destructive mb-1">Failed to Load Leaderboard</h3>
@@ -167,7 +248,7 @@ export default function LeaderboardPage() {
           <Card className="border-2 border-amber-500/30 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
             <CardContent className="flex items-center gap-4 p-6">
               <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                <AlertCircle className="w-6 h-6 text-amber-500" />
+                <Info className="w-6 h-6 text-amber-500" />
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-amber-500 mb-1">No School Affiliation</h3>
@@ -182,22 +263,59 @@ export default function LeaderboardPage() {
           </Card>
         )}
 
+        {/* Filter Buttons */}
+        {!loading && !error && leaderboardData && leaderboardData.leaderboard.length > 0 && (
+          <Card className="mb-6 border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl shadow-xl">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                    <Settings className="w-5 h-5" />
+                    Sort By
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Choose how to rank students
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {(['total', 'easy', 'medium', 'hard'] as FilterType[]).map((filterType) => (
+                    <Button
+                      key={filterType}
+                      onClick={() => setFilter(filterType)}
+                      variant={filter === filterType ? "default" : "outline"}
+                      size="sm"
+                      className={cn(
+                        "transition-all",
+                        filter === filterType && `bg-gradient-to-r ${getFilterColor(filterType)} text-white border-0`
+                      )}
+                    >
+                      {getFilterLabel(filterType)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* User's Current Rank Card */}
-        {!loading && !error && leaderboardData && leaderboardData.userRank && (
+        {!loading && !error && leaderboardData && userRankInFiltered && (
           <Card className="mb-6 border-2 border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-card/30 to-transparent backdrop-blur-xl shadow-xl">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={cn(
                     "w-16 h-16 rounded-full flex items-center justify-center",
-                    getRankBadgeColor(leaderboardData.userRank)
+                    getRankBadgeColor(userRankInFiltered)
                   )}>
-                    {getRankIcon(leaderboardData.userRank)}
+                    {getRankIcon(userRankInFiltered)}
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Your Current Rank</p>
-                    <h3 className="text-3xl font-bold text-foreground">#{leaderboardData.userRank}</h3>
-                    <p className="text-sm text-muted-foreground">out of {leaderboardData.totalUsers} students</p>
+                    <p className="text-sm text-muted-foreground">
+                      Your Rank ({getFilterLabel(filter)})
+                    </p>
+                    <h3 className="text-3xl font-bold text-foreground">#{userRankInFiltered}</h3>
+                    <p className="text-sm text-muted-foreground">out of {filteredLeaderboard.length} students</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-amber-500">
@@ -218,7 +336,7 @@ export default function LeaderboardPage() {
                 Top Performers
               </CardTitle>
               <CardDescription>
-                Students from your school ranked by total problems solved
+                Students from your school ranked by {filter === 'total' ? 'total problems solved' : `${getFilterLabel(filter).toLowerCase()} problems solved`}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -237,7 +355,7 @@ export default function LeaderboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {leaderboardData.leaderboard.map((entry, index) => {
+                    {filteredLeaderboard.map((entry) => {
                       const isCurrentUser = entry.user_id === user?.username;
                       return (
                         <tr
@@ -314,7 +432,7 @@ export default function LeaderboardPage() {
           <Card className="mt-6 border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl">
             <CardContent className="p-6">
               <div className="flex items-start gap-3">
-                <Lock className="w-5 h-5 text-muted-foreground mt-0.5" />
+                <Shield className="w-5 h-5 text-muted-foreground mt-0.5" />
                 <div>
                   <h3 className="font-semibold mb-1">Privacy Information</h3>
                   <p className="text-sm text-muted-foreground">
