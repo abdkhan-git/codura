@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { NotificationsDropdown } from "@/components/social/notifications-dropdown";
 import { DefaultAvatar } from "@/components/ui/default-avatar";
+import { PublicInterviewStatusButton } from "@/components/mock-interview/public-interview-status-button";
 
 interface UserData {
   name: string;
@@ -460,6 +461,9 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
           >
             <MessageSquare className="w-4 h-4" />
           </Button>
+
+          {/* Public Interview Status */}
+          <PublicInterviewStatusButton />
 
           {/* Notifications */}
           <NotificationsDropdown />
