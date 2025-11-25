@@ -304,7 +304,7 @@ export default function AIChatbot({
   if (!submission) return <LockedState />
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl border-l-2 border-border/20">
+    <div className="h-full flex flex-col bg-zinc-950/30 backdrop-blur-xl border-l border-white/5">
       <ChatHeader submission={submission} />
 
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
@@ -348,7 +348,7 @@ export default function AIChatbot({
 function ChatHeader({ submission }: { submission: Submission }) {
   const allPassed = submission.testsPassed === submission.totalTests
   return (
-    <div className="border-b border-border/20 px-4 py-3 bg-gradient-to-r from-card/50 via-card/30 to-transparent backdrop-blur-sm shadow-sm">
+    <div className="border-b border-white/5 px-4 py-3 bg-zinc-900/20 backdrop-blur-sm">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -372,7 +372,7 @@ function ChatHeader({ submission }: { submission: Submission }) {
 
 function LockedState() {
   return (
-    <div className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl border-l-2 border-border/20 p-8">
+    <div className="h-full flex flex-col items-center justify-center bg-zinc-950/30 backdrop-blur-xl border-l border-white/5 p-8">
       <div className="w-16 h-16 rounded-full bg-gradient-to-br from-muted/50 to-muted/30 flex items-center justify-center mb-4 border-2 border-border/30 shadow-lg">
         <MessageSquare className="w-8 h-8 text-muted-foreground" />
       </div>
@@ -488,7 +488,7 @@ interface ChatInputProps {
 
 function ChatInput({ input, setInput, isLoading, onSend, onKeyDown, assistanceType }: ChatInputProps) {
   return (
-    <div className="border-t border-border/20 p-4 bg-gradient-to-r from-muted/20 to-transparent backdrop-blur-sm">
+    <div className="border-t border-white/5 p-4 bg-zinc-900/20 backdrop-blur-sm">
       <div className="mb-2 text-xs text-muted-foreground">
         Mode: <span className="text-foreground font-medium">{getAssistanceTypeLabel(assistanceType)}</span>
       </div>
