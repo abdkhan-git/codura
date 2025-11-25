@@ -297,116 +297,113 @@ export default function ComplexityResultDisplay({
     }
   };
 
-  const containerClass = layout === "vertical"
-    ? "flex flex-col gap-4"
-    : "grid lg:grid-cols-3 gap-4";
-
-  const graphColClass = layout === "vertical"
-    ? "w-full"
-    : "lg:col-span-2";
-
   return (
-    <div className={cn("relative", containerClass)}>
-      {/* Graph canvas */}
-      <div className={graphColClass}>
-        <div className="relative bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/30 rounded-xl p-4 overflow-hidden">
-          <div
-            className="absolute inset-0 opacity-5"
-            style={{
-              backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)",
-              backgroundSize: "20px 20px",
-            }}
-          />
-          <canvas
-            ref={canvasRef}
-            className="w-full h-[300px] relative z-10"
-            style={{ imageRendering: "crisp-edges" }}
-          />
+    <div className="relative space-y-4">
+      {/* Top Section: Graph + Side Cards */}
+      <div className="grid lg:grid-cols-3 gap-4">
+        {/* Graph canvas */}
+        <div className="lg:col-span-2">
+          <div className="relative bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/30 rounded-xl p-4 overflow-hidden h-full">
+            <div
+              className="absolute inset-0 opacity-5"
+              style={{
+                backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)",
+                backgroundSize: "20px 20px",
+              }}
+            />
+            <canvas
+              ref={canvasRef}
+              className="w-full h-[300px] relative z-10"
+              style={{ imageRendering: "crisp-edges" }}
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Details panel */}
-      <div className="space-y-3">
-        {/* Performance badge for both time and space complexity */}
-        <div
-          className={cn(
-            "p-4 rounded-xl bg-gradient-to-br backdrop-blur-md border",
-            getPerformanceStyles(selectedComplexity.performance)
-          )}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-muted-foreground">
-              {complexityType === "time" ? "Time Complexity" : "Space Complexity"}
-            </span>
-            <Badge
-              variant="outline"
-              className="text-xs capitalize border-current/30 bg-current/10"
+        {/* Right Side Cards - Stack to match graph height */}
+        <div className="flex flex-col gap-3 h-full">
+          {/* Performance badge for both time and space complexity */}
+          <div
+            className={cn(
+              "p-4 rounded-xl bg-gradient-to-br backdrop-blur-md border flex-shrink-0",
+              getPerformanceStyles(selectedComplexity.performance)
+            )}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                {complexityType === "time" ? "Time Complexity" : "Space Complexity"}
+              </span>
+              <Badge
+                variant="outline"
+                className="text-xs capitalize border-current/30 bg-current/10"
+                style={{ color: selectedComplexity.color }}
+              >
+                {selectedComplexity.performance}
+              </Badge>
+            </div>
+            <h4
+              className="text-2xl font-bold font-mono mb-1"
               style={{ color: selectedComplexity.color }}
             >
-              {selectedComplexity.performance}
-            </Badge>
+              {selectedComplexity.notation}
+            </h4>
+            <p className="text-xs font-medium text-foreground/80">
+              {selectedComplexity.name}
+            </p>
           </div>
-          <h4
-            className="text-2xl font-bold font-mono mb-1"
-            style={{ color: selectedComplexity.color }}
-          >
-            {selectedComplexity.notation}
-          </h4>
-          <p className="text-xs font-medium text-foreground/80">
-            {selectedComplexity.name}
-          </p>
-        </div>
 
-        {/* Confidence */}
-        {confidence !== undefined && (
-          <div className="p-3 rounded-xl bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/30">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-muted-foreground">Confidence</span>
-              <span className="text-xs font-semibold">{Math.round(confidence * 100)}%</span>
+          {/* Confidence */}
+          {confidence !== undefined && (
+            <div className="p-4 rounded-xl bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/30 flex-grow flex flex-col">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground">Confidence</span>
+                <span className="text-xs font-semibold">{Math.round(confidence * 100)}%</span>
+              </div>
+              <div className="w-full bg-zinc-700/30 rounded-full h-2 mb-3">
+                <div
+                  className="h-2 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${confidence * 100}%`,
+                    backgroundColor: selectedComplexity.color,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                This percentage indicates how certain the AI is about the detected complexity. Higher confidence means the analysis is more reliable and accurate.
+              </p>
             </div>
-            <div className="w-full bg-zinc-700/30 rounded-full h-2">
-              <div
-                className="h-2 rounded-full transition-all duration-500"
-                style={{
-                  width: `${confidence * 100}%`,
-                  backgroundColor: selectedComplexity.color,
-                }}
-              />
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* Description */}
-        <div className="p-3 rounded-xl bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/30">
-          <h5 className="text-xs font-semibold text-foreground/80 mb-2 flex items-center gap-2">
-            <div
-              className="w-1 h-3 rounded-full"
-              style={{ backgroundColor: selectedComplexity.color }}
-            />
-            Description
-          </h5>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {selectedComplexity.description}
-          </p>
-        </div>
-
-        {/* Analysis */}
-        {analysis && (
-          <div className="p-3 rounded-xl bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/30">
+          {/* Description */}
+          <div className="p-4 rounded-xl bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/30 flex-grow flex flex-col">
             <h5 className="text-xs font-semibold text-foreground/80 mb-2 flex items-center gap-2">
               <div
                 className="w-1 h-3 rounded-full"
                 style={{ backgroundColor: selectedComplexity.color }}
               />
-              Analysis
+              Description
             </h5>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {analysis}
+            <p className="text-xs text-muted-foreground leading-relaxed flex-grow">
+              {selectedComplexity.description}
             </p>
           </div>
-        )}
-
+        </div>
       </div>
+
+      {/* Bottom Section: Analysis (Full Width) */}
+      {analysis && (
+        <div className="p-4 rounded-xl bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/30">
+          <h5 className="text-sm font-semibold text-foreground/80 mb-3 flex items-center gap-2">
+            <div
+              className="w-1 h-4 rounded-full"
+              style={{ backgroundColor: selectedComplexity.color }}
+            />
+            Analysis
+          </h5>
+          <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+            {analysis}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
