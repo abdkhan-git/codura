@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { io, Socket } from 'socket.io-client';
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +68,9 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
   // Pending requests count for badge
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
+  // Socket.io ref for real-time updates
+  const socketRef = useRef<Socket | null>(null);
+
   useEffect(() => {
     fetchUser();
   }, []);
@@ -105,6 +109,65 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
       fetchChallenges();
     }
   }, [podId]);
+
+  // Set up real-time updates via Socket.io
+  useEffect(() => {
+    if (!podId || !user?.id) return;
+
+    // Initialize Socket.io connection
+    const socket = io(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000', {
+      auth: { userId: user.id },
+      transports: ['websocket', 'polling'],
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('✅ Connected to real-time updates');
+      // Join pod room for updates
+      socket.emit('join_pod', podId);
+    });
+
+    // Listen for session updates
+    socket.on('session_created', (data: any) => {
+      if (data.podId === podId) {
+        console.log('🆕 New session created');
+        fetchSessions(); // Refresh sessions
+        toast.success('New session scheduled!');
+      }
+    });
+
+    socket.on('session_updated', (data: any) => {
+      if (data.podId === podId) {
+        console.log('📝 Session updated');
+        fetchSessions(); // Refresh sessions
+      }
+    });
+
+    socket.on('session_started', (data: any) => {
+      if (data.podId === podId) {
+        console.log('🚀 Session started');
+        fetchSessions(); // Refresh sessions
+        toast.success(`Session "${data.title}" is now live!`);
+      }
+    });
+
+    socket.on('pod_updated', (data: any) => {
+      if (data.podId === podId) {
+        console.log('📝 Pod details updated');
+        fetchPodDetails(); // Refresh pod details
+      }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('❌ Disconnected from real-time updates');
+    });
+
+    return () => {
+      socket.emit('leave_pod', podId);
+      socket.disconnect();
+    };
+  }, [podId, user]);
 
   const fetchPodDetails = async () => {
     try {

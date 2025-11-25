@@ -1,25 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import {
   Video,
   Calendar,
-  Clock,
   Users,
   Play,
   Plus,
-  Zap,
-  ArrowRight,
   Code2,
   Loader2,
 } from "lucide-react";
-import { formatDistanceToNow, format } from "date-fns";
+import { toast } from "sonner";
 import { SessionCard } from "./session-card";
 import { CreateSessionModal } from "./create-session-modal";
 import { SessionDetailModal } from "./session-detail-modal";
@@ -46,8 +42,14 @@ export function LiveSessionsSection({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [localSessions, setLocalSessions] = useState<any[]>(sessions);
 
   const isAdmin = pod?.user_role === "owner" || pod?.user_role === "moderator";
+
+  // Update local sessions when prop changes
+  useEffect(() => {
+    setLocalSessions(sessions);
+  }, [sessions]);
 
   // Helper to safely parse dates
   const isValidDate = (dateString: any): boolean => {
@@ -69,7 +71,7 @@ export function LiveSessionsSection({
     return scheduledTime > twentyFourHoursAgo;
   };
 
-  const filteredSessions = sessions.filter((session) => {
+  const filteredSessions = localSessions.filter((session) => {
     if (!isValidDate(session.scheduled_at)) {
       // Include sessions without valid dates in "all" view only
       return filter === "all";
@@ -94,11 +96,44 @@ export function LiveSessionsSection({
   });
 
   // Get live sessions count - only count actually live sessions
-  const liveSessionsCount = sessions.filter(s => isActuallyLive(s)).length;
+  const liveSessionsCount = localSessions.filter(s => isActuallyLive(s)).length;
 
-  const handleJoinSession = async (sessionId: string) => {
-    // Navigate to the collaborative session page
-    window.location.href = `/study-pods/${podId}/session/${sessionId}`;
+  const handleJoinSession = async (sessionId: string, isLiveSession: boolean) => {
+    try {
+      // If it's a live session or user wants to join, mark attendance first
+      if (isLiveSession || confirm('Would you like to mark your attendance for this session?')) {
+        const response = await fetch(`/api/study-pods/sessions/${sessionId}/join`, {
+          method: 'POST',
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          // If already joined, that's fine - just navigate
+          if (!data.error?.includes('already joined')) {
+            toast.error(data.error || 'Failed to mark attendance');
+            return;
+          }
+        } else {
+          toast.success('✅ Attendance marked!');
+
+          // Update local session attendance count immediately
+          setLocalSessions(prev => prev.map(s =>
+            s.id === sessionId
+              ? { ...s, attendance_count: (s.attendance_count || 0) + 1, user_attending: true }
+              : s
+          ));
+
+          // Refresh sessions to get server data
+          setTimeout(() => onRefresh(), 500);
+        }
+      }
+
+      // Navigate to the collaborative session page
+      window.location.href = `/study-pods/${podId}/session/${sessionId}`;
+    } catch (error) {
+      console.error('Error joining session:', error);
+      toast.error('Failed to join session');
+    }
   };
 
   return (
@@ -146,7 +181,7 @@ export function LiveSessionsSection({
                 onClick={() => setFilter("live")}
                 className="bg-green-500 hover:bg-green-600 text-white"
               >
-                <Zap className="w-4 h-4 mr-2" />
+                <Play className="w-4 h-4 mr-2" />
                 Join Now
               </Button>
             </div>
@@ -263,7 +298,7 @@ export function LiveSessionsSection({
                 setShowDetailModal(true);
               }}
               onJoin={async () => {
-                handleJoinSession(session.id);
+                await handleJoinSession(session.id, isActuallyLive(session));
               }}
             />
           ))}

@@ -168,13 +168,14 @@ export function SessionCard({
   return (
     <Card
       className={cn(
-        "group relative overflow-hidden border-2 transition-all duration-300",
+        "group relative overflow-hidden border-2 transition-all duration-300 cursor-pointer",
         theme === 'light'
           ? "bg-white hover:shadow-lg border-gray-200 hover:border-emerald-300"
           : "bg-zinc-900/50 hover:shadow-xl hover:shadow-emerald-500/5 border-white/10 hover:border-emerald-500/30",
         isLive && "ring-2 ring-emerald-500/50 animate-pulse-slow",
         className
       )}
+      onClick={() => onViewDetails?.()}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -237,6 +238,7 @@ export function SessionCard({
                 <Button
                   variant="ghost"
                   size="sm"
+                  onClick={(e) => e.stopPropagation()}
                   className={cn(
                     "h-8 w-8 p-0",
                     theme === 'light' ? "hover:bg-gray-100" : "hover:bg-white/10"
@@ -373,7 +375,10 @@ export function SessionCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={onViewDetails}
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDetails();
+              }}
               className={cn(
                 "flex-1",
                 theme === 'light'
@@ -389,7 +394,10 @@ export function SessionCard({
           {onJoin && session.status !== 'cancelled' && session.status !== 'completed' && (
             <Button
               size="sm"
-              onClick={() => handleAction(onJoin)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAction(onJoin);
+              }}
               disabled={loading}
               className={cn(
                 "flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white border-0",
