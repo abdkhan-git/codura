@@ -439,21 +439,30 @@ CRITICAL RULES:
 - For snippets: Show actual code lines that cause the complexity
 - Format: "This code snippet results in the overall {complexity} {type} complexity: \`code here\`"
 
+COMPLEXITY NOTATION FORMAT (use EXACTLY these strings):
+- Use "O(1)" for constant time
+- Use "O(log n)" for logarithmic time
+- Use "O(n)" for linear time
+- Use "O(n log n)" for linearithmic time
+- Use "O(n²)" for quadratic time (with superscript ²)
+- Use "O(2ⁿ)" for exponential time (with superscript ⁿ)
+- Use "O(n³)" for cubic time (with superscript ³)
+
 Return ONLY valid JSON with this exact structure:
 {
-  "timeComplexity": "O(n)",
+  "timeComplexity": "O(n²)",
   "spaceComplexity": "O(n)",
   "confidence": 0.95,
   "spaceConfidence": 0.90,
-  "analysis": "Single loop with O(1) dictionary lookups results in O(n) time",
-  "spaceAnalysis": "Hash map grows linearly with unique input values, resulting in O(n) space",
+  "analysis": "Nested loops result in O(n²) time complexity",
+  "spaceAnalysis": "Array grows linearly with input size",
   "timeSnippets": [
-    "This code snippet results in the overall O(n) time complexity: \`for i, n in enumerate(nums):\`",
-    "This code snippet results in the overall O(n) time complexity: \`if diff in hashMap:\`"
+    "This code snippet results in the overall O(n²) time complexity: \`for i in range(len(nums)):\`",
+    "This code snippet results in the overall O(n²) time complexity: \`for j in range(i+1, len(nums)):\`"
   ],
   "spaceSnippets": [
-    "This code snippet results in the overall O(n) space complexity: \`hashMap = {}\`",
-    "This code snippet results in the overall O(n) space complexity: \`hashMap[n] = i\`"
+    "This code snippet results in the overall O(n) space complexity: \`result = []\`",
+    "This code snippet results in the overall O(n) space complexity: \`result.append(item)\`"
   ]
 }`;
 
@@ -507,8 +516,8 @@ Return only valid JSON.`;
 
     // Return full ComplexityResult with defaults for missing fields
     return {
-      timeComplexity: parsed.timeComplexity,
-      spaceComplexity: parsed.spaceComplexity,
+      timeComplexity: normalizeComplexityNotation(parsed.timeComplexity),
+      spaceComplexity: normalizeComplexityNotation(parsed.spaceComplexity),
       confidence: parsed.confidence || 0.7,
       spaceConfidence: parsed.spaceConfidence || 0.7,
       analysis: parsed.analysis || 'Complexity detected via AI analysis',
@@ -522,6 +531,23 @@ Return only valid JSON.`;
     console.error('[analyzeComplexityWithAI] Error:', error);
     return null;
   }
+}
+
+// Normalize complexity notation to match frontend's expected format
+function normalizeComplexityNotation(notation: string): string {
+  // Map common AI outputs to frontend's expected format with superscripts
+  const normalizationMap: Record<string, string> = {
+    'O(n^2)': 'O(n²)',
+    'O(n**2)': 'O(n²)',
+    'O(n2)': 'O(n²)',
+    'O(2^n)': 'O(2ⁿ)',
+    'O(2**n)': 'O(2ⁿ)',
+    'O(n^3)': 'O(n³)',
+    'O(n**3)': 'O(n³)',
+    'O(n3)': 'O(n³)',
+  };
+
+  return normalizationMap[notation] || notation;
 }
 
 // ==================== PYTHON ====================
