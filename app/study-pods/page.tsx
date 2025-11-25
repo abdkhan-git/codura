@@ -18,6 +18,7 @@ import {
 import { PodCard } from "@/components/study-pods/pod-card";
 import { CreatePodModal } from "@/components/study-pods/create-pod-modal";
 import { MyInvitations } from "@/components/study-pods/my-invitations";
+import { PublicPodLeaderboard } from "@/components/study-pods/public-pod-leaderboard";
 import {
   Search,
   Plus,
@@ -25,6 +26,7 @@ import {
   Users,
   BookOpen,
   TrendingUp,
+  Trophy,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -279,6 +281,10 @@ export default function StudyPodsPage() {
               My Pods {myPods.length > 0 && `(${myPods.length})`}
             </TabsTrigger>
             <TabsTrigger value="invitations">Invitations</TabsTrigger>
+            <TabsTrigger value="leaderboards" className="gap-1.5">
+              <Trophy className="w-3.5 h-3.5" />
+              Leaderboards
+            </TabsTrigger>
           </TabsList>
 
           {/* Tabs Content */}
@@ -380,6 +386,10 @@ export default function StudyPodsPage() {
 
         <TabsContent value="invitations" className="mt-0">
           <MyInvitations />
+        </TabsContent>
+
+        <TabsContent value="leaderboards" className="mt-0">
+          <PublicPodLeaderboard limit={15} showFilters={true} />
         </TabsContent>
         </Tabs>
       </main>

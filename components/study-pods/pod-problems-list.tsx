@@ -43,7 +43,9 @@ import {
   Award,
   Zap,
   Link as LinkIcon,
+  MessageSquare,
 } from "lucide-react";
+import { ProblemDiscussionThread } from "./problem-discussion-thread";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -88,9 +90,10 @@ interface PodProblemsListProps {
   podId: string;
   currentUserRole: "owner" | "moderator" | "member" | null;
   totalMembers: number;
+  currentUserId?: string;
 }
 
-export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodProblemsListProps) {
+export function PodProblemsList({ podId, currentUserRole, totalMembers, currentUserId }: PodProblemsListProps) {
   const { theme } = useTheme();
   const [problems, setProblems] = useState<PodProblem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,6 +101,10 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [selectedProblem, setSelectedProblem] = useState<PodProblem | null>(null);
   const [hoveredProblemId, setHoveredProblemId] = useState<string | null>(null);
+
+  // Discussion state
+  const [showDiscussionModal, setShowDiscussionModal] = useState(false);
+  const [discussionProblem, setDiscussionProblem] = useState<PodProblem | null>(null);
 
   // Completion form state
   const [timeTaken, setTimeTaken] = useState("");
@@ -650,6 +657,23 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
                                 <Sparkles className="w-3.5 h-3.5" />
                                 <span>by @{problem.assigned_by_user.username}</span>
                               </div>
+
+                              {/* Discussion button */}
+                              <button
+                                onClick={() => {
+                                  setDiscussionProblem(problem);
+                                  setShowDiscussionModal(true);
+                                }}
+                                className={cn(
+                                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all hover:border-emerald-500/30",
+                                  theme === 'light'
+                                    ? "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+                                    : "bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20"
+                                )}
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span className="font-medium">Discuss</span>
+                              </button>
                             </div>
 
                             {/* Completions List */}
@@ -894,6 +918,22 @@ export function PodProblemsList({ podId, currentUserRole, totalMembers }: PodPro
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Discussion Modal */}
+      {discussionProblem && currentUserId && (
+        <ProblemDiscussionThread
+          podId={podId}
+          problemId={parseInt(discussionProblem.problem.id)}
+          problemTitle={discussionProblem.problem.title}
+          currentUserId={currentUserId}
+          isAdmin={canManage}
+          isOpen={showDiscussionModal}
+          onClose={() => {
+            setShowDiscussionModal(false);
+            setDiscussionProblem(null);
+          }}
+        />
+      )}
     </>
   );
 }
