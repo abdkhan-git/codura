@@ -12,6 +12,8 @@ interface ComplexityResult {
   spaceConfidence: number;
   analysis: string;
   spaceAnalysis: string;
+  timeSnippets: string[];
+  spaceSnippets: string[];
   details: {
     loops: number;
     nestedLoops: number;
@@ -270,24 +272,34 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
       });
     }
 
-    // Analyze code complexity (with timeout)
+    // Analyze code complexity with AI (includes snippets)
     let complexityResult: ComplexityResult | undefined;
     try {
-      const complexityPromise = analyzeComplexity(source_code, language || 'python');
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Complexity analysis timeout')), 5000)
-      );
-      complexityResult = await Promise.race([complexityPromise, timeoutPromise]);
-      console.log('Complexity analysis:', complexityResult);
+      console.log('[Submit] Starting AI complexity analysis...');
+      const aiResult = await analyzeComplexityWithAI(source_code, language || 'python');
+
+      if (aiResult) {
+        complexityResult = aiResult;
+        console.log('[Submit] AI analysis successful:', {
+          time: complexityResult.timeComplexity,
+          space: complexityResult.spaceComplexity
+        });
+      } else {
+        throw new Error('AI analysis returned null');
+      }
     } catch (error: any) {
-      console.error('Complexity analysis failed:', error.message);
+      console.error('[Submit] AI complexity analysis failed:', error.message);
+
+      // Fallback: Safe default complexity
       complexityResult = {
         timeComplexity: 'O(n)',
         spaceComplexity: 'O(1)',
         confidence: 0.1,
         spaceConfidence: 0.1,
-        analysis: 'Unable to analyze complexity.',
-        spaceAnalysis: 'Unable to analyze space complexity.',
+        analysis: 'Unable to analyze time complexity accurately.',
+        spaceAnalysis: 'Unable to analyze space complexity accurately.',
+        timeSnippets: [],
+        spaceSnippets: [],
         details: { loops: 0, nestedLoops: 0, recursiveCalls: 0, maxNestingDepth: 0 },
         spaceDetails: { variables: 0, arrays: 0, objects: 0, recursionDepth: 0, auxiliaryStructures: 0 }
       };
@@ -322,25 +334,6 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
     const judge0Result = await pollSubmissionStatus(token);
     const testcaseResults = parseTestResults(judge0Result, testcases);
 
-    // Generate AI code snippets only for accepted submissions
-    let snippetsResult = null;
-    if (testcaseResults.label === 'Accepted' && complexityResult?.timeComplexity && complexityResult?.spaceComplexity) {
-      try {
-        console.log('[Submit] Generating AI complexity snippets...');
-        snippetsResult = await analyzeComplexitySnippets(
-          source_code,
-          language || 'python',
-          complexityResult.timeComplexity,
-          complexityResult.spaceComplexity
-        );
-        if (snippetsResult) {
-          console.log('[Submit] AI snippets generated:', snippetsResult);
-        }
-      } catch (error) {
-        console.error('[Submit] AI snippets generation failed (non-fatal):', error);
-      }
-    }
-
     const savedSubmission = await storeSubmission(
       user_id,
       problem_id,
@@ -351,8 +344,7 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
       testcaseResults.label,
       source_code,
       submitted_at,
-      complexityResult,
-      snippetsResult
+      complexityResult
     );
 
     res.status(200).json({
@@ -378,8 +370,7 @@ async function storeSubmission(
   status: string,
   source_code: string,
   submitted_at: string,
-  complexityResult?: ComplexityResult,
-  snippetsResult?: { timeSnippets: string[], spaceSnippets: string[] } | null
+  complexityResult?: ComplexityResult
 ) {
   const submissionData: any = {
     user_id,
@@ -401,12 +392,12 @@ async function storeSubmission(
     submissionData.complexity_analysis = complexityResult.analysis;
     submissionData.space_complexity = complexityResult.spaceComplexity;
     submissionData.space_complexity_analysis = complexityResult.spaceAnalysis;
-  }
 
-  // Add AI-generated code snippets if available
-  if (snippetsResult) {
-    submissionData.time_complexity_snippets = snippetsResult.timeSnippets;
-    submissionData.space_complexity_snippets = snippetsResult.spaceSnippets;
+    // Add AI-generated code snippets from complexityResult
+    if (complexityResult.timeSnippets && complexityResult.spaceSnippets) {
+      submissionData.time_complexity_snippets = complexityResult.timeSnippets;
+      submissionData.space_complexity_snippets = complexityResult.spaceSnippets;
+    }
   }
 
   const { data, error } = await supabase
@@ -419,49 +410,58 @@ async function storeSubmission(
   return data;
 }
 
-// AI snippet analysis function
-async function analyzeComplexitySnippets(
+// Combined AI complexity analysis function (replaces heuristic + snippet generation)
+async function analyzeComplexityWithAI(
   code: string,
-  language: string,
-  timeComplexity: string,
-  spaceComplexity: string
-): Promise<{ timeSnippets: string[], spaceSnippets: string[] } | null> {
+  language: string
+): Promise<ComplexityResult | null> {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
-    console.error('[analyzeComplexitySnippets] Missing OPENAI_API_KEY');
+    console.error('[analyzeComplexityWithAI] Missing OPENAI_API_KEY');
     return null;
   }
 
-  const systemPrompt = `You are a code complexity analyzer. Your task is to identify the EXACT code snippets that contribute to the detected time and space complexities.
+  const systemPrompt = `You are an expert algorithm complexity analyzer. Analyze the provided code and:
 
-STRICT RULES:
-1. Identify exactly 2 code snippets for time complexity
-2. Identify exactly 2 code snippets for space complexity
-3. Each snippet must be an actual line or block of code from the user's submission
-4. Format each snippet as: "This code snippet results in the overall {complexity} {type} complexity: \`{actual code}\`"
-5. Be specific and accurate - only show the code that directly causes the complexity
-6. Return ONLY a JSON object with this structure:
+1. Determine time complexity (Big O notation)
+2. Determine space complexity (Big O notation)
+3. Provide confidence scores (0.0-1.0) for each
+4. Write brief explanations
+5. Identify EXACTLY 2 code snippets that contribute to time complexity
+6. Identify EXACTLY 2 code snippets that contribute to space complexity
+
+CRITICAL RULES:
+- Understand language-specific operations:
+  * Python: dict/set lookup is O(1), list append is O(1) amortized
+  * JavaScript: Map/Set is O(1), array push is O(1) amortized
+  * Consider DOMINANT operations (worst-case scenario)
+- For snippets: Show actual code lines that cause the complexity
+- Format: "This code snippet results in the overall {complexity} {type} complexity: \`code here\`"
+
+Return ONLY valid JSON with this exact structure:
 {
-  "timeSnippets": ["snippet 1", "snippet 2"],
-  "spaceSnippets": ["snippet 1", "snippet 2"]
+  "timeComplexity": "O(n)",
+  "spaceComplexity": "O(n)",
+  "confidence": 0.95,
+  "spaceConfidence": 0.90,
+  "analysis": "Single loop with O(1) dictionary lookups results in O(n) time",
+  "spaceAnalysis": "Hash map grows linearly with unique input values, resulting in O(n) space",
+  "timeSnippets": [
+    "This code snippet results in the overall O(n) time complexity: \`for i, n in enumerate(nums):\`",
+    "This code snippet results in the overall O(n) time complexity: \`if diff in hashMap:\`"
+  ],
+  "spaceSnippets": [
+    "This code snippet results in the overall O(n) space complexity: \`hashMap = {}\`",
+    "This code snippet results in the overall O(n) space complexity: \`hashMap[n] = i\`"
+  ]
 }`;
 
-  const userPrompt = `Analyze this ${language} code and identify the code snippets that contribute to its complexities:
+  const userPrompt = `Analyze this ${language} code and determine its time/space complexity with code snippets:
 
-**Detected Time Complexity:** ${timeComplexity}
-**Detected Space Complexity:** ${spaceComplexity}
-
-**Code:**
 \`\`\`${language}
 ${code}
 \`\`\`
-
-Identify exactly 2 code snippets that contribute to the ${timeComplexity} time complexity and 2 code snippets that contribute to the ${spaceComplexity} space complexity.
-
-Format each snippet exactly as:
-"This code snippet results in the overall ${timeComplexity} time complexity: \`actual code here\`"
-"This code snippet results in the overall ${spaceComplexity} space complexity: \`actual code here\`"
 
 Return only valid JSON.`;
 
@@ -479,13 +479,13 @@ Return only valid JSON.`;
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.3,
-        max_tokens: 800,
+        max_tokens: 1000,
         response_format: { type: 'json_object' },
       }),
     });
 
     if (!response.ok) {
-      console.error('[analyzeComplexitySnippets] OpenAI API error:', response.status);
+      console.error('[analyzeComplexityWithAI] OpenAI API error:', response.status);
       return null;
     }
 
@@ -493,23 +493,33 @@ Return only valid JSON.`;
     const aiResponse = data.choices?.[0]?.message?.content;
 
     if (!aiResponse) {
-      console.error('[analyzeComplexitySnippets] Empty response from OpenAI');
+      console.error('[analyzeComplexityWithAI] Empty response from OpenAI');
       return null;
     }
 
-    const snippetsData = JSON.parse(aiResponse);
+    const parsed = JSON.parse(aiResponse);
 
-    if (!snippetsData.timeSnippets || !snippetsData.spaceSnippets) {
-      console.error('[analyzeComplexitySnippets] Missing snippets in response');
+    // Validate required fields
+    if (!parsed.timeComplexity || !parsed.spaceComplexity) {
+      console.error('[analyzeComplexityWithAI] Missing complexity values in response');
       return null;
     }
 
+    // Return full ComplexityResult with defaults for missing fields
     return {
-      timeSnippets: Array.isArray(snippetsData.timeSnippets) ? snippetsData.timeSnippets.slice(0, 2) : [],
-      spaceSnippets: Array.isArray(snippetsData.spaceSnippets) ? snippetsData.spaceSnippets.slice(0, 2) : [],
+      timeComplexity: parsed.timeComplexity,
+      spaceComplexity: parsed.spaceComplexity,
+      confidence: parsed.confidence || 0.7,
+      spaceConfidence: parsed.spaceConfidence || 0.7,
+      analysis: parsed.analysis || 'Complexity detected via AI analysis',
+      spaceAnalysis: parsed.spaceAnalysis || 'Space complexity detected via AI analysis',
+      timeSnippets: Array.isArray(parsed.timeSnippets) ? parsed.timeSnippets.slice(0, 2) : [],
+      spaceSnippets: Array.isArray(parsed.spaceSnippets) ? parsed.spaceSnippets.slice(0, 2) : [],
+      details: { loops: 0, nestedLoops: 0, recursiveCalls: 0, maxNestingDepth: 0 },
+      spaceDetails: { variables: 0, arrays: 0, objects: 0, recursionDepth: 0, auxiliaryStructures: 0 }
     };
   } catch (error) {
-    console.error('[analyzeComplexitySnippets] Error:', error);
+    console.error('[analyzeComplexityWithAI] Error:', error);
     return null;
   }
 }
