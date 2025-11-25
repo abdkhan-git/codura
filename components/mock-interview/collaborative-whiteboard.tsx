@@ -80,7 +80,6 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
 
   const lastPositionRef = useRef({ x: 0, y: 0 })
   const isApplyingRemoteStrokeRef = useRef(false)
-  const isDrawingRef = useRef(false)
 
   const broadcastSettings = useCallback((overrides?: WhiteboardSettingsUpdate) => {
     if (!sendDataMessage) return
@@ -225,30 +224,23 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const coords = getCanvasCoordinates(e)
     lastPositionRef.current = coords
-    isDrawingRef.current = true
     setIsDrawing(true)
-    console.log('[Whiteboard] Started drawing at', coords, 'isDrawingRef:', isDrawingRef.current)
   }
 
-  // Draw stroke helper function
+  // Draw stroke helper function with interpolation for smooth lines
   const drawStroke = useCallback((fromX: number, fromY: number, toX: number, toY: number, drawTool: DrawingTool, drawColor: string, drawWidth: number) => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!ctx || !canvas) {
-      console.warn('[Whiteboard] Cannot draw - canvas or context not available')
       return
     }
 
-    // Always ensure we start with the correct composite operation
-    ctx.globalCompositeOperation = 'source-over'
-
-    ctx.beginPath()
-    ctx.moveTo(fromX, fromY)
-    ctx.lineTo(toX, toY)
+    // Set up context settings
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
 
     if (drawTool === 'pen') {
+      ctx.globalCompositeOperation = 'source-over'
       ctx.strokeStyle = drawColor
       ctx.lineWidth = drawWidth
     } else {
@@ -264,7 +256,30 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
       ctx.lineWidth = drawWidth * 3
     }
 
-    ctx.stroke()
+    // Draw smooth line with quadratic curve for better interpolation
+    const distance = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2)
+
+    // For very short distances, just draw a straight line
+    if (distance < 2) {
+      ctx.beginPath()
+      ctx.moveTo(fromX, fromY)
+      ctx.lineTo(toX, toY)
+      ctx.stroke()
+    } else {
+      // For longer distances, use quadratic curve for smoother lines
+      const midX = (fromX + toX) / 2
+      const midY = (fromY + toY) / 2
+
+      ctx.beginPath()
+      ctx.moveTo(fromX, fromY)
+      ctx.quadraticCurveTo(fromX, fromY, midX, midY)
+      ctx.stroke()
+
+      ctx.beginPath()
+      ctx.moveTo(midX, midY)
+      ctx.quadraticCurveTo(midX, midY, toX, toY)
+      ctx.stroke()
+    }
 
     // Always reset to source-over after drawing
     ctx.globalCompositeOperation = 'source-over'
@@ -272,52 +287,64 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
 
   // Draw on canvas
   const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    console.log('[Whiteboard] draw() called, isDrawingRef:', isDrawingRef.current)
-
-    if (!isDrawingRef.current) {
-      return
-    }
+    if (!isDrawing) return
 
     const canvas = canvasRef.current
-    if (!canvas) {
-      console.warn('[Whiteboard] Cannot draw - canvas not available')
-      return
-    }
+    const ctx = canvas?.getContext('2d')
+    if (!ctx || !canvas) return
 
     const coords = getCanvasCoordinates(e)
-    const fromX = lastPositionRef.current.x
-    const fromY = lastPositionRef.current.y
-    const toX = coords.x
-    const toY = coords.y
 
-    console.log('[Whiteboard] Drawing stroke from', {fromX, fromY}, 'to', {toX, toY})
+    ctx.beginPath()
+    ctx.moveTo(lastPositionRef.current.x, lastPositionRef.current.y)
+    ctx.lineTo(coords.x, coords.y)
 
-    // Draw locally
-    drawStroke(fromX, fromY, toX, toY, tool, color, strokeWidth)
+    if (tool === 'pen') {
+      ctx.strokeStyle = color
+      ctx.lineWidth = strokeWidth
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.globalCompositeOperation = 'source-over'
+    } else {
+      // Eraser
+      if (isTransparent) {
+        ctx.globalCompositeOperation = 'destination-out'
+        ctx.strokeStyle = 'rgba(0,0,0,1)'
+      } else {
+        ctx.globalCompositeOperation = 'source-over'
+        ctx.strokeStyle = '#1a1a1a'
+      }
+      ctx.lineWidth = strokeWidth * 3
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+    }
+
+    ctx.stroke()
+
+    // Always reset to source-over after drawing
+    ctx.globalCompositeOperation = 'source-over'
+
+    lastPositionRef.current = coords
 
     // Send stroke data to remote peer (only if this is not a remote stroke being applied)
-    if (sendDataMessage) {
+    if (!isApplyingRemoteStrokeRef.current && sendDataMessage) {
       sendDataMessage({
         type: 'whiteboard-stroke',
         strokeData: {
           tool,
           color,
           strokeWidth,
-          fromX,
-          fromY,
-          toX,
-          toY,
+          fromX: lastPositionRef.current.x,
+          fromY: lastPositionRef.current.y,
+          toX: coords.x,
+          toY: coords.y,
         },
       })
     }
-
-    lastPositionRef.current = coords
-  }, [tool, color, strokeWidth, sendDataMessage, drawStroke])
+  }, [isDrawing, tool, color, strokeWidth, sendDataMessage, isTransparent])
 
   // Stop drawing
   const stopDrawing = () => {
-    console.log('[Whiteboard] Stopped drawing')
-    isDrawingRef.current = false
     setIsDrawing(false)
 
     // Notify about drawing change
@@ -334,7 +361,6 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
     if (!canvas) return
 
     // Fully reset drawing references so next stroke starts fresh
-    isDrawingRef.current = false
     setIsDrawing(false)
     lastPositionRef.current = { x: 0, y: 0 }
 
@@ -346,8 +372,6 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-
-    console.log('[Whiteboard] Clearing canvas')
 
     ctx.globalCompositeOperation = 'source-over'
     ctx.lineCap = 'round'
@@ -363,7 +387,6 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
     ctx.beginPath()
 
     if (shouldBroadcast && sendDataMessage) {
-      console.log('[Whiteboard] Canvas cleared locally, broadcasting to peers')
       sendDataMessage({
         type: 'whiteboard-clear',
       })
@@ -373,24 +396,20 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
   // Download canvas as image
   const downloadCanvas = useCallback(async () => {
     const canvas = canvasRef.current
-    const container = containerRef.current
     if (!canvas) return
 
     const fileName = `whiteboard-${Date.now()}.png`
 
     // For opaque mode, just export the canvas directly
     if (!isTransparent) {
-      console.log('[Whiteboard] Exporting opaque whiteboard')
       const link = document.createElement('a')
       link.download = fileName
       link.href = canvas.toDataURL('image/png')
       link.click()
-      console.log('[Whiteboard] Download complete')
       return
     }
 
     // For transparent mode, use screen capture API
-    console.log('[Whiteboard] Attempting to capture screen for transparent whiteboard...')
 
     try {
       // Request screen capture
@@ -413,11 +432,7 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
       console.log('[Whiteboard] Screen captured:', bitmap.width, 'x', bitmap.height)
 
       // Get whiteboard position on screen
-      const containerRect = container!.getBoundingClientRect()
       const canvasRect = canvas.getBoundingClientRect()
-
-      console.log('[Whiteboard] Container position:', containerRect)
-      console.log('[Whiteboard] Canvas position:', canvasRect)
 
       // Create a canvas to extract the whiteboard region from the screenshot
       const exportCanvas = document.createElement('canvas')
