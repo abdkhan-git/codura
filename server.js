@@ -10,6 +10,9 @@ const handle = app.getRequestHandler();
 // Store active connections
 const userConnections = new Map();
 
+// Store active session participants
+const sessionParticipants = new Map(); // sessionId -> Set of userIds
+
 app.prepare().then(() => {
   const httpServer = createServer(async (req, res) => {
     try {
@@ -148,6 +151,271 @@ app.prepare().then(() => {
       console.log(`📖 User ${userId} marked ${messageIds.length} messages as read`);
     });
 
+    // ======================================================
+    // POD ROOM EVENTS (for real-time updates)
+    // ======================================================
+
+    // Join pod room for real-time updates
+    socket.on('join_pod', (podId) => {
+      socket.join(`pod:${podId}`);
+      console.log(`👥 User ${userId} joined pod ${podId} for updates`);
+    });
+
+    // Leave pod room
+    socket.on('leave_pod', (podId) => {
+      socket.leave(`pod:${podId}`);
+      console.log(`👋 User ${userId} left pod ${podId}`);
+    });
+
+    // ======================================================
+    // LIVE CODING SESSION EVENTS
+    // ======================================================
+
+    // Join live coding session room
+    socket.on('join_session', (data) => {
+      const { sessionId, userData } = data;
+
+      socket.join(`session:${sessionId}`);
+
+      // Track participant
+      if (!sessionParticipants.has(sessionId)) {
+        sessionParticipants.set(sessionId, new Set());
+      }
+      sessionParticipants.get(sessionId).add(userId);
+
+      console.log(`🎯 User ${userId} joined session ${sessionId}`);
+
+      // Notify others that a new participant joined
+      socket.to(`session:${sessionId}`).emit('participant_joined', {
+        userId,
+        userData,
+        sessionId,
+        participantCount: sessionParticipants.get(sessionId).size
+      });
+
+      // Send current participants to the new user
+      const participants = Array.from(sessionParticipants.get(sessionId));
+      socket.emit('session_participants', {
+        sessionId,
+        participants,
+        participantCount: participants.length
+      });
+    });
+
+    // Leave live coding session room
+    socket.on('leave_session', (sessionId) => {
+      socket.leave(`session:${sessionId}`);
+
+      // Remove from participants
+      if (sessionParticipants.has(sessionId)) {
+        sessionParticipants.get(sessionId).delete(userId);
+        if (sessionParticipants.get(sessionId).size === 0) {
+          sessionParticipants.delete(sessionId);
+        }
+      }
+
+      console.log(`👋 User ${userId} left session ${sessionId}`);
+
+      // Notify others that participant left
+      socket.to(`session:${sessionId}`).emit('participant_left', {
+        userId,
+        sessionId,
+        participantCount: sessionParticipants.get(sessionId)?.size || 0
+      });
+    });
+
+    // Code change synchronization (broadcast to all except sender)
+    socket.on('code_change', (data) => {
+      const { sessionId, code, cursorPosition } = data;
+
+      socket.to(`session:${sessionId}`).emit('code_updated', {
+        userId,
+        code,
+        cursorPosition,
+        timestamp: Date.now()
+      });
+    });
+
+    // Cursor position update
+    socket.on('cursor_position', (data) => {
+      const { sessionId, position, selection } = data;
+
+      socket.to(`session:${sessionId}`).emit('cursor_moved', {
+        userId,
+        position,
+        selection,
+        timestamp: Date.now()
+      });
+    });
+
+    // Selection change
+    socket.on('selection_change', (data) => {
+      const { sessionId, selection } = data;
+
+      socket.to(`session:${sessionId}`).emit('selection_updated', {
+        userId,
+        selection,
+        timestamp: Date.now()
+      });
+    });
+
+    // Language change
+    socket.on('language_change', (data) => {
+      const { sessionId, language } = data;
+
+      io.to(`session:${sessionId}`).emit('language_changed', {
+        userId,
+        language,
+        timestamp: Date.now()
+      });
+
+      console.log(`🔧 Language changed to ${language} in session ${sessionId}`);
+    });
+
+    // Code execution started
+    socket.on('run_code', (data) => {
+      const { sessionId, code, language, input } = data;
+
+      io.to(`session:${sessionId}`).emit('code_execution_started', {
+        userId,
+        code,
+        language,
+        input,
+        timestamp: Date.now()
+      });
+
+      console.log(`▶️ Code execution started in session ${sessionId}`);
+    });
+
+    // Code execution result
+    socket.on('code_output', (data) => {
+      const { sessionId, output, error, status, executionTime } = data;
+
+      io.to(`session:${sessionId}`).emit('code_execution_result', {
+        userId,
+        output,
+        error,
+        status,
+        executionTime,
+        timestamp: Date.now()
+      });
+
+      console.log(`✅ Code execution completed in session ${sessionId} (${status})`);
+    });
+
+    // Session chat message
+    socket.on('session_chat', (data) => {
+      const { sessionId, message, messageType = 'text', metadata } = data;
+
+      io.to(`session:${sessionId}`).emit('session_chat_message', {
+        userId,
+        message,
+        messageType,
+        metadata,
+        timestamp: Date.now()
+      });
+
+      console.log(`💬 Chat message in session ${sessionId}`);
+    });
+
+    // Participant presence heartbeat
+    socket.on('session_heartbeat', (sessionId) => {
+      // Update last seen time (would be stored in DB via API)
+      socket.to(`session:${sessionId}`).emit('participant_active', {
+        userId,
+        timestamp: Date.now()
+      });
+    });
+
+    // Request current code state
+    socket.on('request_code_state', (sessionId) => {
+      // Ask the host or first participant to share their code state
+      socket.to(`session:${sessionId}`).emit('code_state_requested', {
+        requestedBy: userId
+      });
+    });
+
+    // Share code state (response to request)
+    socket.on('share_code_state', (data) => {
+      const { sessionId, code, language, cursorPosition } = data;
+
+      // Send to specific user who requested or broadcast to all
+      if (data.targetUserId) {
+        io.to(`session:${sessionId}`).emit('code_state_shared', {
+          code,
+          language,
+          cursorPosition,
+          sharedBy: userId
+        });
+      } else {
+        socket.to(`session:${sessionId}`).emit('code_state_shared', {
+          code,
+          language,
+          cursorPosition,
+          sharedBy: userId
+        });
+      }
+    });
+
+    // ======================================================
+    // VIDEO CALL EVENTS (WebRTC Signaling)
+    // ======================================================
+
+    // User joined video call
+    socket.on('video_joined', (data) => {
+      const { sessionId, userId: videoUserId } = data;
+      console.log(`📹 User ${videoUserId} joined video in session ${sessionId}`);
+
+      // Notify others
+      socket.to(`session:${sessionId}`).emit('video_user_joined', {
+        userId: videoUserId,
+        username: videoUserId, // Could fetch from DB
+      });
+    });
+
+    // WebRTC Offer
+    socket.on('video_offer', (data) => {
+      const { sessionId, from, to, offer } = data;
+      // Send offer to specific peer
+      io.sockets.sockets.forEach(s => {
+        if (s.data.userId === to) {
+          s.emit('video_offer', { from, offer });
+        }
+      });
+    });
+
+    // WebRTC Answer
+    socket.on('video_answer', (data) => {
+      const { sessionId, from, to, answer } = data;
+      // Send answer to specific peer
+      io.sockets.sockets.forEach(s => {
+        if (s.data.userId === to) {
+          s.emit('video_answer', { from, answer });
+        }
+      });
+    });
+
+    // ICE Candidate
+    socket.on('video_ice_candidate', (data) => {
+      const { sessionId, from, to, candidate } = data;
+      // Send ICE candidate to specific peer
+      io.sockets.sockets.forEach(s => {
+        if (s.data.userId === to) {
+          s.emit('video_ice_candidate', { from, candidate });
+        }
+      });
+    });
+
+    // User left video call
+    socket.on('video_leave', (data) => {
+      const { sessionId, userId: videoUserId } = data;
+      console.log(`📹 User ${videoUserId} left video in session ${sessionId}`);
+
+      socket.to(`session:${sessionId}`).emit('video_user_left', {
+        userId: videoUserId,
+      });
+    });
+
     // Disconnect handler
     socket.on('disconnect', () => {
       const userConn = userConnections.get(userId);
@@ -160,6 +428,26 @@ app.prepare().then(() => {
         });
         userConnections.delete(userId);
       }
+
+      // Clean up session participants
+      sessionParticipants.forEach((participants, sessionId) => {
+        if (participants.has(userId)) {
+          participants.delete(userId);
+
+          // Notify others in the session
+          io.to(`session:${sessionId}`).emit('participant_left', {
+            userId,
+            sessionId,
+            participantCount: participants.size
+          });
+
+          // Clean up empty sessions
+          if (participants.size === 0) {
+            sessionParticipants.delete(sessionId);
+          }
+        }
+      });
+
       console.log(`❌ User disconnected: ${userId}`);
     });
   });

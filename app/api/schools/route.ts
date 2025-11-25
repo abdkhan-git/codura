@@ -20,12 +20,19 @@ export async function GET(request: NextRequest) {
     // Use College Scorecard API (same as original) but server-side
     const apiKey = process.env.COLLEGE_SCORECARD_API_KEY || "Q3vFYKsHWLdcmu0Z8tWWH6Rd2DuTMRoYkJfWv2lX"
     const baseUrl = "https://api.data.gov/ed/collegescorecard/v1/schools"
-    
+
     console.log('Using College Scorecard API with key length:', apiKey?.length)
 
-    const apiUrl = `${baseUrl}.json?api_key=${apiKey}&school.name=${encodeURIComponent(query)}&_fields=id,school.name,school.city,school.state&_per_page=12&school.operating=1`
-    
-    console.log('API URL (without key):', apiUrl.replace(apiKey, '[HIDDEN]'))
+    // Check if query is purely numeric - treat as school code and pad to 6 digits
+    // Otherwise search by name
+    const isNumeric = /^\d+$/.test(query.trim())
+    const searchParam = isNumeric
+      ? `id=${query.trim().padStart(6, '0')}`
+      : `school.name=${encodeURIComponent(query)}`
+
+    const apiUrl = `${baseUrl}.json?api_key=${apiKey}&${searchParam}&_fields=id,school.name,school.city,school.state&_per_page=12&school.operating=1`
+
+    console.log('API URL (without key):', apiUrl.replace(apiKey, '[HIDDEN]'), 'isNumeric:', isNumeric, 'paddedCode:', isNumeric ? query.trim().padStart(6, '0') : 'N/A')
 
     const response = await fetch(apiUrl, {
       method: 'GET',
