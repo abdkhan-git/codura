@@ -24,6 +24,8 @@ import {
 import { SessionVideoSidebar } from '@/components/study-pods/session-video-sidebar';
 import { useCollaborativeEditor } from '@/lib/hooks/use-collaborative-editor';
 import { CollaborativePresence } from '@/components/study-pods/collaborative-presence';
+import { LiveStreamPanel } from '@/components/study-pods/live-stream-panel';
+import { LiveStreamViewer } from '@/components/study-pods/live-stream-viewer';
 
 interface Participant {
   id: string;
@@ -194,12 +196,31 @@ export default function LiveSessionPage() {
     });
 
     socket.on('participant_left', (data) => {
+      console.log('👋 Participant left:', data.userId);
       fetchParticipants();
+      toast.info('Someone left the session');
     });
 
     socket.on('code_updated', (data) => {
       if (data.userId !== userId) {
+        console.log('📝 Received code update from', data.userId);
         setCode(data.code);
+
+        // Update Monaco editor directly to ensure visual update
+        if (editorRef.current && data.code !== editorRef.current.getValue()) {
+          const currentPosition = editorRef.current.getPosition();
+          const currentScrollTop = editorRef.current.getScrollTop();
+
+          editorRef.current.setValue(data.code);
+
+          // Restore cursor position and scroll if possible
+          if (currentPosition) {
+            editorRef.current.setPosition(currentPosition);
+          }
+          if (currentScrollTop !== undefined) {
+            editorRef.current.setScrollTop(currentScrollTop);
+          }
+        }
       }
     });
 
@@ -242,11 +263,14 @@ export default function LiveSessionPage() {
     const newCode = value || '';
     setCode(newCode);
 
-    // Broadcast code change
-    if (socketRef.current) {
+    // Broadcast code change to all participants in real-time
+    if (socketRef.current && socketRef.current.connected) {
       socketRef.current.emit('code_change', {
         sessionId,
         code: newCode,
+        userId: currentUser?.id,
+        cursorPosition: editorRef.current?.getPosition(),
+        timestamp: Date.now()
       });
     }
 
@@ -276,11 +300,12 @@ export default function LiveSessionPage() {
   const handleLanguageChange = (newLanguage: string) => {
     setLanguage(newLanguage);
 
-    // Broadcast language change
-    if (socketRef.current) {
+    // Broadcast language change to all participants
+    if (socketRef.current && socketRef.current.connected) {
       socketRef.current.emit('language_change', {
         sessionId,
         language: newLanguage,
+        userId: currentUser?.id,
       });
     }
 
@@ -377,14 +402,23 @@ export default function LiveSessionPage() {
 
   return (
     <div className={cn(
-      "min-h-screen flex flex-col transition-all duration-300",
+      "min-h-screen flex flex-col transition-all duration-300 relative",
       !isVideoSidebarCollapsed && "pr-80",
-      theme === 'light' ? 'bg-gray-50' : 'bg-zinc-900'
+      theme === 'light' ? 'bg-gray-50' : 'bg-zinc-950'
     )}>
+      {/* Animated Background */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute inset-0" style={{
+          background: theme === 'light'
+            ? 'radial-gradient(circle at 20% 50%, rgba(16, 185, 129, 0.05), transparent 50%), radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.05), transparent 50%)'
+            : 'radial-gradient(circle at 20% 50%, rgba(16, 185, 129, 0.1), transparent 50%), radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.1), transparent 50%)'
+        }} />
+      </div>
+
       {/* Header */}
       <div className={cn(
-        "border-b px-6 py-4 flex items-center justify-between",
-        theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900/50 border-zinc-800'
+        "border-b px-6 py-4 flex items-center justify-between backdrop-blur-xl z-10 shadow-lg relative",
+        theme === 'light' ? 'bg-white/80 border-gray-200/50' : 'bg-zinc-900/80 border-zinc-800/50'
       )}>
         <div className="flex items-center gap-4">
           <Button
@@ -434,25 +468,43 @@ export default function LiveSessionPage() {
           </Select>
 
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={handleCopyCode}
+            className={cn(
+              "backdrop-blur-md border shadow-md transition-all hover:shadow-lg",
+              theme === 'light'
+                ? 'bg-white/60 border-gray-200/50 hover:bg-white/90'
+                : 'bg-white/5 border-white/10 hover:bg-white/10'
+            )}
           >
             {copied ? '✓ Copied' : 'Copy Code'}
           </Button>
 
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={handleSaveSnapshot}
+            className={cn(
+              "backdrop-blur-md border shadow-md transition-all hover:shadow-lg",
+              theme === 'light'
+                ? 'bg-white/60 border-gray-200/50 hover:bg-white/90'
+                : 'bg-white/5 border-white/10 hover:bg-white/10'
+            )}
           >
             💾 Save Snapshot
           </Button>
 
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={() => setIsVideoSidebarCollapsed(!isVideoSidebarCollapsed)}
+            className={cn(
+              "backdrop-blur-md border shadow-md transition-all hover:shadow-lg",
+              theme === 'light'
+                ? 'bg-white/60 border-emerald-200/50 hover:bg-emerald-50/90'
+                : 'bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20'
+            )}
           >
             📹 Video Call
           </Button>
@@ -460,7 +512,7 @@ export default function LiveSessionPage() {
           <Button
             onClick={handleRunCode}
             disabled={isExecuting}
-            className="bg-green-600 hover:bg-green-700"
+            className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 shadow-lg hover:shadow-xl transition-all"
           >
             {isExecuting ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -476,23 +528,25 @@ export default function LiveSessionPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar - Participants */}
         <div className={cn(
-          "w-64 border-r p-4 overflow-y-auto",
-          theme === 'light' ? 'bg-white border-gray-200' : 'bg-zinc-900/50 border-zinc-800'
+          "w-64 border-r p-4 overflow-y-auto backdrop-blur-xl z-10 relative",
+          theme === 'light' ? 'bg-white/80 border-gray-200/50' : 'bg-zinc-900/60 border-zinc-800/50'
         )}>
           <h3 className={cn(
             "text-sm font-semibold mb-3 flex items-center gap-2",
             theme === 'light' ? 'text-gray-900' : 'text-white'
           )}>
-            <Users className="w-4 h-4" />
-            Participants
+            <Users className="w-4 h-4 text-emerald-500" />
+            Participants ({participants.length})
           </h3>
           <div className="space-y-2">
             {participants.map(participant => (
               <div
                 key={participant.id}
                 className={cn(
-                  "flex items-center gap-3 p-2 rounded-lg",
-                  theme === 'light' ? 'hover:bg-gray-50' : 'hover:bg-zinc-800/50'
+                  "flex items-center gap-3 p-3 rounded-lg backdrop-blur-md border shadow-sm transition-all hover:shadow-md",
+                  theme === 'light'
+                    ? 'bg-white/60 border-gray-200/50 hover:bg-white/90'
+                    : 'bg-white/5 border-white/10 hover:bg-white/10'
                 )}
               >
                 <div
@@ -513,10 +567,30 @@ export default function LiveSessionPage() {
               </div>
             ))}
           </div>
+
+          {/* Live Stream Controls - Host Only */}
+          {session?.host_user_id === currentUser?.id && (
+            <div className="mt-4">
+              <LiveStreamPanel
+                sessionId={sessionId}
+                userId={currentUser?.id || ''}
+                isHost={true}
+                socket={socketRef.current}
+              />
+            </div>
+          )}
         </div>
 
         {/* Editor */}
         <div className="flex-1 flex flex-col">
+          {/* Live Stream Viewer - All Participants */}
+          <div className="p-4">
+            <LiveStreamViewer
+              sessionId={sessionId}
+              userId={currentUser?.id || ''}
+              socket={socketRef.current}
+            />
+          </div>
           <div className="flex-1">
             <Editor
               height="100%"
@@ -541,20 +615,23 @@ export default function LiveSessionPage() {
 
           {/* Output Panel */}
           <div className={cn(
-            "h-48 border-t p-4 overflow-y-auto font-mono text-sm",
-            theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-zinc-950 border-zinc-800'
+            "h-48 border-t p-4 overflow-y-auto font-mono text-sm backdrop-blur-xl relative z-10",
+            theme === 'light' ? 'bg-gray-50/90 border-gray-200/50' : 'bg-zinc-950/90 border-zinc-800/50'
           )}>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3">
               <span className={cn(
-                "text-xs font-semibold uppercase",
-                theme === 'light' ? 'text-gray-600' : 'text-gray-400'
+                "text-xs font-semibold uppercase tracking-wider flex items-center gap-2",
+                theme === 'light' ? 'text-gray-700' : 'text-gray-300'
               )}>
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 Output
               </span>
             </div>
             <pre className={cn(
-              "whitespace-pre-wrap",
-              theme === 'light' ? 'text-gray-900' : 'text-gray-100'
+              "whitespace-pre-wrap p-3 rounded-lg backdrop-blur-md border",
+              theme === 'light'
+                ? 'bg-white/60 border-gray-200/50 text-gray-900'
+                : 'bg-white/5 border-white/10 text-gray-100'
             )}>
               {output || 'Run your code to see output here...'}
             </pre>

@@ -26,6 +26,7 @@ import { PodOverview } from "@/components/study-pods/pod-overview";
 import { LiveSessionsSection } from "@/components/study-pods/live-sessions-section";
 import { InviteMembersModal } from "@/components/study-pods/invite-members-modal";
 import { EditPodModal } from "@/components/study-pods/edit-pod-modal";
+import { ManagePodModal } from "@/components/study-pods/manage-pod-modal";
 import { PodProblemsList } from "@/components/study-pods/pod-problems-list";
 import { AssignProblemsModal } from "@/components/study-pods/assign-problems-modal";
 import { CreateChallengeModal } from "@/components/study-pods/create-challenge-modal";
@@ -49,6 +50,7 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
   // Modal states
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showManagePodModal, setShowManagePodModal] = useState(false);
   const [showAssignProblemsModal, setShowAssignProblemsModal] = useState(false);
   const [showCreateChallengeModal, setShowCreateChallengeModal] = useState(false);
   const [showChallengeDetailModal, setShowChallengeDetailModal] = useState(false);
@@ -384,14 +386,30 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 {pod.is_member ? (
                   <>
                     {isAdmin && (
-                      <Button
-                        onClick={() => setShowInviteModal(true)}
-                        size="sm"
-                        className="bg-gradient-to-r from-green-500 to-emerald-500"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Invite
-                      </Button>
+                      <>
+                        <Button
+                          onClick={() => setShowManagePodModal(true)}
+                          size="sm"
+                          variant="outline"
+                          className={cn(
+                            "border-emerald-500/30",
+                            theme === "light"
+                              ? "hover:bg-emerald-50"
+                              : "hover:bg-emerald-500/10"
+                          )}
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          Manage Pod
+                        </Button>
+                        <Button
+                          onClick={() => setShowInviteModal(true)}
+                          size="sm"
+                          className="bg-gradient-to-r from-green-500 to-emerald-500"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Invite
+                        </Button>
+                      </>
                     )}
                     <Badge
                       variant="outline"
@@ -670,6 +688,13 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
         pod={pod}
         userRole={pod?.user_role}
         onSuccess={fetchPodDetails}
+      />
+
+      <ManagePodModal
+        isOpen={showManagePodModal}
+        onClose={() => setShowManagePodModal(false)}
+        podId={podId}
+        onRefresh={fetchPodDetails}
       />
 
       <AssignProblemsModal

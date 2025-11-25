@@ -416,6 +416,143 @@ app.prepare().then(() => {
       });
     });
 
+    // ======================================================
+    // LIVE STREAMING EVENTS (WebRTC Broadcasting)
+    // ======================================================
+
+    // Stream started by host
+    socket.on('stream_started', (data) => {
+      const { sessionId, streamId, streamType, hostId } = data;
+      console.log(`🎥 Stream started in session ${sessionId} by ${hostId}`);
+
+      // Notify all participants in the session
+      socket.to(`session:${sessionId}`).emit('stream_started', {
+        sessionId,
+        streamId,
+        streamType,
+        hostId,
+        timestamp: Date.now()
+      });
+    });
+
+    // Stream stopped by host
+    socket.on('stream_stopped', (data) => {
+      const { sessionId, streamId } = data;
+      console.log(`🛑 Stream stopped in session ${sessionId}`);
+
+      // Notify all participants
+      io.to(`session:${sessionId}`).emit('stream_stopped', {
+        sessionId,
+        streamId,
+        timestamp: Date.now()
+      });
+    });
+
+    // Stream paused by host
+    socket.on('stream_paused', (data) => {
+      const { sessionId, streamId } = data;
+      console.log(`⏸️  Stream paused in session ${sessionId}`);
+
+      socket.to(`session:${sessionId}`).emit('stream_paused', {
+        sessionId,
+        streamId,
+        timestamp: Date.now()
+      });
+    });
+
+    // Stream resumed by host
+    socket.on('stream_resumed', (data) => {
+      const { sessionId, streamId } = data;
+      console.log(`▶️  Stream resumed in session ${sessionId}`);
+
+      socket.to(`session:${sessionId}`).emit('stream_resumed', {
+        sessionId,
+        streamId,
+        timestamp: Date.now()
+      });
+    });
+
+    // Viewer joined stream
+    socket.on('viewer_joined', (data) => {
+      const { sessionId, streamId, viewerId } = data;
+      console.log(`👀 Viewer ${viewerId} joined stream in session ${sessionId}`);
+
+      // Notify host and other viewers
+      socket.to(`session:${sessionId}`).emit('viewer_joined', {
+        sessionId,
+        streamId,
+        viewerId,
+        timestamp: Date.now()
+      });
+    });
+
+    // Viewer left stream
+    socket.on('viewer_left', (data) => {
+      const { sessionId, streamId, viewerId } = data;
+      console.log(`👋 Viewer ${viewerId} left stream in session ${sessionId}`);
+
+      // Notify host and other viewers
+      socket.to(`session:${sessionId}`).emit('viewer_left', {
+        sessionId,
+        streamId,
+        viewerId,
+        timestamp: Date.now()
+      });
+    });
+
+    // Viewer count updated
+    socket.on('viewer_count_updated', (data) => {
+      const { sessionId, streamId, count } = data;
+
+      io.to(`session:${sessionId}`).emit('viewer_count_updated', {
+        sessionId,
+        streamId,
+        count,
+        timestamp: Date.now()
+      });
+    });
+
+    // WebRTC Offer (for streaming)
+    socket.on('webrtc_offer', (data) => {
+      const { sessionId, viewerId, offer } = data;
+      console.log(`🔄 WebRTC offer from viewer ${viewerId} in session ${sessionId}`);
+
+      // Send offer to host
+      io.sockets.sockets.forEach(s => {
+        if (s.data.userId === data.hostId) {
+          s.emit('webrtc_offer', { sessionId, viewerId, offer });
+        }
+      });
+    });
+
+    // WebRTC Answer (from host to viewer)
+    socket.on('webrtc_answer', (data) => {
+      const { sessionId, viewerId, answer } = data;
+      console.log(`🔄 WebRTC answer to viewer ${viewerId} in session ${sessionId}`);
+
+      // Send answer to specific viewer
+      io.sockets.sockets.forEach(s => {
+        if (s.data.userId === viewerId) {
+          s.emit('webrtc_answer', { sessionId, answer });
+        }
+      });
+    });
+
+    // WebRTC ICE Candidate (for streaming)
+    socket.on('webrtc_ice_candidate', (data) => {
+      const { sessionId, viewerId, hostId, candidate } = data;
+
+      // Route to the appropriate peer
+      const targetUserId = viewerId || hostId;
+      if (targetUserId) {
+        io.sockets.sockets.forEach(s => {
+          if (s.data.userId === targetUserId) {
+            s.emit('webrtc_ice_candidate', { sessionId, viewerId, hostId, candidate });
+          }
+        });
+      }
+    });
+
     // Disconnect handler
     socket.on('disconnect', () => {
       const userConn = userConnections.get(userId);

@@ -237,11 +237,11 @@ export function PodOverview({
           <button
             onClick={onStartSession}
             className={cn(
-              "group relative overflow-hidden shine-effect",
+              "group relative overflow-hidden shine-effect backdrop-blur-md shadow-lg hover:shadow-xl",
               "flex items-center gap-4 p-4 rounded-lg text-left transition-all duration-300",
               theme === "light"
-                ? "bg-gradient-to-r from-emerald-50 to-cyan-50 hover:from-emerald-100 hover:to-cyan-100 border border-emerald-200/50"
-                : "bg-gradient-to-r from-emerald-500/5 to-cyan-500/5 hover:from-emerald-500/10 hover:to-cyan-500/10 border border-emerald-500/20"
+                ? "bg-gradient-to-r from-emerald-50/80 to-cyan-50/80 hover:from-emerald-100/90 hover:to-cyan-100/90 border border-emerald-200/50"
+                : "bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 hover:from-emerald-500/20 hover:to-cyan-500/20 border border-emerald-500/30"
             )}
           >
             <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
@@ -270,11 +270,11 @@ export function PodOverview({
           <button
             onClick={onCreateChallenge}
             className={cn(
-              "group relative overflow-hidden shine-effect",
+              "group relative overflow-hidden shine-effect backdrop-blur-md shadow-lg hover:shadow-xl",
               "flex items-center gap-4 p-4 rounded-lg text-left transition-all duration-300",
               theme === "light"
-                ? "bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border border-amber-200/50"
-                : "bg-gradient-to-r from-amber-500/5 to-orange-500/5 hover:from-amber-500/10 hover:to-orange-500/10 border border-amber-500/20"
+                ? "bg-gradient-to-r from-amber-50/80 to-orange-50/80 hover:from-amber-100/90 hover:to-orange-100/90 border border-amber-200/50"
+                : "bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 border border-amber-500/30"
             )}
           >
             <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-105 group-hover:rotate-90 transition-all">
@@ -370,14 +370,14 @@ export function PodOverview({
                   key={session.id}
                   onClick={() => onNavigate("live-sessions")}
                   className={cn(
-                    "group relative flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-all duration-200",
+                    "group relative flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-all duration-200 backdrop-blur-md border shadow-md hover:shadow-lg",
                     session.status === "in_progress"
                       ? theme === "light"
-                        ? "bg-emerald-50 hover:bg-emerald-100"
-                        : "bg-emerald-500/10 hover:bg-emerald-500/15"
+                        ? "bg-emerald-50/70 hover:bg-emerald-100/80 border-emerald-200/50"
+                        : "bg-emerald-500/15 hover:bg-emerald-500/20 border-emerald-500/30"
                       : theme === "light"
-                        ? "bg-gray-50 hover:bg-gray-100"
-                        : "bg-white/5 hover:bg-white/10"
+                        ? "bg-white/60 hover:bg-white/80 border-gray-200/50"
+                        : "bg-white/5 hover:bg-white/10 border-white/10"
                   )}
                   style={{ animationDelay: `${i * 100}ms` }}
                 >

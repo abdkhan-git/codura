@@ -168,11 +168,11 @@ export function SessionCard({
   return (
     <Card
       className={cn(
-        "group relative overflow-hidden border-2 transition-all duration-300 cursor-pointer",
+        "group relative overflow-hidden border backdrop-blur-lg transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl",
         theme === 'light'
-          ? "bg-white hover:shadow-lg border-gray-200 hover:border-emerald-300"
-          : "bg-zinc-900/50 hover:shadow-xl hover:shadow-emerald-500/5 border-white/10 hover:border-emerald-500/30",
-        isLive && "ring-2 ring-emerald-500/50 animate-pulse-slow",
+          ? "bg-white/70 border-gray-200/50 hover:border-emerald-300/60 hover:bg-white/90"
+          : "bg-zinc-900/40 border-white/10 hover:border-emerald-500/30 hover:bg-zinc-900/60",
+        isLive && "ring-2 ring-emerald-500/50 animate-pulse-slow shadow-emerald-500/20",
         className
       )}
       onClick={() => onViewDetails?.()}

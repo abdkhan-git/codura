@@ -141,11 +141,11 @@ export function LiveSessionsSection({
       {/* Hero Section - Live Now */}
       {liveSessionsCount > 0 && (
         <Card className={cn(
-          "border-2 overflow-hidden",
-          "bg-gradient-to-br from-green-500/10 via-emerald-500/5 to-cyan-500/10",
+          "border overflow-hidden backdrop-blur-xl shadow-xl transition-all hover:shadow-2xl",
+          "bg-gradient-to-br from-green-500/20 via-emerald-500/10 to-cyan-500/15",
           theme === "light"
-            ? "border-green-200"
-            : "border-green-500/30"
+            ? "border-green-200/50 bg-white/70"
+            : "border-green-500/30 bg-zinc-900/40"
         )}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -231,10 +231,10 @@ export function LiveSessionsSection({
       {/* Quick Start Section for Admins */}
       {isAdmin && (
         <Card className={cn(
-          "border-2 border-dashed",
+          "border border-dashed backdrop-blur-lg shadow-lg transition-all hover:shadow-xl hover:scale-[1.01]",
           theme === "light"
-            ? "bg-gray-50/50 border-gray-300"
-            : "bg-white/5 border-white/20"
+            ? "bg-white/60 border-emerald-300/50"
+            : "bg-white/5 border-emerald-500/30"
         )}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -305,8 +305,8 @@ export function LiveSessionsSection({
         </div>
       ) : (
         <Card className={cn(
-          "border-2",
-          theme === "light" ? "bg-white border-gray-200" : "bg-zinc-900/50 border-white/5"
+          "border backdrop-blur-lg shadow-lg",
+          theme === "light" ? "bg-white/70 border-gray-200/50" : "bg-zinc-900/40 border-white/10"
         )}>
           <CardContent className="py-12 text-center">
             <Calendar className={cn(
@@ -349,8 +349,8 @@ export function LiveSessionsSection({
       {/* Feature Highlight Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className={cn(
-          "border-2",
-          theme === "light" ? "bg-white border-gray-200" : "bg-zinc-900/50 border-white/5"
+          "border backdrop-blur-md shadow-md transition-all hover:shadow-lg hover:scale-105",
+          theme === "light" ? "bg-white/60 border-blue-200/50" : "bg-zinc-900/30 border-blue-500/20"
         )}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -379,8 +379,8 @@ export function LiveSessionsSection({
         </Card>
 
         <Card className={cn(
-          "border-2",
-          theme === "light" ? "bg-white border-gray-200" : "bg-zinc-900/50 border-white/5"
+          "border backdrop-blur-md shadow-md transition-all hover:shadow-lg hover:scale-105",
+          theme === "light" ? "bg-white/60 border-purple-200/50" : "bg-zinc-900/30 border-purple-500/20"
         )}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -409,8 +409,8 @@ export function LiveSessionsSection({
         </Card>
 
         <Card className={cn(
-          "border-2",
-          theme === "light" ? "bg-white border-gray-200" : "bg-zinc-900/50 border-white/5"
+          "border backdrop-blur-md shadow-md transition-all hover:shadow-lg hover:scale-105",
+          theme === "light" ? "bg-white/60 border-amber-200/50" : "bg-zinc-900/30 border-amber-500/20"
         )}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
