@@ -574,7 +574,7 @@ export default function SettingsPage() {
                           Public Profile
                         </Label>
                         <p className="text-sm text-muted-foreground">
-                          Allow others to view your profile and activity
+                          Allow others to view your profile, activity, and appear on leaderboards
                         </p>
                       </div>
                       <Switch
