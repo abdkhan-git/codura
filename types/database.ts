@@ -46,6 +46,13 @@ export interface Submission {
   memory: number | null;
   submitted_at: string;
   created_at: string;
+  time_complexity?: string | null;
+  complexity_confidence?: number | null;
+  complexity_analysis?: string | null;
+  space_complexity?: string | null;
+  space_complexity_analysis?: string | null;
+  time_complexity_snippets?: string[] | null;
+  space_complexity_snippets?: string[] | null;
 }
 
 export interface Achievement {

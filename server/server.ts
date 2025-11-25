@@ -4,6 +4,29 @@ import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { analyzeComplexity } from './complexity-analyzer';
 
+// Import or define ComplexityResult interface
+interface ComplexityResult {
+  timeComplexity: string;
+  spaceComplexity: string;
+  confidence: number;
+  spaceConfidence: number;
+  analysis: string;
+  spaceAnalysis: string;
+  details: {
+    loops: number;
+    nestedLoops: number;
+    recursiveCalls: number;
+    maxNestingDepth: number;
+  };
+  spaceDetails: {
+    variables: number;
+    arrays: number;
+    objects: number;
+    recursionDepth: number;
+    auxiliaryStructures: number;
+  };
+}
+
 dotenv.config();
 
 const app = express();
@@ -248,10 +271,10 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
     }
 
     // Analyze code complexity (with timeout)
-    let complexityResult;
+    let complexityResult: ComplexityResult | undefined;
     try {
       const complexityPromise = analyzeComplexity(source_code, language || 'python');
-      const timeoutPromise = new Promise((_, reject) =>
+      const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Complexity analysis timeout')), 5000)
       );
       complexityResult = await Promise.race([complexityPromise, timeoutPromise]);
@@ -260,9 +283,13 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
       console.error('Complexity analysis failed:', error.message);
       complexityResult = {
         timeComplexity: 'O(n)',
+        spaceComplexity: 'O(1)',
         confidence: 0.1,
+        spaceConfidence: 0.1,
         analysis: 'Unable to analyze complexity.',
-        details: { loops: 0, nestedLoops: 0, recursiveCalls: 0, maxNestingDepth: 0 }
+        spaceAnalysis: 'Unable to analyze space complexity.',
+        details: { loops: 0, nestedLoops: 0, recursiveCalls: 0, maxNestingDepth: 0 },
+        spaceDetails: { variables: 0, arrays: 0, objects: 0, recursionDepth: 0, auxiliaryStructures: 0 }
       };
     }
 
@@ -295,6 +322,25 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
     const judge0Result = await pollSubmissionStatus(token);
     const testcaseResults = parseTestResults(judge0Result, testcases);
 
+    // Generate AI code snippets only for accepted submissions
+    let snippetsResult = null;
+    if (testcaseResults.label === 'Accepted' && complexityResult?.timeComplexity && complexityResult?.spaceComplexity) {
+      try {
+        console.log('[Submit] Generating AI complexity snippets...');
+        snippetsResult = await analyzeComplexitySnippets(
+          source_code,
+          language || 'python',
+          complexityResult.timeComplexity,
+          complexityResult.spaceComplexity
+        );
+        if (snippetsResult) {
+          console.log('[Submit] AI snippets generated:', snippetsResult);
+        }
+      } catch (error) {
+        console.error('[Submit] AI snippets generation failed (non-fatal):', error);
+      }
+    }
+
     const savedSubmission = await storeSubmission(
       user_id,
       problem_id,
@@ -305,7 +351,8 @@ app.post('/api/problems/submit', async (req: any, res: any) => {
       testcaseResults.label,
       source_code,
       submitted_at,
-      complexityResult
+      complexityResult,
+      snippetsResult
     );
 
     res.status(200).json({
@@ -331,7 +378,8 @@ async function storeSubmission(
   status: string,
   source_code: string,
   submitted_at: string,
-  complexityResult?: any
+  complexityResult?: ComplexityResult,
+  snippetsResult?: { timeSnippets: string[], spaceSnippets: string[] } | null
 ) {
   const submissionData: any = {
     user_id,
@@ -355,6 +403,12 @@ async function storeSubmission(
     submissionData.space_complexity_analysis = complexityResult.spaceAnalysis;
   }
 
+  // Add AI-generated code snippets if available
+  if (snippetsResult) {
+    submissionData.time_complexity_snippets = snippetsResult.timeSnippets;
+    submissionData.space_complexity_snippets = snippetsResult.spaceSnippets;
+  }
+
   const { data, error } = await supabase
     .from('submissions')
     .insert(submissionData)
@@ -363,6 +417,101 @@ async function storeSubmission(
 
   if (error) throw error;
   return data;
+}
+
+// AI snippet analysis function
+async function analyzeComplexitySnippets(
+  code: string,
+  language: string,
+  timeComplexity: string,
+  spaceComplexity: string
+): Promise<{ timeSnippets: string[], spaceSnippets: string[] } | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    console.error('[analyzeComplexitySnippets] Missing OPENAI_API_KEY');
+    return null;
+  }
+
+  const systemPrompt = `You are a code complexity analyzer. Your task is to identify the EXACT code snippets that contribute to the detected time and space complexities.
+
+STRICT RULES:
+1. Identify exactly 2 code snippets for time complexity
+2. Identify exactly 2 code snippets for space complexity
+3. Each snippet must be an actual line or block of code from the user's submission
+4. Format each snippet as: "This code snippet results in the overall {complexity} {type} complexity: \`{actual code}\`"
+5. Be specific and accurate - only show the code that directly causes the complexity
+6. Return ONLY a JSON object with this structure:
+{
+  "timeSnippets": ["snippet 1", "snippet 2"],
+  "spaceSnippets": ["snippet 1", "snippet 2"]
+}`;
+
+  const userPrompt = `Analyze this ${language} code and identify the code snippets that contribute to its complexities:
+
+**Detected Time Complexity:** ${timeComplexity}
+**Detected Space Complexity:** ${spaceComplexity}
+
+**Code:**
+\`\`\`${language}
+${code}
+\`\`\`
+
+Identify exactly 2 code snippets that contribute to the ${timeComplexity} time complexity and 2 code snippets that contribute to the ${spaceComplexity} space complexity.
+
+Format each snippet exactly as:
+"This code snippet results in the overall ${timeComplexity} time complexity: \`actual code here\`"
+"This code snippet results in the overall ${spaceComplexity} space complexity: \`actual code here\`"
+
+Return only valid JSON.`;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 800,
+        response_format: { type: 'json_object' },
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('[analyzeComplexitySnippets] OpenAI API error:', response.status);
+      return null;
+    }
+
+    const data: any = await response.json();
+    const aiResponse = data.choices?.[0]?.message?.content;
+
+    if (!aiResponse) {
+      console.error('[analyzeComplexitySnippets] Empty response from OpenAI');
+      return null;
+    }
+
+    const snippetsData = JSON.parse(aiResponse);
+
+    if (!snippetsData.timeSnippets || !snippetsData.spaceSnippets) {
+      console.error('[analyzeComplexitySnippets] Missing snippets in response');
+      return null;
+    }
+
+    return {
+      timeSnippets: Array.isArray(snippetsData.timeSnippets) ? snippetsData.timeSnippets.slice(0, 2) : [],
+      spaceSnippets: Array.isArray(snippetsData.spaceSnippets) ? snippetsData.spaceSnippets.slice(0, 2) : [],
+    };
+  } catch (error) {
+    console.error('[analyzeComplexitySnippets] Error:', error);
+    return null;
+  }
 }
 
 // ==================== PYTHON ====================
