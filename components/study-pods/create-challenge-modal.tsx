@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Trophy, X, Plus, Zap, Clock, Swords, Search } from "lucide-react";
+import { Loader2, Trophy, X, Plus, Zap, Clock, Swords, Search, Calendar, Target, Sparkles, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
@@ -48,10 +48,42 @@ interface Pod {
 }
 
 const CHALLENGE_TYPES = [
-  { value: 'daily', label: 'Daily Challenge', description: '24-hour sprint' },
-  { value: 'weekly', label: 'Weekly Challenge', description: '7-day competition' },
-  { value: 'custom', label: 'Custom Challenge', description: 'Set your own duration' },
-  { value: 'head_to_head', label: 'Head-to-Head', description: 'Compete against another pod' },
+  {
+    value: 'daily',
+    label: 'Daily Challenge',
+    description: '24-hour sprint',
+    icon: Clock,
+    gradient: 'from-emerald-500 to-cyan-500',
+    bgColor: 'bg-emerald-500/10',
+    borderColor: 'border-emerald-500/30'
+  },
+  {
+    value: 'weekly',
+    label: 'Weekly Challenge',
+    description: '7-day competition',
+    icon: Calendar,
+    gradient: 'from-purple-500 to-pink-500',
+    bgColor: 'bg-purple-500/10',
+    borderColor: 'border-purple-500/30'
+  },
+  {
+    value: 'custom',
+    label: 'Custom Challenge',
+    description: 'Set your own duration',
+    icon: Target,
+    gradient: 'from-blue-500 to-cyan-500',
+    bgColor: 'bg-blue-500/10',
+    borderColor: 'border-blue-500/30'
+  },
+  {
+    value: 'head_to_head',
+    label: 'Head-to-Head',
+    description: 'Compete against another pod',
+    icon: Swords,
+    gradient: 'from-orange-500 to-red-500',
+    bgColor: 'bg-orange-500/10',
+    borderColor: 'border-orange-500/30'
+  },
 ];
 
 const DIFFICULTY_COLORS = {
@@ -290,478 +322,699 @@ export function CreateChallengeModal({
     }
   };
 
+  const selectedType = CHALLENGE_TYPES.find(t => t.value === formData.challenge_type);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={cn(
-        "sm:max-w-[700px] max-h-[90vh] overflow-y-auto",
-        theme === 'light' ? "bg-white" : "bg-zinc-900 border-white/10"
+        "sm:max-w-[900px] max-h-[95vh] overflow-hidden p-0 border-2 backdrop-blur-xl",
+        theme === 'light'
+          ? "bg-white/98 border-gray-200/50 shadow-2xl"
+          : "bg-zinc-950/98 border-white/10 shadow-2xl shadow-amber-500/10"
       )}>
-        <DialogHeader>
-          <DialogTitle className={cn(
-            "flex items-center gap-2",
-            theme === 'light' ? "text-gray-900" : "text-white"
-          )}>
-            <Trophy className="w-5 h-5 text-emerald-500" />
-            Create Challenge
-          </DialogTitle>
-          <DialogDescription className={theme === 'light' ? "text-gray-600" : "text-white/60"}>
-            Create a competitive challenge for your pod members
-          </DialogDescription>
-        </DialogHeader>
+        {/* Glassmorphic Background Effects */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.12),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,rgba(249,115,22,0.12),transparent_50%)]" />
+          <div className={cn(
+            "absolute inset-0",
+            theme === 'light'
+              ? "bg-[linear-gradient(rgba(0,0,0,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.015)_1px,transparent_1px)]"
+              : "bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)]"
+          )} style={{ backgroundSize: '24px 24px' }} />
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-          {/* Challenge Type */}
-          <div className="space-y-2">
-            <Label className={theme === 'light' ? "text-gray-700" : "text-white/90"}>
-              Challenge Type
-            </Label>
-            <Select
-              value={formData.challenge_type}
-              onValueChange={(value) => setFormData({ ...formData, challenge_type: value })}
-            >
-              <SelectTrigger className={theme === 'light' ? "bg-white" : "bg-white/5"}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CHALLENGE_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    <div>
-                      <div className="font-medium">{type.label}</div>
-                      <div className="text-xs opacity-60">{type.description}</div>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Opponent Pod Selection (for Head-to-Head) */}
-          {formData.challenge_type === 'head_to_head' && (
-            <div className={cn(
-              "p-4 rounded-xl border-2 space-y-3",
-              theme === 'light'
-                ? "bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200"
-                : "bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/30"
-            )}>
-              <div className="flex items-center gap-2">
-                <Swords className="w-5 h-5 text-blue-500" />
-                <Label className={cn(
-                  "font-semibold",
-                  theme === 'light' ? "text-gray-900" : "text-white"
-                )}>
-                  Select Opponent Pod
-                </Label>
-              </div>
-
-              {selectedOpponentPod ? (
-                <div className={cn(
-                  "flex items-center justify-between p-3 rounded-lg border",
-                  theme === 'light' ? "bg-white border-gray-200" : "bg-white/5 border-white/10"
-                )}>
-                  <div className="flex items-center gap-3">
-                    <DefaultAvatar
-                      src={selectedOpponentPod.avatar_url}
-                      name={selectedOpponentPod.name}
-                      size="sm"
-                    />
-                    <div>
-                      <p className={cn(
-                        "font-medium",
-                        theme === 'light' ? "text-gray-900" : "text-white"
-                      )}>
-                        {selectedOpponentPod.name}
-                      </p>
-                      <p className={cn(
-                        "text-xs",
-                        theme === 'light' ? "text-gray-500" : "text-white/50"
-                      )}>
-                        {selectedOpponentPod.subject} • {selectedOpponentPod.member_count} members
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedOpponentPod(null)}
-                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
+        {/* Header */}
+        <div className={cn(
+          "relative px-6 pt-6 pb-4 border-b",
+          theme === 'light' ? "border-gray-200/50" : "border-white/10"
+        )}>
+          <div className="flex items-start justify-between">
+            <div>
+              <DialogTitle className="text-2xl font-bold flex items-center gap-3 bg-gradient-to-r from-foreground via-amber-400 to-orange-400 bg-clip-text text-transparent">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-amber-500/30 flex items-center justify-center">
+                  <Trophy className="w-5 h-5 text-white" />
                 </div>
-              ) : (
-                <>
-                  <div className="relative">
-                    <Search className={cn(
-                      "absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4",
-                      theme === 'light' ? "text-gray-400" : "text-white/40"
-                    )} />
-                    <Input
-                      value={podSearchQuery}
-                      onChange={(e) => setPodSearchQuery(e.target.value)}
-                      placeholder="Search public pods to challenge..."
-                      className={cn(
-                        "pl-10",
-                        theme === 'light' ? "bg-white" : "bg-white/5"
-                      )}
-                    />
-                  </div>
-
-                  {searchingPods && (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                    </div>
-                  )}
-
-                  {availablePods.length > 0 && (
-                    <div className={cn(
-                      "space-y-1 max-h-48 overflow-y-auto rounded-lg border p-1",
-                      theme === 'light' ? "bg-white border-gray-200" : "bg-white/5 border-white/10"
-                    )}>
-                      {availablePods.map((pod) => (
-                        <button
-                          key={pod.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedOpponentPod(pod);
-                            setPodSearchQuery('');
-                            setAvailablePods([]);
-                          }}
-                          className={cn(
-                            "w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors",
-                            theme === 'light'
-                              ? "hover:bg-gray-50"
-                              : "hover:bg-white/10"
-                          )}
-                        >
-                          <DefaultAvatar
-                            src={pod.avatar_url}
-                            name={pod.name}
-                            size="sm"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className={cn(
-                              "font-medium text-sm truncate",
-                              theme === 'light' ? "text-gray-900" : "text-white"
-                            )}>
-                              {pod.name}
-                            </p>
-                            <p className={cn(
-                              "text-xs truncate",
-                              theme === 'light' ? "text-gray-500" : "text-white/50"
-                            )}>
-                              {pod.subject} • {pod.member_count} members
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {podSearchQuery.length >= 2 && !searchingPods && availablePods.length === 0 && (
-                    <p className={cn(
-                      "text-center text-sm py-3",
-                      theme === 'light' ? "text-gray-500" : "text-white/50"
-                    )}>
-                      No public pods found
-                    </p>
-                  )}
-                </>
-              )}
+                Create Challenge
+              </DialogTitle>
+              <DialogDescription className={cn(
+                "mt-2",
+                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+              )}>
+                Create a competitive challenge for your pod members
+              </DialogDescription>
             </div>
-          )}
-
-          {/* Title */}
-          <div className="space-y-2">
-            <Label htmlFor="title" className={theme === 'light' ? "text-gray-700" : "text-white/90"}>
-              Title
-            </Label>
-            <Input
-              id="title"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="e.g., Weekend Code Sprint"
-              className={theme === 'light' ? "bg-white" : "bg-white/5"}
-              required
-            />
           </div>
+        </div>
 
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description" className={theme === 'light' ? "text-gray-700" : "text-white/90"}>
-              Description (Optional)
-            </Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Describe the challenge and any special rules..."
-              className={theme === 'light' ? "bg-white" : "bg-white/5"}
-              rows={3}
-            />
-          </div>
-
-          {/* Timing */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="start_time" className={theme === 'light' ? "text-gray-700" : "text-white/90"}>
-                Start Time
+        {/* Scrollable Content */}
+        <div className="relative overflow-y-auto max-h-[calc(95vh-140px)] px-6 py-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Challenge Type Selection */}
+            <div className="space-y-3">
+              <Label className={cn(
+                "text-sm font-semibold flex items-center gap-2",
+                theme === 'light' ? "text-gray-900" : "text-white"
+              )}>
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                Challenge Type
               </Label>
-              <Input
-                id="start_time"
-                type="datetime-local"
-                value={formData.start_time}
-                onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                className={theme === 'light' ? "bg-white" : "bg-white/5"}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="end_time" className={theme === 'light' ? "text-gray-700" : "text-white/90"}>
-                End Time
-              </Label>
-              <Input
-                id="end_time"
-                type="datetime-local"
-                value={formData.end_time}
-                onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                className={theme === 'light' ? "bg-white" : "bg-white/5"}
-                required
-              />
-            </div>
-          </div>
-
-          {/* Duration (for custom) */}
-          {formData.challenge_type === 'custom' && (
-            <div className="space-y-2">
-              <Label htmlFor="duration" className={theme === 'light' ? "text-gray-700" : "text-white/90"}>
-                Duration (minutes)
-              </Label>
-              <Input
-                id="duration"
-                type="number"
-                value={formData.duration_minutes}
-                onChange={(e) => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) || 60 })}
-                className={theme === 'light' ? "bg-white" : "bg-white/5"}
-                min={15}
-                required
-              />
-            </div>
-          )}
-
-          {/* Max Participants */}
-          <div className="space-y-2">
-            <Label htmlFor="max_participants" className={theme === 'light' ? "text-gray-700" : "text-white/90"}>
-              Max Participants (Optional)
-            </Label>
-            <Input
-              id="max_participants"
-              type="number"
-              value={formData.max_participants}
-              onChange={(e) => setFormData({ ...formData, max_participants: e.target.value })}
-              placeholder="Leave empty for unlimited"
-              className={theme === 'light' ? "bg-white" : "bg-white/5"}
-              min={2}
-            />
-          </div>
-
-          {/* Problem Selection */}
-          <div className="space-y-2">
-            <Label className={theme === 'light' ? "text-gray-700" : "text-white/90"}>
-              Problems ({selectedProblems.length})
-            </Label>
-
-            {/* Selected Problems */}
-            {selectedProblems.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {selectedProblems.map((problem) => (
-                  <Badge
-                    key={problem.id}
+              <div className="grid grid-cols-2 gap-3">
+                {CHALLENGE_TYPES.map((type) => (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, challenge_type: type.value })}
                     className={cn(
-                      "gap-1 pr-1",
-                      theme === 'light' ? "bg-gray-100 text-gray-900" : "bg-white/10 text-white"
+                      "relative group p-4 rounded-xl border-2 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] text-left overflow-hidden",
+                      formData.challenge_type === type.value
+                        ? `${type.borderColor} ${type.bgColor} shadow-lg`
+                        : theme === 'light'
+                        ? "bg-white/90 border-gray-200/50 hover:border-gray-300"
+                        : "bg-zinc-900/50 border-white/10 hover:border-white/20"
                     )}
                   >
-                    <span className={DIFFICULTY_COLORS[problem.difficulty as keyof typeof DIFFICULTY_COLORS]}>
-                      {problem.difficulty}
-                    </span>
-                    <span className="mx-1">·</span>
-                    {problem.title}
+                    <div className="relative flex items-start gap-3">
+                      <div className={cn(
+                        "w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300",
+                        formData.challenge_type === type.value
+                          ? `bg-gradient-to-br ${type.gradient} shadow-md`
+                          : theme === 'light'
+                          ? "bg-gray-100"
+                          : "bg-white/10"
+                      )}>
+                        <type.icon className={cn(
+                          "w-5 h-5",
+                          formData.challenge_type === type.value ? "text-white" : "text-muted-foreground"
+                        )} />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className={cn(
+                          "font-semibold mb-0.5",
+                          theme === 'light' ? "text-gray-900" : "text-white"
+                        )}>
+                          {type.label}
+                        </h4>
+                        <p className={cn(
+                          "text-xs",
+                          theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                        )}>
+                          {type.description}
+                        </p>
+                      </div>
+                      {formData.challenge_type === type.value && (
+                        <div className="absolute top-2 right-2">
+                          <div className={cn(
+                            "w-5 h-5 rounded-full bg-gradient-to-br flex items-center justify-center",
+                            type.gradient
+                          )}>
+                            <div className="w-2 h-2 rounded-full bg-white" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Opponent Pod Selection (for Head-to-Head) */}
+            {formData.challenge_type === 'head_to_head' && (
+              <div className={cn(
+                "relative p-5 rounded-xl border-2 backdrop-blur-sm space-y-4 overflow-hidden",
+                theme === 'light'
+                  ? "bg-gradient-to-r from-orange-50/80 to-red-50/80 border-orange-200/50"
+                  : "bg-gradient-to-r from-orange-500/10 to-red-500/10 border-orange-500/30"
+              )}>
+                <div className="flex items-center gap-2">
+                  <Swords className="w-5 h-5 text-orange-500" />
+                  <Label className={cn(
+                    "font-semibold",
+                    theme === 'light' ? "text-gray-900" : "text-white"
+                  )}>
+                    Select Opponent Pod
+                  </Label>
+                </div>
+
+                {selectedOpponentPod ? (
+                  <div className={cn(
+                    "flex items-center justify-between p-4 rounded-xl border-2 backdrop-blur-sm",
+                    theme === 'light'
+                      ? "bg-white/90 border-gray-200"
+                      : "bg-zinc-900/50 border-white/10"
+                  )}>
+                    <div className="flex items-center gap-3">
+                      <DefaultAvatar
+                        src={selectedOpponentPod.avatar_url}
+                        name={selectedOpponentPod.name}
+                        size="sm"
+                      />
+                      <div>
+                        <p className={cn(
+                          "font-semibold",
+                          theme === 'light' ? "text-gray-900" : "text-white"
+                        )}>
+                          {selectedOpponentPod.name}
+                        </p>
+                        <p className={cn(
+                          "text-xs flex items-center gap-1",
+                          theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                        )}>
+                          <Users className="w-3 h-3" />
+                          {selectedOpponentPod.member_count} members • {selectedOpponentPod.subject}
+                        </p>
+                      </div>
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-4 w-4 p-0 ml-1 hover:bg-red-500/20"
-                      onClick={() => removeProblem(problem.id)}
+                      onClick={() => setSelectedOpponentPod(null)}
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50/50"
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-4 h-4" />
                     </Button>
-                  </Badge>
-                ))}
-              </div>
-            )}
-
-            {/* Search */}
-            <div className="flex gap-2">
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), searchProblems())}
-                placeholder="Search problems by title..."
-                className={theme === 'light' ? "bg-white" : "bg-white/5"}
-              />
-              <Button
-                type="button"
-                onClick={searchProblems}
-                disabled={searchingProblems || !searchQuery.trim()}
-                className="gap-2"
-              >
-                {searchingProblems ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  </div>
                 ) : (
-                  <Plus className="w-4 h-4" />
-                )}
-                Add
-              </Button>
-            </div>
+                  <>
+                    <div className="relative">
+                      <Search className={cn(
+                        "absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4",
+                        theme === 'light' ? "text-gray-400" : "text-white/40"
+                      )} />
+                      <Input
+                        value={podSearchQuery}
+                        onChange={(e) => setPodSearchQuery(e.target.value)}
+                        placeholder="Search public pods to challenge..."
+                        className={cn(
+                          "pl-10 border-2 backdrop-blur-sm",
+                          theme === 'light'
+                            ? "bg-white/90 border-gray-200"
+                            : "bg-zinc-900/80 border-white/10"
+                        )}
+                      />
+                    </div>
 
-            {/* Search Results */}
-            {problems.length > 0 && (
-              <div className={cn(
-                "border rounded-lg p-2 space-y-1 max-h-48 overflow-y-auto",
-                theme === 'light' ? "bg-gray-50 border-gray-200" : "bg-white/5 border-white/10"
-              )}>
-                {problems.map((problem) => (
-                  <button
-                    key={problem.id}
-                    type="button"
-                    onClick={() => addProblem(problem)}
-                    disabled={selectedProblems.find(p => p.id === problem.id) !== undefined}
-                    className={cn(
-                      "w-full text-left px-3 py-2 rounded transition-colors text-sm",
-                      theme === 'light'
-                        ? "hover:bg-white disabled:opacity-50"
-                        : "hover:bg-white/10 disabled:opacity-50"
+                    {searchingPods && (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
+                      </div>
                     )}
-                  >
-                    <span className={DIFFICULTY_COLORS[problem.difficulty as keyof typeof DIFFICULTY_COLORS]}>
-                      {problem.difficulty}
-                    </span>
-                    <span className="mx-2">·</span>
-                    {problem.title}
-                  </button>
-                ))}
+
+                    {availablePods.length > 0 && (
+                      <div className={cn(
+                        "space-y-2 max-h-48 overflow-y-auto rounded-xl border-2 p-2",
+                        theme === 'light'
+                          ? "bg-white/90 border-gray-200"
+                          : "bg-zinc-900/50 border-white/10"
+                      )}>
+                        {availablePods.map((pod) => (
+                          <button
+                            key={pod.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedOpponentPod(pod);
+                              setPodSearchQuery('');
+                              setAvailablePods([]);
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all duration-200 hover:scale-[1.02]",
+                              theme === 'light'
+                                ? "hover:bg-gray-50"
+                                : "hover:bg-white/10"
+                            )}
+                          >
+                            <DefaultAvatar
+                              src={pod.avatar_url}
+                              name={pod.name}
+                              size="sm"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className={cn(
+                                "font-medium text-sm truncate",
+                                theme === 'light' ? "text-gray-900" : "text-white"
+                              )}>
+                                {pod.name}
+                              </p>
+                              <p className={cn(
+                                "text-xs truncate flex items-center gap-1",
+                                theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                              )}>
+                                <Users className="w-3 h-3" />
+                                {pod.member_count} members • {pod.subject}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {podSearchQuery.length >= 2 && !searchingPods && availablePods.length === 0 && (
+                      <p className={cn(
+                        "text-center text-sm py-4",
+                        theme === 'light' ? "text-gray-500" : "text-muted-foreground"
+                      )}>
+                        No public pods found
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
             )}
-          </div>
 
-          {/* Point Configuration */}
-          <div className={cn(
-            "p-4 rounded-lg border space-y-4",
-            theme === 'light' ? "bg-gray-50 border-gray-200" : "bg-white/5 border-white/10"
-          )}>
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-amber-500" />
-              <h4 className={cn(
-                "font-medium text-sm",
-                theme === 'light' ? "text-gray-900" : "text-white"
-              )}>
-                Point Configuration
-              </h4>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs text-emerald-500">Easy Base</Label>
-                <Input
-                  type="number"
-                  value={formData.base_points_easy}
-                  onChange={(e) => setFormData({ ...formData, base_points_easy: parseInt(e.target.value) || 10 })}
-                  className={cn("h-8", theme === 'light' ? "bg-white" : "bg-white/5")}
-                  min={1}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-amber-500">Medium Base</Label>
-                <Input
-                  type="number"
-                  value={formData.base_points_medium}
-                  onChange={(e) => setFormData({ ...formData, base_points_medium: parseInt(e.target.value) || 20 })}
-                  className={cn("h-8", theme === 'light' ? "bg-white" : "bg-white/5")}
-                  min={1}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-red-500">Hard Base</Label>
-                <Input
-                  type="number"
-                  value={formData.base_points_hard}
-                  onChange={(e) => setFormData({ ...formData, base_points_hard: parseInt(e.target.value) || 30 })}
-                  className={cn("h-8", theme === 'light' ? "bg-white" : "bg-white/5")}
-                  min={1}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  Max Speed Bonus
+            {/* Title and Description */}
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <Label htmlFor="title" className={cn(
+                  "text-sm font-semibold mb-2 block",
+                  theme === 'light' ? "text-gray-900" : "text-white"
+                )}>
+                  Title <span className="text-red-400">*</span>
                 </Label>
                 <Input
-                  type="number"
-                  value={formData.max_speed_bonus}
-                  onChange={(e) => setFormData({ ...formData, max_speed_bonus: parseInt(e.target.value) || 50 })}
-                  className={cn("h-8", theme === 'light' ? "bg-white" : "bg-white/5")}
-                  min={0}
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="e.g., Weekend Code Sprint"
+                  className={cn(
+                    "border-2 backdrop-blur-sm transition-all duration-300",
+                    theme === 'light'
+                      ? "bg-white/90 border-gray-200 focus:border-amber-400"
+                      : "bg-zinc-900/80 border-white/10 focus:border-amber-500/50"
+                  )}
+                  required
                 />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs flex items-center gap-1">
-                  <Zap className="w-3 h-3" />
-                  Max Efficiency Bonus
+
+              <div>
+                <Label htmlFor="description" className={cn(
+                  "text-sm font-semibold mb-2 block",
+                  theme === 'light' ? "text-gray-900" : "text-white"
+                )}>
+                  Description
                 </Label>
-                <Input
-                  type="number"
-                  value={formData.max_efficiency_bonus}
-                  onChange={(e) => setFormData({ ...formData, max_efficiency_bonus: parseInt(e.target.value) || 30 })}
-                  className={cn("h-8", theme === 'light' ? "bg-white" : "bg-white/5")}
-                  min={0}
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Describe the challenge and any special rules..."
+                  className={cn(
+                    "border-2 backdrop-blur-sm transition-all duration-300",
+                    theme === 'light'
+                      ? "bg-white/90 border-gray-200 focus:border-amber-400"
+                      : "bg-zinc-900/80 border-white/10 focus:border-amber-500/50"
+                  )}
+                  rows={3}
                 />
               </div>
             </div>
-          </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4">
+            {/* Timing */}
+            <div className={cn(
+              "p-5 rounded-xl border-2 backdrop-blur-sm space-y-4",
+              theme === 'light'
+                ? "bg-cyan-50/50 border-cyan-200/50"
+                : "bg-cyan-500/5 border-cyan-500/20"
+            )}>
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-cyan-500" />
+                <Label className={cn(
+                  "font-semibold",
+                  theme === 'light' ? "text-gray-900" : "text-white"
+                )}>
+                  Schedule
+                </Label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="start_time" className={cn(
+                    "text-xs mb-2 block",
+                    theme === 'light' ? "text-gray-700" : "text-muted-foreground"
+                  )}>
+                    Start Time
+                  </Label>
+                  <Input
+                    id="start_time"
+                    type="datetime-local"
+                    value={formData.start_time}
+                    onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                    className={cn(
+                      "border-2 backdrop-blur-sm",
+                      theme === 'light'
+                        ? "bg-white/90 border-gray-200"
+                        : "bg-zinc-900/80 border-white/10"
+                    )}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="end_time" className={cn(
+                    "text-xs mb-2 block",
+                    theme === 'light' ? "text-gray-700" : "text-muted-foreground"
+                  )}>
+                    End Time
+                  </Label>
+                  <Input
+                    id="end_time"
+                    type="datetime-local"
+                    value={formData.end_time}
+                    onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                    className={cn(
+                      "border-2 backdrop-blur-sm",
+                      theme === 'light'
+                        ? "bg-white/90 border-gray-200"
+                        : "bg-zinc-900/80 border-white/10"
+                    )}
+                    required
+                  />
+                </div>
+              </div>
+
+              {formData.challenge_type === 'custom' && (
+                <div>
+                  <Label htmlFor="duration" className={cn(
+                    "text-xs mb-2 block",
+                    theme === 'light' ? "text-gray-700" : "text-muted-foreground"
+                  )}>
+                    Duration (minutes)
+                  </Label>
+                  <Input
+                    id="duration"
+                    type="number"
+                    value={formData.duration_minutes}
+                    onChange={(e) => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) || 60 })}
+                    className={cn(
+                      "border-2 backdrop-blur-sm",
+                      theme === 'light'
+                        ? "bg-white/90 border-gray-200"
+                        : "bg-zinc-900/80 border-white/10"
+                    )}
+                    min={15}
+                    required
+                  />
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="max_participants" className={cn(
+                  "text-xs mb-2 block",
+                  theme === 'light' ? "text-gray-700" : "text-muted-foreground"
+                )}>
+                  Max Participants (Optional)
+                </Label>
+                <Input
+                  id="max_participants"
+                  type="number"
+                  value={formData.max_participants}
+                  onChange={(e) => setFormData({ ...formData, max_participants: e.target.value })}
+                  placeholder="Leave empty for unlimited"
+                  className={cn(
+                    "border-2 backdrop-blur-sm",
+                    theme === 'light'
+                      ? "bg-white/90 border-gray-200"
+                      : "bg-zinc-900/80 border-white/10"
+                  )}
+                  min={2}
+                />
+              </div>
+            </div>
+
+            {/* Problem Selection */}
+            <div className={cn(
+              "p-5 rounded-xl border-2 backdrop-blur-sm space-y-4",
+              theme === 'light'
+                ? "bg-purple-50/50 border-purple-200/50"
+                : "bg-purple-500/5 border-purple-500/20"
+            )}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Target className="w-5 h-5 text-purple-500" />
+                  <Label className={cn(
+                    "font-semibold",
+                    theme === 'light' ? "text-gray-900" : "text-white"
+                  )}>
+                    Problems ({selectedProblems.length})
+                  </Label>
+                </div>
+                {selectedProblems.length === 0 && (
+                  <Badge variant="outline" className="text-red-400 border-red-400/30">
+                    Required
+                  </Badge>
+                )}
+              </div>
+
+              {/* Selected Problems */}
+              {selectedProblems.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {selectedProblems.map((problem) => (
+                    <Badge
+                      key={problem.id}
+                      className={cn(
+                        "gap-1.5 pr-1 py-1.5 border-2 backdrop-blur-sm transition-all duration-300 hover:scale-105",
+                        theme === 'light'
+                          ? "bg-white border-gray-200"
+                          : "bg-zinc-900/50 border-white/10"
+                      )}
+                    >
+                      <span className={DIFFICULTY_COLORS[problem.difficulty as keyof typeof DIFFICULTY_COLORS]}>
+                        {problem.difficulty}
+                      </span>
+                      <span className="mx-1">·</span>
+                      <span className={theme === 'light' ? "text-gray-900" : "text-white"}>
+                        {problem.title}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 ml-1 hover:bg-red-500/20"
+                        onClick={() => removeProblem(problem.id)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* Search */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className={cn(
+                    "absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4",
+                    theme === 'light' ? "text-gray-400" : "text-white/40"
+                  )} />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), searchProblems())}
+                    placeholder="Search problems by title..."
+                    className={cn(
+                      "pl-10 border-2 backdrop-blur-sm",
+                      theme === 'light'
+                        ? "bg-white/90 border-gray-200"
+                        : "bg-zinc-900/80 border-white/10"
+                    )}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  onClick={searchProblems}
+                  disabled={searchingProblems || !searchQuery.trim()}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 gap-2"
+                >
+                  {searchingProblems ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  Add
+                </Button>
+              </div>
+
+              {/* Search Results */}
+              {problems.length > 0 && (
+                <div className={cn(
+                  "border-2 rounded-xl p-2 space-y-1 max-h-48 overflow-y-auto",
+                  theme === 'light'
+                    ? "bg-white/90 border-gray-200"
+                    : "bg-zinc-900/50 border-white/10"
+                )}>
+                  {problems.map((problem) => (
+                    <button
+                      key={problem.id}
+                      type="button"
+                      onClick={() => addProblem(problem)}
+                      disabled={selectedProblems.find(p => p.id === problem.id) !== undefined}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-lg transition-all duration-200 text-sm hover:scale-[1.01]",
+                        theme === 'light'
+                          ? "hover:bg-gray-50 disabled:opacity-50"
+                          : "hover:bg-white/10 disabled:opacity-50"
+                      )}
+                    >
+                      <span className={DIFFICULTY_COLORS[problem.difficulty as keyof typeof DIFFICULTY_COLORS]}>
+                        {problem.difficulty}
+                      </span>
+                      <span className="mx-2">·</span>
+                      <span className={theme === 'light' ? "text-gray-900" : "text-white"}>
+                        {problem.title}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Point Configuration */}
+            <div className={cn(
+              "p-5 rounded-xl border-2 backdrop-blur-sm space-y-4",
+              theme === 'light'
+                ? "bg-amber-50/50 border-amber-200/50"
+                : "bg-amber-500/5 border-amber-500/20"
+            )}>
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-amber-500" />
+                <Label className={cn(
+                  "font-semibold",
+                  theme === 'light' ? "text-gray-900" : "text-white"
+                )}>
+                  Point Configuration
+                </Label>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs text-emerald-500 mb-2 block">Easy Base</Label>
+                  <Input
+                    type="number"
+                    value={formData.base_points_easy}
+                    onChange={(e) => setFormData({ ...formData, base_points_easy: parseInt(e.target.value) || 10 })}
+                    className={cn(
+                      "h-10 border-2 backdrop-blur-sm",
+                      theme === 'light'
+                        ? "bg-white/90 border-gray-200"
+                        : "bg-zinc-900/80 border-white/10"
+                    )}
+                    min={1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-amber-500 mb-2 block">Medium Base</Label>
+                  <Input
+                    type="number"
+                    value={formData.base_points_medium}
+                    onChange={(e) => setFormData({ ...formData, base_points_medium: parseInt(e.target.value) || 20 })}
+                    className={cn(
+                      "h-10 border-2 backdrop-blur-sm",
+                      theme === 'light'
+                        ? "bg-white/90 border-gray-200"
+                        : "bg-zinc-900/80 border-white/10"
+                    )}
+                    min={1}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-red-500 mb-2 block">Hard Base</Label>
+                  <Input
+                    type="number"
+                    value={formData.base_points_hard}
+                    onChange={(e) => setFormData({ ...formData, base_points_hard: parseInt(e.target.value) || 30 })}
+                    className={cn(
+                      "h-10 border-2 backdrop-blur-sm",
+                      theme === 'light'
+                        ? "bg-white/90 border-gray-200"
+                        : "bg-zinc-900/80 border-white/10"
+                    )}
+                    min={1}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs flex items-center gap-1 mb-2">
+                    <Clock className="w-3 h-3" />
+                    Max Speed Bonus
+                  </Label>
+                  <Input
+                    type="number"
+                    value={formData.max_speed_bonus}
+                    onChange={(e) => setFormData({ ...formData, max_speed_bonus: parseInt(e.target.value) || 50 })}
+                    className={cn(
+                      "h-10 border-2 backdrop-blur-sm",
+                      theme === 'light'
+                        ? "bg-white/90 border-gray-200"
+                        : "bg-zinc-900/80 border-white/10"
+                    )}
+                    min={0}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs flex items-center gap-1 mb-2">
+                    <Zap className="w-3 h-3" />
+                    Max Efficiency Bonus
+                  </Label>
+                  <Input
+                    type="number"
+                    value={formData.max_efficiency_bonus}
+                    onChange={(e) => setFormData({ ...formData, max_efficiency_bonus: parseInt(e.target.value) || 30 })}
+                    className={cn(
+                      "h-10 border-2 backdrop-blur-sm",
+                      theme === 'light'
+                        ? "bg-white/90 border-gray-200"
+                        : "bg-zinc-900/80 border-white/10"
+                    )}
+                    min={0}
+                  />
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        {/* Footer */}
+        <div className={cn(
+          "relative px-6 py-4 border-t backdrop-blur-xl",
+          theme === 'light' ? "border-gray-200/50 bg-white/80" : "border-white/10 bg-zinc-950/80"
+        )}>
+          <div className="flex justify-end gap-3">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
               disabled={loading}
+              className={cn(
+                "border-2",
+                theme === 'light' ? "border-gray-200" : "border-white/10"
+              )}
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={loading || selectedProblems.length === 0}
-              className="gap-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Trophy className="w-4 h-4" />
-                  Create Challenge
-                </>
-              )}
-            </Button>
+            <div className="relative group">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg blur-md opacity-0 group-hover:opacity-70 transition-all duration-500" />
+              <Button
+                type="submit"
+                onClick={handleSubmit}
+                disabled={loading || selectedProblems.length === 0}
+                className="relative gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Trophy className="w-4 h-4" />
+                    Create Challenge
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

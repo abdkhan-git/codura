@@ -335,19 +335,20 @@ export default function FloatingMessageWidget() {
 
   if (!isOpen) {
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-6 left-6 z-30">
         <Button
           onClick={() => setIsOpen(true)}
           className={cn(
             "relative h-14 w-14 rounded-full shadow-lg transition-all hover:scale-110",
             "bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
           )}
+          aria-label="Open Messages"
         >
           <Send className="w-6 h-6 text-white" />
           {unreadCount > 0 && (
             <Badge
               className={cn(
-                "absolute -top-1 -right-1 h-6 w-6 rounded-full p-0 flex items-center justify-center",
+                "absolute -top-1 -right-1 h-6 w-6 rounded-full p-0 flex items-center justify-center animate-pulse",
                 "bg-red-500 text-white text-xs font-bold border-2 border-background"
               )}
             >
@@ -360,7 +361,7 @@ export default function FloatingMessageWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-6 left-6 z-30">
       <Card
         className={cn(
           "backdrop-blur-xl border-2 shadow-2xl transition-all duration-300",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { io, Socket } from 'socket.io-client';
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 import { Button } from "@/components/ui/button";
@@ -34,10 +34,12 @@ import { ChallengeCard } from "@/components/study-pods/challenge-card";
 import { ChallengeDetailModal } from "@/components/study-pods/challenge-detail-modal";
 import { MembersTabSection } from "@/components/study-pods/members-tab-section";
 import { ProblemDiscussionThread } from "@/components/study-pods/problem-discussion-thread";
+import { PodSettingsForm } from "@/components/study-pods/pod-settings-form";
 
 export default function StudyPodDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { theme } = useTheme();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Core state
   const [loading, setLoading] = useState(true);
@@ -84,6 +86,46 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
     };
     initializeParams();
   }, [params]);
+
+  // Handle URL parameters for tab navigation and actions
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const action = searchParams.get('action');
+
+    // Handle tab parameter
+    if (tab && ['overview', 'live-sessions', 'practice', 'challenges', 'members', 'settings'].includes(tab)) {
+      setActiveSection(tab as PodSection);
+
+      // Clear URL params after handling to prevent stuck state
+      if (action) {
+        setTimeout(() => {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('action');
+          window.history.replaceState({}, '', url.toString());
+        }, 100);
+      }
+    }
+
+    // Handle action parameter
+    if (action) {
+      switch (action) {
+        case 'invite':
+          setShowInviteModal(true);
+          break;
+        case 'assign':
+          setShowAssignProblemsModal(true);
+          break;
+        case 'create':
+          // Check which tab we're on to determine which modal to open
+          if (tab === 'challenges') {
+            setShowCreateChallengeModal(true);
+          } else if (tab === 'sessions' || tab === 'live-sessions') {
+            toast.info('Session creation coming soon!');
+          }
+          break;
+      }
+    }
+  }, [searchParams]);
 
   const fetchUser = async () => {
     try {
@@ -630,43 +672,23 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 <div className="space-y-6">
                   <div>
                     <h2 className={cn(
-                      "text-xl font-bold",
-                      theme === "light" ? "text-gray-900" : "text-white"
+                      "text-2xl font-bold bg-gradient-to-r from-foreground via-emerald-400 to-cyan-400 bg-clip-text text-transparent",
                     )}>
                       Pod Settings
                     </h2>
                     <p className={cn(
-                      "text-sm",
-                      theme === "light" ? "text-gray-600" : "text-white/60"
+                      "text-sm mt-1",
+                      theme === "light" ? "text-gray-600" : "text-muted-foreground"
                     )}>
                       Manage your study pod settings and preferences
                     </p>
                   </div>
 
-                  <div className={cn(
-                    "p-6 rounded-xl border-2",
-                    theme === "light" ? "bg-white border-gray-200" : "bg-zinc-900/50 border-white/5"
-                  )}>
-                    <h3 className={cn(
-                      "font-semibold mb-4",
-                      theme === "light" ? "text-gray-900" : "text-white"
-                    )}>
-                      General Settings
-                    </h3>
-                    <p className={cn(
-                      "text-sm mb-4",
-                      theme === "light" ? "text-gray-600" : "text-white/60"
-                    )}>
-                      {pod.description}
-                    </p>
-                    <Button
-                      onClick={() => setShowEditModal(true)}
-                      variant="outline"
-                    >
-                      <Settings className="w-4 h-4 mr-2" />
-                      Edit Pod Details
-                    </Button>
-                  </div>
+                  <PodSettingsForm
+                    pod={pod}
+                    userRole={pod?.user_role}
+                    onSuccess={fetchPodDetails}
+                  />
                 </div>
               )}
             </div>
