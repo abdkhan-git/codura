@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Trophy, Award, TrendingUp, Shield, Settings } from "lucide-react";
+import { Trophy, Award, TrendingUp, Settings } from "lucide-react";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { LeaderboardEntry } from "@/types/database";
@@ -16,6 +16,8 @@ import dynamic from 'next/dynamic';
 const Info: any = dynamic(() => import('lucide-react').then(mod => mod.Info), { ssr: false });
 // @ts-ignore
 const XCircle: any = dynamic(() => import('lucide-react').then(mod => mod.XCircle || mod.X), { ssr: false });
+// @ts-ignore
+const Shield: any = dynamic(() => import('lucide-react').then(mod => mod.Shield), { ssr: false });
 
 interface UserData {
   name: string;
@@ -461,7 +463,7 @@ export default function LeaderboardPage() {
                 <h3 className="font-semibold text-destructive mb-1">Failed to Load Leaderboard</h3>
                 <p className="text-sm text-muted-foreground">{error}</p>
               </div>
-              <Button onClick={fetchUserAndLeaderboard} variant="outline" size="sm">
+              <Button onClick={() => fetchUserAndLeaderboard()} variant="outline" size="sm">
                 Retry
               </Button>
             </CardContent>
