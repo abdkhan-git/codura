@@ -15,6 +15,7 @@ declare module 'lucide-react' {
   export const ChevronRight: Icon;
   export const ChevronDown: Icon;
   export const Video: Icon;
+  export const VideoOff: Icon;
   export const Users: Icon;
   export const Clock: Icon;
   export const Code: Icon;
@@ -47,4 +48,25 @@ declare module 'lucide-react' {
   export const Send: Icon;
   export const RotateCcw: Icon;
   export const Loader2: Icon;
+  export const Mic: Icon;
+  export const MicOff: Icon;
+  export const PhoneOff: Icon;
+  export const Monitor: Icon;
+  export const MonitorUp: Icon;
+  export const MonitorOff: Icon;
+  export const MessageSquare: Icon;
+  export const Terminal: Icon;
+  export const FileCode: Icon;
+  export const Copy: Icon;
+  export const Check: Icon;
+  export const PanelLeftClose: Icon;
+  export const PanelLeft: Icon;
+  export const Crown: Icon;
+  export const Wifi: Icon;
+  export const WifiOff: Icon;
+  export const Circle: Icon;
+  export const Separator: Icon;
+  export const Pencil: Icon;
+  export const PenLine: Icon;
+  export const Edit: Icon;
 }
