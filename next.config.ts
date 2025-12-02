@@ -37,6 +37,12 @@ const nextConfig: NextConfig = {
     // Ignore eslint during builds
     ignoreDuringBuilds: true,
   },
+  // Optimize package imports
+  experimental: {
+    optimizePackageImports: ['recharts', 'lucide-react'],
+  },
+  // Explicitly opt into Turbopack to avoid mixed webpack/turbo warnings on Next 16
+  turbopack: {},
 };
 
 export default nextConfig;
