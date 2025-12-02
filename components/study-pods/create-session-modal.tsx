@@ -27,6 +27,7 @@ import {
   Search,
   Sparkles,
   Zap,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -98,12 +99,13 @@ const QUICK_DURATIONS = [30, 45, 60, 90, 120];
 export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: CreateSessionModalProps) {
   const { theme } = useTheme();
   const [submitting, setSubmitting] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [selectedTime, setSelectedTime] = useState({ hour: 10, minute: 0 });
+  const [selectedTime, setSelectedTime] = useState("10:00");
   const [sessionType, setSessionType] = useState("study");
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
 
@@ -121,7 +123,7 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
       setTitle("");
       setDescription("");
       setSelectedDate(undefined);
-      setSelectedTime({ hour: 10, minute: 0 });
+      setSelectedTime("10:00");
       setSessionType("study");
       setDurationMinutes(60);
       setSelectedProblems([]);
@@ -197,10 +199,13 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
       return;
     }
 
+    // Parse time string (HH:MM format)
+    const [hours, minutes] = selectedTime.split(':').map(Number);
+
     // Combine date and time
     const scheduledDateTime = setMinutes(
-      setHours(startOfDay(selectedDate), selectedTime.hour),
-      selectedTime.minute
+      setHours(startOfDay(selectedDate), hours),
+      minutes
     );
 
     // Check if date is in the future
@@ -344,33 +349,29 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
                   <CalendarIcon className="w-4 h-4 text-cyan-400" />
                   Date *
                 </Label>
-                <Popover>
+                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
                       variant="outline"
                       className={cn(
-                        "w-full h-11 justify-start text-left font-normal border-2 transition-all duration-200",
-                        !selectedDate && "text-muted-foreground",
-                        theme === 'light'
-                          ? "bg-gray-50/80 border-gray-200 hover:bg-white hover:border-emerald-400"
-                          : "bg-white/5 backdrop-blur-sm border-white/10 hover:bg-white/10 hover:border-emerald-500/50"
+                        "w-full h-11 justify-between font-normal",
+                        !selectedDate && "text-muted-foreground"
                       )}
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4 text-emerald-400" />
-                      {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                      {selectedDate ? format(selectedDate, "PPP") : <span>Select date</span>}
+                      <ChevronDown className="h-4 w-4 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className={cn(
-                    "w-auto p-0 border-2",
-                    theme === 'light'
-                      ? "bg-white border-gray-200"
-                      : "bg-zinc-900 backdrop-blur-xl border-white/10"
-                  )} align="start">
+                  <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                     <Calendar
                       mode="single"
                       selected={selectedDate}
-                      onSelect={setSelectedDate}
+                      captionLayout="dropdown"
+                      onSelect={(date) => {
+                        setSelectedDate(date);
+                        setDatePickerOpen(false);
+                      }}
                       disabled={(date) => date < new Date()}
                     />
                   </PopoverContent>
@@ -379,50 +380,20 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
 
               {/* Time Picker */}
               <div className="space-y-2.5">
-                <Label className={cn(
+                <Label htmlFor="time-picker" className={cn(
                   "text-sm font-semibold flex items-center gap-2",
                   theme === 'light' ? "text-gray-700" : "text-white/90"
                 )}>
                   <Clock className="w-4 h-4 text-purple-400" />
                   Time *
                 </Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="hour" className="text-xs text-muted-foreground">Hour</Label>
-                    <Input
-                      id="hour"
-                      type="number"
-                      min="0"
-                      max="23"
-                      value={selectedTime.hour}
-                      onChange={(e) => setSelectedTime({ ...selectedTime, hour: parseInt(e.target.value) || 0 })}
-                      className={cn(
-                        "h-11 text-center border-2 transition-all duration-200",
-                        theme === 'light'
-                          ? "bg-gray-50/80 border-gray-200 focus:border-purple-400"
-                          : "bg-white/5 backdrop-blur-sm border-white/10 focus:border-purple-500/50"
-                      )}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="minute" className="text-xs text-muted-foreground">Minute</Label>
-                    <Input
-                      id="minute"
-                      type="number"
-                      min="0"
-                      max="59"
-                      step="5"
-                      value={selectedTime.minute}
-                      onChange={(e) => setSelectedTime({ ...selectedTime, minute: parseInt(e.target.value) || 0 })}
-                      className={cn(
-                        "h-11 text-center border-2 transition-all duration-200",
-                        theme === 'light'
-                          ? "bg-gray-50/80 border-gray-200 focus:border-purple-400"
-                          : "bg-white/5 backdrop-blur-sm border-white/10 focus:border-purple-500/50"
-                      )}
-                    />
-                  </div>
-                </div>
+                <Input
+                  type="time"
+                  id="time-picker"
+                  value={selectedTime}
+                  onChange={(e) => setSelectedTime(e.target.value)}
+                  className="h-11 bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                />
               </div>
             </div>
 
