@@ -252,7 +252,7 @@ export function PublicVideoCall({
   }
 
   return (
-    <div className="h-[calc(100vh-6rem)] flex flex-col bg-gradient-to-br from-zinc-950 via-zinc-900 to-black">
+    <div className="h-full flex flex-col bg-gradient-to-br from-zinc-950 via-zinc-900 to-black">
       <SessionNavbar
         sessionId={sessionId}
         isHost={isHost}
@@ -262,7 +262,7 @@ export function PublicVideoCall({
         onLeave={handleLeave}
       />
 
-      <div className="flex-1 flex gap-4 mt-4 overflow-hidden">
+      <div className="flex-1 flex gap-4 p-4 overflow-hidden min-h-0">
         <div className={cn("relative", showCodeEditor || showChat ? "w-1/2" : "w-full")}>
           <Card className="h-full border-2 border-border/20 bg-zinc-900 relative overflow-hidden">
             {timerEndMs && (
@@ -497,9 +497,9 @@ export function PublicVideoCall({
         </div>
 
         {(showCodeEditor || showChat) && (
-          <div className="w-1/2 flex flex-col gap-4">
+          <div className="w-1/2 flex flex-col gap-4 min-h-0">
             {showCodeEditor && (
-              <Card className={cn("border-2 border-border/20 overflow-hidden", showChat ? "h-[70%]" : "h-full")}>
+              <Card className={cn("border-2 border-border/20 overflow-hidden", showChat ? "flex-[7] min-h-0" : "flex-1 min-h-0")}>
                 <CollaborativeCodeEditor
                   ref={codeEditorRef}
                   onCodeChange={handleCodeChange}
@@ -512,7 +512,7 @@ export function PublicVideoCall({
             )}
 
             {showChat && (
-              <div className={cn(showCodeEditor ? "h-[30%]" : "h-full")}>
+              <div className={cn("min-h-0", showCodeEditor ? "flex-[3]" : "flex-1")}>
                 <ChatBox sessionId={sessionId} user={user} onClose={() => setShowChat(false)} />
               </div>
             )}
