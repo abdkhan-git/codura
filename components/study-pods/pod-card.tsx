@@ -118,7 +118,7 @@ export function PodCard({ pod, onJoin, onRefresh, className }: PodCardProps) {
         )} />
 
         <Card className={cn(
-          "relative p-6 border-2 backdrop-blur-xl transition-all duration-500 overflow-hidden flex flex-col h-[520px]",
+          "relative p-6 border-2 backdrop-blur-xl transition-all duration-500 overflow-hidden flex flex-col h-[440px]",
           theme === 'light'
             ? "bg-white/90 border-gray-200/50 hover:border-emerald-500/40 hover:shadow-2xl hover:shadow-emerald-500/20"
             : "bg-gradient-to-br from-zinc-950/80 via-zinc-900/50 to-zinc-950/80 border-white/10 hover:shadow-2xl hover:shadow-emerald-500/20",
@@ -187,7 +187,7 @@ export function PodCard({ pod, onJoin, onRefresh, className }: PodCardProps) {
             </div>
 
             {/* Badges */}
-            <div className="flex flex-wrap gap-2 min-h-[32px] items-start">
+            <div className="flex flex-wrap gap-2 h-[64px] items-start content-start">
               <Badge className={cn(
                 "border font-semibold backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:shadow-lg",
                 skillConfig.bg,
@@ -215,7 +215,7 @@ export function PodCard({ pod, onJoin, onRefresh, className }: PodCardProps) {
             </div>
 
             {/* Topics - always show for consistent height */}
-            <div className="flex flex-wrap gap-1.5 min-h-[32px]">
+            <div className="flex flex-wrap gap-1.5 h-[36px] content-start overflow-hidden">
               {pod.topics && pod.topics.length > 0 ? (
                 <>
                   {pod.topics.slice(0, 3).map((topic: string, idx: number) => (
@@ -336,41 +336,52 @@ export function PodCard({ pod, onJoin, onRefresh, className }: PodCardProps) {
               </div>
             </div>
 
-            {/* Members Preview */}
-            {pod.members_preview && pod.members_preview.length > 0 && (
-              <div className={cn(
-                "flex items-center gap-3 pt-2 border-t",
-                theme === 'light' ? "border-gray-200" : "border-white/5"
-              )}>
-                <div className="flex -space-x-2">
-                  {pod.members_preview.slice(0, 4).map((member: any, idx: number) => (
-                    <Avatar
-                      key={idx}
-                      className={cn(
-                        "w-8 h-8 border-2 ring-1",
-                        theme === 'light'
-                          ? "border-white ring-gray-200"
-                          : "border-zinc-950 ring-white/10"
-                      )}
-                    >
-                      <AvatarImage src={member.avatar_url || ""} />
-                      <AvatarFallback className="text-xs bg-gradient-to-br from-brand to-orange-300">
-                        {member.full_name?.charAt(0) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                  ))}
-                </div>
-                <div className="flex-1 min-w-0">
+            {/* Members Preview - fixed height for alignment */}
+            <div className={cn(
+              "flex items-center gap-3 pt-2 border-t h-[44px]",
+              theme === 'light' ? "border-gray-200" : "border-white/5"
+            )}>
+              {pod.members_preview && pod.members_preview.length > 0 ? (
+                <>
+                  <div className="flex -space-x-2">
+                    {pod.members_preview.slice(0, 4).map((member: any, idx: number) => (
+                      <Avatar
+                        key={idx}
+                        className={cn(
+                          "w-8 h-8 border-2 ring-1",
+                          theme === 'light'
+                            ? "border-white ring-gray-200"
+                            : "border-zinc-950 ring-white/10"
+                        )}
+                      >
+                        <AvatarImage src={member.avatar_url || ""} />
+                        <AvatarFallback className="text-xs bg-gradient-to-br from-brand to-orange-300">
+                          {member.full_name?.charAt(0) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                    ))}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      "text-xs",
+                      theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                    )}>
+                      {pod.current_member_count > 4 && `+${pod.current_member_count - 4} more `}
+                      {pod.current_member_count === 1 ? "member" : "members"}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1">
                   <p className={cn(
                     "text-xs",
-                    theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                    theme === 'light' ? "text-gray-500" : "text-muted-foreground/70"
                   )}>
-                    {pod.current_member_count > 4 && `+${pod.current_member_count - 4} more `}
-                    {pod.current_member_count === 1 ? "member" : "members"}
+                    member
                   </p>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Action Button */}
             <div className="pt-2 mt-auto">

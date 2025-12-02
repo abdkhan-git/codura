@@ -8,17 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
+import { format, addDays, setHours, setMinutes, startOfDay } from "date-fns";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Calendar,
+  Calendar as CalendarIcon,
   Clock,
   Loader2,
   Users,
@@ -29,7 +25,8 @@ import {
   CheckCircle2,
   X,
   Search,
-  Plus,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,12 +46,54 @@ interface CreateSessionModalProps {
 }
 
 const SESSION_TYPES = [
-  { value: 'study', label: 'Study Session', icon: BookOpen, color: 'emerald' },
-  { value: 'problem_solving', label: 'Problem Solving', icon: Code2, color: 'blue' },
-  { value: 'mock_interview', label: 'Mock Interview', icon: Users, color: 'purple' },
-  { value: 'discussion', label: 'Discussion', icon: MessageSquare, color: 'cyan' },
-  { value: 'review', label: 'Review', icon: Lightbulb, color: 'amber' },
+  {
+    value: 'study',
+    label: 'Study Session',
+    icon: BookOpen,
+    gradient: 'from-emerald-400 to-teal-500',
+    bgColor: 'bg-emerald-500/10',
+    borderColor: 'border-emerald-500/50',
+    description: 'Learn together'
+  },
+  {
+    value: 'problem_solving',
+    label: 'Problem Solving',
+    icon: Code2,
+    gradient: 'from-blue-400 to-cyan-500',
+    bgColor: 'bg-blue-500/10',
+    borderColor: 'border-blue-500/50',
+    description: 'Solve coding challenges'
+  },
+  {
+    value: 'mock_interview',
+    label: 'Mock Interview',
+    icon: Users,
+    gradient: 'from-purple-400 to-pink-500',
+    bgColor: 'bg-purple-500/10',
+    borderColor: 'border-purple-500/50',
+    description: 'Practice interviews'
+  },
+  {
+    value: 'discussion',
+    label: 'Discussion',
+    icon: MessageSquare,
+    gradient: 'from-cyan-400 to-blue-500',
+    bgColor: 'bg-cyan-500/10',
+    borderColor: 'border-cyan-500/50',
+    description: 'Talk about concepts'
+  },
+  {
+    value: 'review',
+    label: 'Review',
+    icon: Lightbulb,
+    gradient: 'from-amber-400 to-orange-500',
+    bgColor: 'bg-amber-500/10',
+    borderColor: 'border-amber-500/50',
+    description: 'Review and reinforce'
+  },
 ];
+
+const QUICK_DURATIONS = [30, 45, 60, 90, 120];
 
 export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: CreateSessionModalProps) {
   const { theme } = useTheme();
@@ -63,7 +102,8 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
   // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [scheduledAt, setScheduledAt] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedTime, setSelectedTime] = useState({ hour: 10, minute: 0 });
   const [sessionType, setSessionType] = useState("study");
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
 
@@ -80,7 +120,8 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
     if (!isOpen) {
       setTitle("");
       setDescription("");
-      setScheduledAt("");
+      setSelectedDate(undefined);
+      setSelectedTime({ hour: 10, minute: 0 });
       setSessionType("study");
       setDurationMinutes(60);
       setSelectedProblems([]);
@@ -89,15 +130,13 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
     }
   }, [isOpen]);
 
-  // Set default date to tomorrow at 10 AM
+  // Set default date to tomorrow
   useEffect(() => {
-    if (isOpen && !scheduledAt) {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(10, 0, 0, 0);
-      setScheduledAt(tomorrow.toISOString().slice(0, 16));
+    if (isOpen && !selectedDate) {
+      const tomorrow = addDays(new Date(), 1);
+      setSelectedDate(tomorrow);
     }
-  }, [isOpen]);
+  }, [isOpen, selectedDate]);
 
   // Load problems when problems section is shown
   useEffect(() => {
@@ -153,13 +192,19 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
       return;
     }
 
-    if (!scheduledAt) {
-      toast.error("Please select a date and time");
+    if (!selectedDate) {
+      toast.error("Please select a date");
       return;
     }
 
+    // Combine date and time
+    const scheduledDateTime = setMinutes(
+      setHours(startOfDay(selectedDate), selectedTime.hour),
+      selectedTime.minute
+    );
+
     // Check if date is in the future
-    if (new Date(scheduledAt) < new Date()) {
+    if (scheduledDateTime < new Date()) {
       toast.error("Session must be scheduled for a future time");
       return;
     }
@@ -173,7 +218,7 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim() || null,
-          scheduled_at: new Date(scheduledAt).toISOString(),
+          scheduled_at: scheduledDateTime.toISOString(),
           session_type: sessionType,
           duration_minutes: durationMinutes,
           problems_covered: selectedProblems,
@@ -197,9 +242,6 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
     }
   };
 
-  const selectedSessionType = SESSION_TYPES.find(t => t.value === sessionType);
-  const SessionTypeIcon = selectedSessionType?.icon || BookOpen;
-
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
       case "easy":
@@ -216,310 +258,434 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={cn(
-        "sm:max-w-[700px] max-h-[90vh] border-2 overflow-hidden",
+        "sm:max-w-[900px] max-h-[90vh] border-2 overflow-hidden p-0",
         theme === 'light'
-          ? "bg-white border-emerald-500/20"
-          : "bg-zinc-950 border-emerald-500/20"
+          ? "bg-white border-emerald-200/50"
+          : "bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 border-emerald-500/20"
       )}>
-        {/* Background effects - only for dark mode */}
+        {/* Glassmorphic Background Effects */}
         {theme !== 'light' && (
           <>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.08),transparent_50%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_100%_100%,rgba(6,182,212,0.08),transparent_50%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(16,185,129,0.15),transparent_50%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(6,182,212,0.12),transparent_50%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,black,transparent)]" />
           </>
         )}
 
-        <DialogHeader className="relative">
-          <div className="flex items-center gap-3 mb-2">
+        {/* Header */}
+        <div className={cn(
+          "relative p-6 pb-4 border-b",
+          theme === 'light' ? "border-gray-200 bg-white/80" : "border-white/10 backdrop-blur-xl"
+        )}>
+          <div className="flex items-start gap-4">
             <div className={cn(
-              "p-2.5 rounded-xl border",
+              "p-3 rounded-xl border-2 backdrop-blur-sm",
               theme === 'light'
-                ? "bg-gradient-to-br from-emerald-50 to-cyan-50 border-emerald-200"
+                ? "bg-gradient-to-br from-emerald-50 to-cyan-50 border-emerald-300/50"
                 : "bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border-emerald-500/30"
             )}>
-              <Calendar className="w-6 h-6 text-emerald-400" />
+              <CalendarIcon className="w-7 h-7 text-emerald-400" />
             </div>
-            <DialogTitle className={cn(
-              "text-2xl",
-              theme === 'light'
-                ? "text-gray-900"
-                : "bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent"
-            )}>
-              Schedule Study Session
-            </DialogTitle>
-          </div>
-          <p className={cn(
-            "text-sm",
-            theme === 'light' ? "text-gray-600" : "text-white/60"
-          )}>
-            Coordinate a collaborative learning session with your pod members
-          </p>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="relative space-y-5 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
-          {/* Session Title */}
-          <div className="space-y-2">
-            <Label htmlFor="title" className={theme === 'light' ? "text-gray-700" : "text-white/80"}>
-              Session Title *
-            </Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Dynamic Programming Deep Dive"
-              className={cn(
-                "border",
+            <div className="flex-1">
+              <DialogTitle className={cn(
+                "text-2xl font-bold mb-1",
                 theme === 'light'
-                  ? "bg-gray-50 border-gray-200 focus:border-emerald-500"
-                  : "bg-white/5 border-white/10 focus:border-emerald-500/50"
-              )}
-              maxLength={100}
-            />
+                  ? "text-gray-900"
+                  : "bg-gradient-to-r from-white via-white to-white/80 bg-clip-text text-transparent"
+              )}>
+                Schedule Study Session
+              </DialogTitle>
+              <p className={cn(
+                "text-sm flex items-center gap-2",
+                theme === 'light' ? "text-gray-600" : "text-white/60"
+              )}>
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                Plan a collaborative learning experience with your pod
+              </p>
+            </div>
           </div>
+        </div>
 
-          {/* Date & Time */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="scheduled_at" className={theme === 'light' ? "text-gray-700" : "text-white/80"}>
-                Date & Time *
+        {/* Form Content */}
+        <form onSubmit={handleSubmit} className="relative">
+          <div className="max-h-[calc(90vh-200px)] overflow-y-auto px-6 py-5 space-y-6">
+            {/* Session Title */}
+            <div className="space-y-2.5">
+              <Label htmlFor="title" className={cn(
+                "text-sm font-semibold flex items-center gap-2",
+                theme === 'light' ? "text-gray-700" : "text-white/90"
+              )}>
+                <Zap className="w-4 h-4 text-amber-400" />
+                Session Title *
               </Label>
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                <Input
-                  id="scheduled_at"
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  className={cn(
-                    "pl-10 border",
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Dynamic Programming Deep Dive"
+                className={cn(
+                  "h-11 border-2 transition-all duration-200",
+                  theme === 'light'
+                    ? "bg-gray-50/80 border-gray-200 focus:border-emerald-400 focus:bg-white"
+                    : "bg-white/5 backdrop-blur-sm border-white/10 focus:border-emerald-500/50 focus:bg-white/10"
+                )}
+                maxLength={100}
+              />
+            </div>
+
+            {/* Date & Time Selection */}
+            <div className="grid md:grid-cols-2 gap-5">
+              {/* Date Picker */}
+              <div className="space-y-2.5">
+                <Label className={cn(
+                  "text-sm font-semibold flex items-center gap-2",
+                  theme === 'light' ? "text-gray-700" : "text-white/90"
+                )}>
+                  <CalendarIcon className="w-4 h-4 text-cyan-400" />
+                  Date *
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "w-full h-11 justify-start text-left font-normal border-2 transition-all duration-200",
+                        !selectedDate && "text-muted-foreground",
+                        theme === 'light'
+                          ? "bg-gray-50/80 border-gray-200 hover:bg-white hover:border-emerald-400"
+                          : "bg-white/5 backdrop-blur-sm border-white/10 hover:bg-white/10 hover:border-emerald-500/50"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 text-emerald-400" />
+                      {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className={cn(
+                    "w-auto p-0 border-2",
                     theme === 'light'
-                      ? "bg-gray-50 border-gray-200 focus:border-emerald-500"
-                      : "bg-white/5 border-white/10 focus:border-emerald-500/50"
-                  )}
-                />
+                      ? "bg-white border-gray-200"
+                      : "bg-zinc-900 backdrop-blur-xl border-white/10"
+                  )} align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      disabled={(date) => date < new Date()}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Time Picker */}
+              <div className="space-y-2.5">
+                <Label className={cn(
+                  "text-sm font-semibold flex items-center gap-2",
+                  theme === 'light' ? "text-gray-700" : "text-white/90"
+                )}>
+                  <Clock className="w-4 h-4 text-purple-400" />
+                  Time *
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="hour" className="text-xs text-muted-foreground">Hour</Label>
+                    <Input
+                      id="hour"
+                      type="number"
+                      min="0"
+                      max="23"
+                      value={selectedTime.hour}
+                      onChange={(e) => setSelectedTime({ ...selectedTime, hour: parseInt(e.target.value) || 0 })}
+                      className={cn(
+                        "h-11 text-center border-2 transition-all duration-200",
+                        theme === 'light'
+                          ? "bg-gray-50/80 border-gray-200 focus:border-purple-400"
+                          : "bg-white/5 backdrop-blur-sm border-white/10 focus:border-purple-500/50"
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="minute" className="text-xs text-muted-foreground">Minute</Label>
+                    <Input
+                      id="minute"
+                      type="number"
+                      min="0"
+                      max="59"
+                      step="5"
+                      value={selectedTime.minute}
+                      onChange={(e) => setSelectedTime({ ...selectedTime, minute: parseInt(e.target.value) || 0 })}
+                      className={cn(
+                        "h-11 text-center border-2 transition-all duration-200",
+                        theme === 'light'
+                          ? "bg-gray-50/80 border-gray-200 focus:border-purple-400"
+                          : "bg-white/5 backdrop-blur-sm border-white/10 focus:border-purple-500/50"
+                      )}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="duration" className={theme === 'light' ? "text-gray-700" : "text-white/80"}>
-                Duration (minutes)
+            {/* Duration */}
+            <div className="space-y-2.5">
+              <Label className={cn(
+                "text-sm font-semibold",
+                theme === 'light' ? "text-gray-700" : "text-white/90"
+              )}>
+                Duration
               </Label>
-              <Input
-                id="duration"
-                type="number"
-                min="15"
-                max="300"
-                step="15"
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                className={cn(
-                  "border",
-                  theme === 'light'
-                    ? "bg-gray-50 border-gray-200 focus:border-emerald-500"
-                    : "bg-white/5 border-white/10 focus:border-emerald-500/50"
-                )}
-              />
-            </div>
-          </div>
-
-          {/* Session Type */}
-          <div className="space-y-2">
-            <Label className={theme === 'light' ? "text-gray-700" : "text-white/80"}>
-              Session Type *
-            </Label>
-            <div className="grid grid-cols-2 gap-2">
-              {SESSION_TYPES.map((type) => {
-                const Icon = type.icon;
-                const isSelected = sessionType === type.value;
-                return (
+              <div className="flex flex-wrap gap-2">
+                {QUICK_DURATIONS.map((duration) => (
                   <button
-                    key={type.value}
+                    key={duration}
                     type="button"
-                    onClick={() => setSessionType(type.value)}
+                    onClick={() => setDurationMinutes(duration)}
                     className={cn(
-                      "flex items-center gap-2 p-3 rounded-lg border transition-all",
-                      theme === 'light'
-                        ? isSelected
-                          ? "bg-emerald-50 border-emerald-300"
-                          : "bg-gray-50 border-gray-200 hover:border-gray-300"
-                        : isSelected
-                          ? "bg-emerald-500/10 border-emerald-500/50"
-                          : "bg-white/5 border-white/10 hover:border-white/20"
+                      "px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all duration-200 hover:scale-105",
+                      durationMinutes === duration
+                        ? theme === 'light'
+                          ? "bg-emerald-50 border-emerald-400 text-emerald-700"
+                          : "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+                        : theme === 'light'
+                          ? "bg-gray-50 border-gray-200 text-gray-700 hover:border-gray-300"
+                          : "bg-white/5 backdrop-blur-sm border-white/10 text-white/70 hover:border-white/20"
                     )}
                   >
-                    <Icon className={cn("w-4 h-4", isSelected ? "text-emerald-500" : "text-muted-foreground")} />
-                    <span className={cn(
-                      "text-sm font-medium",
-                      theme === 'light'
-                        ? isSelected ? "text-emerald-700" : "text-gray-700"
-                        : isSelected ? "text-emerald-400" : "text-white/70"
-                    )}>
-                      {type.label}
-                    </span>
+                    {duration} min
                   </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description" className={theme === 'light' ? "text-gray-700" : "text-white/80"}>
-              Description (Optional)
-            </Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add any details, agenda items, or preparation notes..."
-              rows={3}
-              className={cn(
-                "border resize-none",
-                theme === 'light'
-                  ? "bg-gray-50 border-gray-200 focus:border-emerald-500"
-                  : "bg-white/5 border-white/10 focus:border-emerald-500/50"
-              )}
-              maxLength={500}
-            />
-          </div>
-
-          {/* Problems to Cover (Optional) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className={theme === 'light' ? "text-gray-700" : "text-white/80"}>
-                Problems to Cover (Optional)
-              </Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowProblemsSection(!showProblemsSection)}
-                className="h-7 text-xs"
-              >
-                {showProblemsSection ? 'Hide' : 'Add Problems'}
-              </Button>
+                ))}
+              </div>
             </div>
 
-            {showProblemsSection && (
-              <Card className={cn(
-                "p-4 border",
-                theme === 'light'
-                  ? "bg-gray-50/50 border-gray-200"
-                  : "bg-white/5 border-white/10"
+            {/* Session Type */}
+            <div className="space-y-2.5">
+              <Label className={cn(
+                "text-sm font-semibold",
+                theme === 'light' ? "text-gray-700" : "text-white/90"
               )}>
-                {/* Search */}
-                <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search problems..."
-                    className={cn(
-                      "pl-10 h-9 border",
-                      theme === 'light'
-                        ? "bg-white border-gray-200"
-                        : "bg-white/5 border-white/10"
-                    )}
-                  />
-                </div>
-
-                {/* Selected Problems Summary */}
-                {selectedProblems.length > 0 && (
-                  <div className="mb-3 flex flex-wrap gap-1.5">
-                    {selectedProblems.map(problemId => {
-                      const problem = problems.find(p => p.id === problemId);
-                      if (!problem) return null;
-                      return (
-                        <Badge
-                          key={problemId}
-                          variant="secondary"
-                          className="gap-1.5 pr-1"
-                        >
-                          {problem.title.slice(0, 30)}...
-                          <button
-                            type="button"
-                            onClick={() => toggleProblem(problemId)}
-                            className="hover:bg-white/10 rounded p-0.5"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Problems List */}
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {loadingProblems ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : filteredProblems.length === 0 ? (
-                    <p className="text-center py-8 text-sm text-muted-foreground">
-                      {searchQuery ? "No problems found" : "No problems available"}
-                    </p>
-                  ) : (
-                    filteredProblems.slice(0, 20).map(problem => {
-                      const isSelected = selectedProblems.includes(problem.id);
-                      return (
-                        <button
-                          key={problem.id}
-                          type="button"
-                          onClick={() => toggleProblem(problem.id)}
-                          className={cn(
-                            "w-full flex items-center gap-2 p-2 rounded-lg border transition-all text-left",
-                            theme === 'light'
-                              ? isSelected
-                                ? "bg-emerald-50 border-emerald-300"
-                                : "bg-white border-gray-200 hover:border-gray-300"
-                              : isSelected
-                                ? "bg-emerald-500/10 border-emerald-500/50"
-                                : "bg-white/5 border-white/10 hover:border-white/20"
-                          )}
-                        >
-                          <div className={cn(
-                            "w-5 h-5 rounded border flex items-center justify-center flex-shrink-0",
-                            isSelected
-                              ? "bg-emerald-500 border-emerald-500"
-                              : theme === 'light'
-                                ? "border-gray-300"
-                                : "border-white/20"
+                Session Type *
+              </Label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {SESSION_TYPES.map((type) => {
+                  const Icon = type.icon;
+                  const isSelected = sessionType === type.value;
+                  return (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => setSessionType(type.value)}
+                      className={cn(
+                        "relative group p-4 rounded-xl border-2 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] text-left overflow-hidden",
+                        isSelected
+                          ? `${type.borderColor} ${type.bgColor} shadow-lg`
+                          : theme === 'light'
+                          ? "bg-white/90 border-gray-200/50 hover:border-gray-300"
+                          : "bg-white/5 border-white/10 hover:border-white/20"
+                      )}
+                    >
+                      <div className="relative flex flex-col gap-2">
+                        <div className={cn(
+                          "w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300",
+                          isSelected
+                            ? `bg-gradient-to-br ${type.gradient} shadow-md`
+                            : theme === 'light'
+                            ? "bg-gray-100"
+                            : "bg-white/10"
+                        )}>
+                          <Icon className={cn(
+                            "w-5 h-5",
+                            isSelected ? "text-white" : "text-muted-foreground"
+                          )} />
+                        </div>
+                        <div>
+                          <h4 className={cn(
+                            "font-semibold text-sm mb-0.5",
+                            theme === 'light' ? "text-gray-900" : "text-white"
                           )}>
-                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={cn(
-                              "text-sm font-medium truncate",
-                              theme === 'light' ? "text-gray-900" : "text-white/90"
-                            )}>
-                              {problem.title}
-                            </p>
-                          </div>
+                            {type.label}
+                          </h4>
+                          <p className={cn(
+                            "text-xs",
+                            theme === 'light' ? "text-gray-600" : "text-muted-foreground"
+                          )}>
+                            {type.description}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2.5">
+              <Label htmlFor="description" className={cn(
+                "text-sm font-semibold",
+                theme === 'light' ? "text-gray-700" : "text-white/90"
+              )}>
+                Description (Optional)
+              </Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add any details, agenda items, or preparation notes..."
+                rows={3}
+                className={cn(
+                  "border-2 resize-none transition-all duration-200",
+                  theme === 'light'
+                    ? "bg-gray-50/80 border-gray-200 focus:border-emerald-400"
+                    : "bg-white/5 backdrop-blur-sm border-white/10 focus:border-emerald-500/50"
+                )}
+                maxLength={500}
+              />
+            </div>
+
+            {/* Problems to Cover (Optional) */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <Label className={cn(
+                  "text-sm font-semibold",
+                  theme === 'light' ? "text-gray-700" : "text-white/90"
+                )}>
+                  Problems to Cover (Optional)
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowProblemsSection(!showProblemsSection)}
+                  className="h-8 text-xs"
+                >
+                  {showProblemsSection ? 'Hide' : 'Add Problems'}
+                </Button>
+              </div>
+
+              {showProblemsSection && (
+                <Card className={cn(
+                  "p-4 border-2",
+                  theme === 'light'
+                    ? "bg-gray-50/50 border-gray-200"
+                    : "bg-white/5 backdrop-blur-sm border-white/10"
+                )}>
+                  {/* Search */}
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search problems..."
+                      className={cn(
+                        "pl-10 h-10 border-2",
+                        theme === 'light'
+                          ? "bg-white border-gray-200"
+                          : "bg-white/5 border-white/10"
+                      )}
+                    />
+                  </div>
+
+                  {/* Selected Problems Summary */}
+                  {selectedProblems.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                      {selectedProblems.map(problemId => {
+                        const problem = problems.find(p => p.id === problemId);
+                        if (!problem) return null;
+                        return (
                           <Badge
-                            variant="outline"
-                            className={cn("text-xs flex-shrink-0", getDifficultyColor(problem.difficulty))}
+                            key={problemId}
+                            variant="secondary"
+                            className="gap-1.5 pr-1"
                           >
-                            {problem.difficulty}
+                            {problem.title.slice(0, 30)}...
+                            <button
+                              type="button"
+                              onClick={() => toggleProblem(problemId)}
+                              className="hover:bg-white/10 rounded p-0.5"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
                           </Badge>
-                        </button>
-                      );
-                    })
+                        );
+                      })}
+                    </div>
                   )}
-                </div>
-              </Card>
-            )}
+
+                  {/* Problems List */}
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {loadingProblems ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : filteredProblems.length === 0 ? (
+                      <p className="text-center py-8 text-sm text-muted-foreground">
+                        {searchQuery ? "No problems found" : "No problems available"}
+                      </p>
+                    ) : (
+                      filteredProblems.slice(0, 20).map(problem => {
+                        const isSelected = selectedProblems.includes(problem.id);
+                        return (
+                          <button
+                            key={problem.id}
+                            type="button"
+                            onClick={() => toggleProblem(problem.id)}
+                            className={cn(
+                              "w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left",
+                              theme === 'light'
+                                ? isSelected
+                                  ? "bg-emerald-50 border-emerald-300"
+                                  : "bg-white border-gray-200 hover:border-gray-300"
+                                : isSelected
+                                  ? "bg-emerald-500/10 border-emerald-500/50"
+                                  : "bg-white/5 border-white/10 hover:border-white/20"
+                            )}
+                          >
+                            <div className={cn(
+                              "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
+                              isSelected
+                                ? "bg-emerald-500 border-emerald-500"
+                                : theme === 'light'
+                                  ? "border-gray-300"
+                                  : "border-white/20"
+                            )}>
+                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={cn(
+                                "text-sm font-medium truncate",
+                                theme === 'light' ? "text-gray-900" : "text-white/90"
+                              )}>
+                                {problem.title}
+                              </p>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={cn("text-xs flex-shrink-0", getDifficultyColor(problem.difficulty))}
+                            >
+                              {problem.difficulty}
+                            </Badge>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </Card>
+              )}
+            </div>
           </div>
 
-          {/* Submit Buttons */}
-          <div className="flex gap-3 pt-4 sticky bottom-0 bg-inherit pb-2">
+          {/* Footer */}
+          <div className={cn(
+            "relative flex gap-3 p-6 pt-4 border-t",
+            theme === 'light' ? "border-gray-200 bg-white/80" : "border-white/10 backdrop-blur-xl"
+          )}>
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
               disabled={submitting}
               className={cn(
-                "flex-1",
+                "flex-1 h-11 border-2",
                 theme === 'light'
                   ? "border-gray-300 hover:bg-gray-50"
                   : "border-white/10 hover:bg-white/5"
@@ -530,7 +696,7 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
             <Button
               type="submit"
               disabled={submitting}
-              className="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white border-0"
+              className="flex-1 h-11 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-600 hover:via-teal-600 hover:to-cyan-600 text-white border-0 shadow-lg shadow-emerald-500/25"
             >
               {submitting ? (
                 <>
@@ -539,7 +705,7 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
                 </>
               ) : (
                 <>
-                  <Calendar className="w-4 h-4 mr-2" />
+                  <CalendarIcon className="w-4 h-4 mr-2" />
                   Schedule Session
                 </>
               )}
