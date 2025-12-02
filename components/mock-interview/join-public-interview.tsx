@@ -4,9 +4,11 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Clock, Users, User } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Clock, Users, User, KeyRound } from "lucide-react";
 import { PublicInterviewPending } from "./public-interview-pending";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface JoinPublicInterviewProps {
   user: {
@@ -35,6 +37,7 @@ export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicI
   const [sessions, setSessions] = useState<PublicSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  const [sessionCodeInput, setSessionCodeInput] = useState("");
 
   useEffect(() => {
     fetchPublicSessions();
@@ -137,6 +140,43 @@ export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicI
     }
   };
 
+  const handleJoinByCode = async () => {
+    const code = sessionCodeInput.trim();
+    if (!code) {
+      toast.error("Please enter a session code");
+      return;
+    }
+
+    try {
+      // Fetch all public sessions to find the one matching the session code
+      const response = await fetch('/api/mock-interview/public-sessions');
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch sessions');
+      }
+
+      const data = await response.json();
+      const matchingSession = data.sessions.find((s: any) => s.sessionId === code);
+
+      if (!matchingSession) {
+        toast.error("Session not found. Please check the code and try again.");
+        return;
+      }
+
+      if (!matchingSession.isAvailable) {
+        toast.error("This session is currently unavailable.");
+        return;
+      }
+
+      // Now request to join this session
+      await handleRequestJoin(matchingSession.id);
+      setSessionCodeInput("");
+    } catch (error) {
+      console.error('Error joining by code:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to join session');
+    }
+  };
+
   const getTimeRemaining = (endTime: string) => {
     const now = new Date().getTime();
     const end = new Date(endTime).getTime();
@@ -197,6 +237,38 @@ export function JoinPublicInterview({ user, onBack, onJoinSession }: JoinPublicI
             Browse and request to join public interview sessions
           </CardDescription>
         </CardHeader>
+      </Card>
+
+      {/* Join by Session Code */}
+      <Card className="border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl shadow-lg mb-6">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <KeyRound className="w-5 h-5 text-emerald-500" />
+            <h3 className="text-lg font-semibold">Have a Session Code?</h3>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            If a host shared a session code with you, enter it here to join directly
+          </p>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Enter session code (e.g., public-1234567890-abc123def)"
+              value={sessionCodeInput}
+              onChange={(e) => setSessionCodeInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleJoinByCode();
+                }
+              }}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleJoinByCode}
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-500/90 hover:to-teal-600/90"
+            >
+              Join
+            </Button>
+          </div>
+        </CardContent>
       </Card>
 
       {/* Sessions List */}
