@@ -4,6 +4,29 @@
 
 @import "tw-animate-css";
 
+/* React Day Picker - Study Pods Emerald Accent */
+.rdp {
+  --rdp-accent-color: #10b981 !important;
+  --rdp-accent-color-dark: #10b981 !important;
+}
+
+/* Force emerald color on selected days - override default blue */
+.rdp-selected {
+  background: linear-gradient(to bottom right, #34d399, #14b8a6) !important;
+  color: white !important;
+  border-color: #10b981 !important;
+}
+
+.rdp-selected:hover {
+  background: linear-gradient(to bottom right, #34d399, #14b8a6) !important;
+}
+
+/* Force emerald border on today */
+.rdp-today:not(.rdp-selected) {
+  border: 2px solid #10b981 !important;
+  color: #10b981 !important;
+}
+
 /* Theme transition utilities - only for theme-related properties */
 html {
   transition: background-color 0.3s ease, color 0.3s ease;

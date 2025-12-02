@@ -28,6 +28,8 @@ import {
   Sparkles,
   Zap,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -100,6 +102,8 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
   const { theme } = useTheme();
   const [submitting, setSubmitting] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [hoveredDay, setHoveredDay] = useState<number | null>(null);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -260,6 +264,62 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
     }
   };
 
+  // Custom calendar helpers
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    return { daysInMonth, startingDayOfWeek };
+  };
+
+  const isToday = (day: number) => {
+    const today = new Date();
+    return (
+      day === today.getDate() &&
+      currentMonth.getMonth() === today.getMonth() &&
+      currentMonth.getFullYear() === today.getFullYear()
+    );
+  };
+
+  const isSelected = (day: number) => {
+    if (!selectedDate) return false;
+    return (
+      day === selectedDate.getDate() &&
+      currentMonth.getMonth() === selectedDate.getMonth() &&
+      currentMonth.getFullYear() === selectedDate.getFullYear()
+    );
+  };
+
+  const isPastDate = (day: number) => {
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return date < today;
+  };
+
+  const handleDayClick = (day: number) => {
+    if (isPastDate(day)) return;
+    const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    setSelectedDate(newDate);
+    setDatePickerOpen(false);
+  };
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    setCurrentMonth(prev => {
+      const newMonth = new Date(prev);
+      if (direction === 'prev') {
+        newMonth.setMonth(prev.getMonth() - 1);
+      } else {
+        newMonth.setMonth(prev.getMonth() + 1);
+      }
+      return newMonth;
+    });
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={cn(
@@ -351,29 +411,204 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
                 </Label>
                 <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                   <PopoverTrigger asChild>
-                    <Button
+                    <button
                       type="button"
-                      variant="outline"
                       className={cn(
-                        "w-full h-11 justify-between font-normal",
-                        !selectedDate && "text-muted-foreground"
+                        "group relative flex w-full items-center rounded-xl border-2 px-4 py-2.5 pl-11 text-left text-sm font-medium shadow-sm transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 hover:scale-[1.01]",
+                        theme === 'light'
+                          ? "bg-white/90 backdrop-blur-sm border-gray-200 text-gray-900 hover:border-emerald-300 hover:shadow-md focus-visible:ring-emerald-200"
+                          : "bg-white/5 backdrop-blur-sm border-white/10 text-white/90 hover:border-emerald-500/30 hover:bg-white/10 focus-visible:ring-emerald-500/40 focus-visible:ring-offset-zinc-900"
                       )}
                     >
-                      {selectedDate ? format(selectedDate, "PPP") : <span>Select date</span>}
-                      <ChevronDown className="h-4 w-4 opacity-50" />
-                    </Button>
+                      <div className={cn(
+                        "absolute left-3 flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-300",
+                        theme === 'light'
+                          ? "bg-gradient-to-br from-emerald-50 to-cyan-50 group-hover:from-emerald-100 group-hover:to-cyan-100"
+                          : "bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 group-hover:from-emerald-500/20 group-hover:to-cyan-500/20"
+                      )}>
+                        <CalendarIcon className="h-4 w-4 text-emerald-500" />
+                      </div>
+                      <span className={cn(
+                        "flex-1 pl-2",
+                        !selectedDate && "text-muted-foreground"
+                      )}>
+                        {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : "Select date"}
+                      </span>
+                      <ChevronDown className={cn(
+                        "h-4 w-4 transition-transform duration-300",
+                        datePickerOpen && "rotate-180",
+                        theme === 'light' ? "text-gray-400" : "text-white/50"
+                      )} />
+                    </button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      captionLayout="dropdown"
-                      onSelect={(date) => {
-                        setSelectedDate(date);
-                        setDatePickerOpen(false);
-                      }}
-                      disabled={(date) => date < new Date()}
-                    />
+                  <PopoverContent
+                    align="start"
+                    className="w-auto border-0 bg-transparent p-0 shadow-none"
+                  >
+                    <div className={cn(
+                      "relative overflow-hidden rounded-2xl border-2 p-4 shadow-2xl backdrop-blur-xl transition-all duration-300",
+                      theme === 'light'
+                        ? "bg-white/95 border-emerald-100"
+                        : "bg-zinc-900/95 border-white/10"
+                    )}>
+                      {/* Glassmorphic background effects */}
+                      {theme !== 'light' && (
+                        <>
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(16,185,129,0.1),transparent_50%)]" />
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(6,182,212,0.08),transparent_50%)]" />
+                        </>
+                      )}
+
+                      {/* Calendar Header */}
+                      <div className="relative mb-4 flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => navigateMonth('prev')}
+                          className={cn(
+                            "flex h-9 w-9 items-center justify-center rounded-lg border-2 transition-all duration-200 hover:scale-110",
+                            theme === 'light'
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                              : "border-white/10 bg-white/5 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/30"
+                          )}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <h3 className={cn(
+                          "text-base font-bold",
+                          theme === 'light'
+                            ? "text-gray-900"
+                            : "bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent"
+                        )}>
+                          {format(currentMonth, "MMMM yyyy")}
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={() => navigateMonth('next')}
+                          className={cn(
+                            "flex h-9 w-9 items-center justify-center rounded-lg border-2 transition-all duration-200 hover:scale-110",
+                            theme === 'light'
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                              : "border-white/10 bg-white/5 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/30"
+                          )}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {/* Weekday Headers */}
+                      <div className="relative mb-2 grid grid-cols-7 gap-1">
+                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                          <div
+                            key={day}
+                            className={cn(
+                              "flex h-9 items-center justify-center text-xs font-bold uppercase tracking-wider",
+                              theme === 'light' ? "text-gray-500" : "text-gray-400"
+                            )}
+                          >
+                            {day}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Calendar Days */}
+                      <div className="relative grid grid-cols-7 gap-1">
+                        {/* Empty cells for days before month starts */}
+                        {Array.from({ length: getDaysInMonth(currentMonth).startingDayOfWeek }).map((_, i) => (
+                          <div key={`empty-${i}`} className="h-10" />
+                        ))}
+                        
+                        {/* Actual days */}
+                        {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
+                          const day = i + 1;
+                          const selected = isSelected(day);
+                          const today = isToday(day);
+                          const past = isPastDate(day);
+                          const hovered = hoveredDay === day;
+
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              disabled={past}
+                              onClick={() => handleDayClick(day)}
+                              onMouseEnter={() => setHoveredDay(day)}
+                              onMouseLeave={() => setHoveredDay(null)}
+                              className={cn(
+                                "relative flex h-10 w-10 items-center justify-center rounded-lg text-sm font-medium transition-all duration-200",
+                                !past && "hover:scale-110",
+                                selected && !past && (
+                                  theme === 'light'
+                                    ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-lg shadow-emerald-500/30 scale-105"
+                                    : "bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-lg shadow-emerald-500/30 scale-105"
+                                ),
+                                !selected && today && !past && (
+                                  theme === 'light'
+                                    ? "border-2 border-emerald-400 text-emerald-600 font-bold"
+                                    : "border-2 border-emerald-500 text-emerald-400 font-bold"
+                                ),
+                                !selected && !today && !past && (
+                                  theme === 'light'
+                                    ? "text-gray-700 hover:bg-emerald-50 hover:text-emerald-600"
+                                    : "text-gray-100 hover:bg-white/10 hover:text-emerald-400"
+                                ),
+                                past && (
+                                  theme === 'light'
+                                    ? "text-gray-300 cursor-not-allowed"
+                                    : "text-gray-600 cursor-not-allowed"
+                                ),
+                                hovered && !past && !selected && "ring-2 ring-emerald-500/30"
+                              )}
+                            >
+                              {day}
+                              {selected && (
+                                <div className="absolute inset-0 rounded-lg bg-white/20 animate-pulse" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Quick Select Footer */}
+                      <div className={cn(
+                        "relative mt-4 flex gap-2 border-t pt-3",
+                        theme === 'light' ? "border-gray-200" : "border-white/10"
+                      )}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tomorrow = addDays(new Date(), 1);
+                            setSelectedDate(tomorrow);
+                            setCurrentMonth(tomorrow);
+                            setDatePickerOpen(false);
+                          }}
+                          className={cn(
+                            "flex-1 rounded-lg border-2 px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:scale-105",
+                            theme === 'light'
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                              : "border-white/10 bg-white/5 text-emerald-400 hover:bg-emerald-500/20"
+                          )}
+                        >
+                          Tomorrow
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextWeek = addDays(new Date(), 7);
+                            setSelectedDate(nextWeek);
+                            setCurrentMonth(nextWeek);
+                            setDatePickerOpen(false);
+                          }}
+                          className={cn(
+                            "flex-1 rounded-lg border-2 px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:scale-105",
+                            theme === 'light'
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                              : "border-white/10 bg-white/5 text-emerald-400 hover:bg-emerald-500/20"
+                          )}
+                        >
+                          Next Week
+                        </button>
+                      </div>
+                    </div>
                   </PopoverContent>
                 </Popover>
               </div>
