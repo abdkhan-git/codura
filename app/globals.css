@@ -869,3 +869,50 @@ body {
 .animation-delay-4000 {
   animation-delay: 4s;
 }
+
+/* Excalidraw Customizations */
+.excalidraw {
+  --ui-font: 'Inter', sans-serif !important;
+}
+
+.excalidraw .App-menu_top {
+  background: transparent !important;
+}
+
+.excalidraw .App-menu__left {
+  background: rgba(18, 18, 18, 0.95) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.excalidraw .Island {
+  background: rgba(18, 18, 18, 0.95) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.excalidraw .ToolIcon_type_button {
+  background: transparent !important;
+}
+
+.excalidraw .ToolIcon_type_button:hover {
+  background: rgba(245, 158, 11, 0.2) !important;
+}
+
+.excalidraw .ToolIcon_type_button--selected {
+  background: rgba(245, 158, 11, 0.3) !important;
+  border-color: #f59e0b !important;
+}
+
+.excalidraw-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+.excalidraw .App-bottom-bar {
+  background: rgba(18, 18, 18, 0.95) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}

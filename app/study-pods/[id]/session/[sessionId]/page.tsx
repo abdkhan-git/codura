@@ -50,7 +50,27 @@ import {
   Settings,
   MoreHorizontal,
   Maximize2,
+  Minimize2,
   X,
+  Eraser,
+  Trash2,
+  Palette,
+  PenTool,
+  Layout,
+  Grid3X3,
+  ChevronLeft,
+  ArrowLeft,
+  MousePointer2,
+  Hand,
+  Square,
+  CircleIcon,
+  Minus,
+  ArrowUpRight,
+  Type,
+  Undo2,
+  Redo2,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
 // Custom SVG Icons for a more premium look
@@ -75,6 +95,1174 @@ const TerminalIcon = ({ className }: { className?: string }) => (
     <line x1="12" y1="19" x2="20" y2="19" />
   </svg>
 );
+
+const WhiteboardIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <path d="M3 9h18" />
+    <path d="M9 21V9" />
+  </svg>
+);
+
+// Whiteboard element types
+type WhiteboardTool = 'select' | 'pan' | 'pen' | 'line' | 'arrow' | 'rectangle' | 'ellipse' | 'text' | 'eraser';
+
+interface WhiteboardElement {
+  id: string;
+  type: 'path' | 'line' | 'arrow' | 'rectangle' | 'ellipse' | 'text';
+  points?: { x: number; y: number }[];
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  text?: string;
+  color: string;
+  strokeWidth: number;
+  fill?: string;
+  userId: string;
+}
+
+// Custom Collaborative Whiteboard Component
+const CollaborativeWhiteboard = React.memo(function CollaborativeWhiteboard({
+  elements,
+  onElementsChange,
+  isEnabled,
+  collaborators,
+  onClear,
+  onCursorMove,
+  currentUserId,
+}: {
+  elements: WhiteboardElement[];
+  onElementsChange: (elements: WhiteboardElement[]) => void;
+  isEnabled: boolean;
+  collaborators: Map<string, { pointer?: { x: number; y: number }; username?: string; color?: string; isDrawing?: boolean }>;
+  onClear: () => void;
+  onCursorMove?: (point: { x: number; y: number } | null, isDrawing: boolean) => void;
+  currentUserId?: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [tool, setTool] = useState<WhiteboardTool>('pen');
+  const [color, setColor] = useState('#f59e0b');
+  const [strokeWidth, setStrokeWidth] = useState(3);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [currentElement, setCurrentElement] = useState<WhiteboardElement | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [history, setHistory] = useState<WhiteboardElement[][]>([[]]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [textInput, setTextInput] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
+  const [textValue, setTextValue] = useState('');
+  const textInputRef = useRef<HTMLInputElement>(null);
+  
+  // Selection and clipboard state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [clipboard, setClipboard] = useState<WhiteboardElement[]>([]);
+  const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+
+  // Colors palette
+  const colors = ['#ffffff', '#f59e0b', '#ef4444', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4'];
+  const strokeWidths = [2, 4, 6, 8];
+
+  // Collaborator colors for unique identification
+  const collaboratorColors = ['#ef4444', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#f59e0b', '#84cc16'];
+
+  // Resize canvas
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setCanvasSize({ width: Math.floor(width), height: Math.floor(height) });
+      }
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (!isEnabled) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      
+      // Ctrl+C - Copy
+      if (isCtrlOrCmd && e.key === 'c' && selectedIds.size > 0) {
+        e.preventDefault();
+        const selectedElements = elements.filter(el => selectedIds.has(el.id));
+        setClipboard(selectedElements);
+        toast.success(`Copied ${selectedElements.length} element(s)`);
+      }
+      
+      // Ctrl+X - Cut
+      if (isCtrlOrCmd && e.key === 'x' && selectedIds.size > 0) {
+        e.preventDefault();
+        const selectedElements = elements.filter(el => selectedIds.has(el.id));
+        setClipboard(selectedElements);
+        const newElements = elements.filter(el => !selectedIds.has(el.id));
+        onElementsChange(newElements);
+        addToHistory(newElements);
+        setSelectedIds(new Set());
+        toast.success(`Cut ${selectedElements.length} element(s)`);
+      }
+      
+      // Ctrl+V - Paste
+      if (isCtrlOrCmd && e.key === 'v' && clipboard.length > 0) {
+        e.preventDefault();
+        // Offset pasted elements slightly
+        const pastedElements = clipboard.map(el => ({
+          ...el,
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          x: el.x !== undefined ? el.x + 20 : undefined,
+          y: el.y !== undefined ? el.y + 20 : undefined,
+          x1: el.x1 !== undefined ? el.x1 + 20 : undefined,
+          y1: el.y1 !== undefined ? el.y1 + 20 : undefined,
+          x2: el.x2 !== undefined ? el.x2 + 20 : undefined,
+          y2: el.y2 !== undefined ? el.y2 + 20 : undefined,
+          points: el.points?.map(p => ({ x: p.x + 20, y: p.y + 20 })),
+          userId: currentUserId || '',
+        }));
+        const newElements = [...elements, ...pastedElements];
+        onElementsChange(newElements);
+        addToHistory(newElements);
+        setSelectedIds(new Set(pastedElements.map(el => el.id)));
+        toast.success(`Pasted ${pastedElements.length} element(s)`);
+      }
+      
+      // Ctrl+A - Select All
+      if (isCtrlOrCmd && e.key === 'a') {
+        e.preventDefault();
+        setSelectedIds(new Set(elements.map(el => el.id)));
+        setTool('select');
+      }
+      
+      // Ctrl+D - Duplicate
+      if (isCtrlOrCmd && e.key === 'd' && selectedIds.size > 0) {
+        e.preventDefault();
+        const selectedElements = elements.filter(el => selectedIds.has(el.id));
+        const duplicatedElements = selectedElements.map(el => ({
+          ...el,
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          x: el.x !== undefined ? el.x + 20 : undefined,
+          y: el.y !== undefined ? el.y + 20 : undefined,
+          x1: el.x1 !== undefined ? el.x1 + 20 : undefined,
+          y1: el.y1 !== undefined ? el.y1 + 20 : undefined,
+          x2: el.x2 !== undefined ? el.x2 + 20 : undefined,
+          y2: el.y2 !== undefined ? el.y2 + 20 : undefined,
+          points: el.points?.map(p => ({ x: p.x + 20, y: p.y + 20 })),
+          userId: currentUserId || '',
+        }));
+        const newElements = [...elements, ...duplicatedElements];
+        onElementsChange(newElements);
+        addToHistory(newElements);
+        setSelectedIds(new Set(duplicatedElements.map(el => el.id)));
+        toast.success(`Duplicated ${duplicatedElements.length} element(s)`);
+      }
+      
+      // Ctrl+Z - Undo
+      if (isCtrlOrCmd && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      
+      // Ctrl+Y or Ctrl+Shift+Z - Redo
+      if ((isCtrlOrCmd && e.key === 'y') || (isCtrlOrCmd && e.shiftKey && e.key === 'z')) {
+        e.preventDefault();
+        redo();
+      }
+      
+      // Delete/Backspace - Delete selected
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0 && !textInput.visible) {
+        e.preventDefault();
+        const newElements = elements.filter(el => !selectedIds.has(el.id));
+        onElementsChange(newElements);
+        addToHistory(newElements);
+        setSelectedIds(new Set());
+        toast.success(`Deleted ${selectedIds.size} element(s)`);
+      }
+      
+      // Escape - Deselect
+      if (e.key === 'Escape') {
+        setSelectedIds(new Set());
+        setTextInput({ x: 0, y: 0, visible: false });
+        setTextValue('');
+      }
+      
+      // Space - Hold to pan (handled differently, just switch tool temporarily)
+      if (e.key === ' ' && !textInput.visible) {
+        e.preventDefault();
+        setTool('pan');
+      }
+      
+      // Tool shortcuts
+      if (!textInput.visible) {
+        if (e.key === 'v' && !isCtrlOrCmd) setTool('select');
+        if (e.key === 'h') setTool('pan');
+        if (e.key === 'p') setTool('pen');
+        if (e.key === 'l') setTool('line');
+        if (e.key === 'a' && !isCtrlOrCmd) setTool('arrow');
+        if (e.key === 'r') setTool('rectangle');
+        if (e.key === 'o') setTool('ellipse');
+        if (e.key === 't') setTool('text');
+        if (e.key === 'e') setTool('eraser');
+      }
+    };
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Release space to go back to previous tool
+      if (e.key === ' ') {
+        setTool('pen');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isEnabled, selectedIds, clipboard, elements, currentUserId, onElementsChange, textInput.visible]);
+
+  // Draw everything
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.fillStyle = '#121212';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Apply transformations
+    ctx.save();
+    ctx.translate(pan.x, pan.y);
+    ctx.scale(zoom, zoom);
+
+    // Draw grid
+    ctx.strokeStyle = '#1e1e20';
+    ctx.lineWidth = 1 / zoom;
+    const gridSize = 40;
+    const startX = Math.floor(-pan.x / zoom / gridSize) * gridSize;
+    const startY = Math.floor(-pan.y / zoom / gridSize) * gridSize;
+    const endX = startX + canvas.width / zoom + gridSize * 2;
+    const endY = startY + canvas.height / zoom + gridSize * 2;
+
+    for (let x = startX; x < endX; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, startY);
+      ctx.lineTo(x, endY);
+      ctx.stroke();
+    }
+    for (let y = startY; y < endY; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(startX, y);
+      ctx.lineTo(endX, y);
+      ctx.stroke();
+    }
+
+    // Draw all elements
+    const allElements = currentElement ? [...elements, currentElement] : elements;
+    allElements.forEach((el) => {
+      ctx.strokeStyle = el.color;
+      ctx.fillStyle = el.fill || 'transparent';
+      ctx.lineWidth = el.strokeWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      switch (el.type) {
+        case 'path':
+          if (el.points && el.points.length > 1) {
+            ctx.beginPath();
+            ctx.moveTo(el.points[0].x, el.points[0].y);
+            for (let i = 1; i < el.points.length; i++) {
+              ctx.lineTo(el.points[i].x, el.points[i].y);
+            }
+            ctx.stroke();
+          }
+          break;
+        case 'line':
+          if (el.x1 !== undefined && el.y1 !== undefined && el.x2 !== undefined && el.y2 !== undefined) {
+            ctx.beginPath();
+            ctx.moveTo(el.x1, el.y1);
+            ctx.lineTo(el.x2, el.y2);
+            ctx.stroke();
+          }
+          break;
+        case 'arrow':
+          if (el.x1 !== undefined && el.y1 !== undefined && el.x2 !== undefined && el.y2 !== undefined) {
+            ctx.beginPath();
+            ctx.moveTo(el.x1, el.y1);
+            ctx.lineTo(el.x2, el.y2);
+            ctx.stroke();
+            // Draw arrowhead
+            const angle = Math.atan2(el.y2 - el.y1, el.x2 - el.x1);
+            const headLen = 15;
+            ctx.beginPath();
+            ctx.moveTo(el.x2, el.y2);
+            ctx.lineTo(el.x2 - headLen * Math.cos(angle - Math.PI / 6), el.y2 - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(el.x2, el.y2);
+            ctx.lineTo(el.x2 - headLen * Math.cos(angle + Math.PI / 6), el.y2 - headLen * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+          }
+          break;
+        case 'rectangle':
+          if (el.x !== undefined && el.y !== undefined && el.width !== undefined && el.height !== undefined) {
+            ctx.beginPath();
+            ctx.rect(el.x, el.y, el.width, el.height);
+            ctx.stroke();
+          }
+          break;
+        case 'ellipse':
+          if (el.x !== undefined && el.y !== undefined && el.width !== undefined && el.height !== undefined) {
+            ctx.beginPath();
+            ctx.ellipse(
+              el.x + el.width / 2,
+              el.y + el.height / 2,
+              Math.abs(el.width / 2),
+              Math.abs(el.height / 2),
+              0, 0, Math.PI * 2
+            );
+            ctx.stroke();
+          }
+          break;
+        case 'text':
+          if (el.x !== undefined && el.y !== undefined && el.text) {
+            ctx.font = `${el.strokeWidth * 6}px Inter, sans-serif`;
+            ctx.fillStyle = el.color;
+            ctx.fillText(el.text, el.x, el.y);
+          }
+          break;
+      }
+    });
+
+    // Draw selection boxes around selected elements
+    if (selectedIds.size > 0) {
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2 / zoom;
+      ctx.setLineDash([5 / zoom, 5 / zoom]);
+      
+      elements.filter(el => selectedIds.has(el.id)).forEach((el) => {
+        let bounds = { x: 0, y: 0, width: 0, height: 0 };
+        
+        if (el.type === 'path' && el.points && el.points.length > 0) {
+          const xs = el.points.map(p => p.x);
+          const ys = el.points.map(p => p.y);
+          bounds = {
+            x: Math.min(...xs) - 5,
+            y: Math.min(...ys) - 5,
+            width: Math.max(...xs) - Math.min(...xs) + 10,
+            height: Math.max(...ys) - Math.min(...ys) + 10,
+          };
+        } else if (el.x1 !== undefined && el.y1 !== undefined && el.x2 !== undefined && el.y2 !== undefined) {
+          bounds = {
+            x: Math.min(el.x1, el.x2) - 5,
+            y: Math.min(el.y1, el.y2) - 5,
+            width: Math.abs(el.x2 - el.x1) + 10,
+            height: Math.abs(el.y2 - el.y1) + 10,
+          };
+        } else if (el.x !== undefined && el.y !== undefined && el.width !== undefined && el.height !== undefined) {
+          bounds = {
+            x: el.x - 5,
+            y: el.y - 5,
+            width: el.width + 10,
+            height: el.height + 10,
+          };
+        } else if (el.x !== undefined && el.y !== undefined && el.text) {
+          ctx.font = `${el.strokeWidth * 6}px Inter, sans-serif`;
+          const textWidth = ctx.measureText(el.text).width;
+          bounds = {
+            x: el.x - 5,
+            y: el.y - el.strokeWidth * 6 - 5,
+            width: textWidth + 10,
+            height: el.strokeWidth * 6 + 10,
+          };
+        }
+        
+        ctx.beginPath();
+        ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        ctx.stroke();
+        
+        // Draw corner handles
+        ctx.fillStyle = '#3b82f6';
+        ctx.setLineDash([]);
+        const handleSize = 6 / zoom;
+        [[bounds.x, bounds.y], [bounds.x + bounds.width, bounds.y], 
+         [bounds.x, bounds.y + bounds.height], [bounds.x + bounds.width, bounds.y + bounds.height]].forEach(([hx, hy]) => {
+          ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
+        });
+      });
+      ctx.setLineDash([]);
+    }
+
+    // Draw selection box if dragging
+    if (selectionBox) {
+      ctx.strokeStyle = '#3b82f6';
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+      ctx.lineWidth = 1 / zoom;
+      ctx.setLineDash([4 / zoom, 4 / zoom]);
+      ctx.beginPath();
+      ctx.rect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Draw collaborator cursors with better visibility
+    let colorIndex = 0;
+    collaborators.forEach((collab, oduserId) => {
+      if (collab.pointer) {
+        const cursorColor = collab.color || collaboratorColors[colorIndex % collaboratorColors.length];
+        colorIndex++;
+        
+        // Draw cursor pointer (arrow shape)
+        ctx.save();
+        ctx.translate(collab.pointer.x, collab.pointer.y);
+        
+        // Draw glow effect if drawing
+        if (collab.isDrawing) {
+          ctx.shadowColor = cursorColor;
+          ctx.shadowBlur = 15;
+        }
+        
+        // Arrow cursor shape
+        ctx.fillStyle = cursorColor;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, 18);
+        ctx.lineTo(5, 14);
+        ctx.lineTo(10, 22);
+        ctx.lineTo(14, 20);
+        ctx.lineTo(9, 12);
+        ctx.lineTo(14, 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        ctx.restore();
+        
+        // Draw name tag
+        const username = collab.username || 'User';
+        ctx.font = 'bold 11px Inter, sans-serif';
+        const textWidth = ctx.measureText(username).width;
+        
+        // Tag background
+        ctx.fillStyle = cursorColor;
+        const tagX = collab.pointer.x + 18;
+        const tagY = collab.pointer.y + 18;
+        ctx.beginPath();
+        ctx.roundRect(tagX, tagY, textWidth + 12, 20, 4);
+        ctx.fill();
+        
+        // Tag text
+        ctx.fillStyle = '#000';
+        ctx.fillText(username, tagX + 6, tagY + 14);
+        
+        // Drawing indicator (pulsing circle)
+        if (collab.isDrawing) {
+          ctx.fillStyle = cursorColor;
+          ctx.globalAlpha = 0.4;
+          ctx.beginPath();
+          ctx.arc(collab.pointer.x, collab.pointer.y, 20, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+    });
+
+    ctx.restore();
+  }, [elements, currentElement, canvasSize, pan, zoom, collaborators, selectedIds, selectionBox, collaboratorColors]);
+
+  const getCanvasPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left - pan.x) / zoom,
+      y: (e.clientY - rect.top - pan.y) / zoom,
+    };
+  }, [pan, zoom]);
+
+  // Helper to check if point is inside element bounds
+  const isPointInElement = useCallback((point: { x: number; y: number }, el: WhiteboardElement): boolean => {
+    if (el.type === 'path' && el.points) {
+      return el.points.some(p => Math.hypot(p.x - point.x, p.y - point.y) < 15);
+    }
+    if (el.x1 !== undefined && el.y1 !== undefined && el.x2 !== undefined && el.y2 !== undefined) {
+      // Line/arrow hit detection
+      const dist = Math.abs((el.y2 - el.y1) * point.x - (el.x2 - el.x1) * point.y + el.x2 * el.y1 - el.y2 * el.x1) /
+        Math.hypot(el.y2 - el.y1, el.x2 - el.x1);
+      const inXRange = point.x >= Math.min(el.x1, el.x2) - 10 && point.x <= Math.max(el.x1, el.x2) + 10;
+      const inYRange = point.y >= Math.min(el.y1, el.y2) - 10 && point.y <= Math.max(el.y1, el.y2) + 10;
+      return dist < 10 && inXRange && inYRange;
+    }
+    if (el.x !== undefined && el.y !== undefined && el.width !== undefined && el.height !== undefined) {
+      const x1 = el.width >= 0 ? el.x : el.x + el.width;
+      const y1 = el.height >= 0 ? el.y : el.y + el.height;
+      const x2 = el.width >= 0 ? el.x + el.width : el.x;
+      const y2 = el.height >= 0 ? el.y + el.height : el.y;
+      return point.x >= x1 - 5 && point.x <= x2 + 5 && point.y >= y1 - 5 && point.y <= y2 + 5;
+    }
+    if (el.x !== undefined && el.y !== undefined && el.text) {
+      return point.x >= el.x - 5 && point.x <= el.x + 200 && point.y >= el.y - 20 && point.y <= el.y + 10;
+    }
+    return false;
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isEnabled) return;
+    e.preventDefault();
+    (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+
+    const point = getCanvasPoint(e);
+    
+    // Broadcast cursor position
+    onCursorMove?.(point, false);
+
+    if (tool === 'pan' || e.button === 1) {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      return;
+    }
+
+    if (tool === 'select') {
+      // Check if clicking on an existing element
+      const clickedElement = [...elements].reverse().find(el => isPointInElement(point, el));
+      
+      if (clickedElement) {
+        if (e.shiftKey) {
+          // Shift-click to toggle selection
+          setSelectedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(clickedElement.id)) {
+              newSet.delete(clickedElement.id);
+            } else {
+              newSet.add(clickedElement.id);
+            }
+            return newSet;
+          });
+        } else if (!selectedIds.has(clickedElement.id)) {
+          // Click on unselected element - select only it
+          setSelectedIds(new Set([clickedElement.id]));
+        }
+        // If clicking on already selected element, keep selection (for potential drag)
+      } else {
+        // Click on empty space - start selection box
+        if (!e.shiftKey) {
+          setSelectedIds(new Set());
+        }
+        setSelectionStart(point);
+        setSelectionBox({ x: point.x, y: point.y, width: 0, height: 0 });
+      }
+      return;
+    }
+
+    if (tool === 'text') {
+      setTextInput({ x: e.clientX, y: e.clientY, visible: true });
+      setTimeout(() => textInputRef.current?.focus(), 50);
+      return;
+    }
+
+    if (tool === 'eraser') {
+      // Find and remove element at point
+      const newElements = elements.filter((el) => !isPointInElement(point, el));
+      if (newElements.length !== elements.length) {
+        onElementsChange(newElements);
+        addToHistory(newElements);
+      }
+      return;
+    }
+
+    setIsDrawing(true);
+    onCursorMove?.(point, true);
+
+    const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    let newElement: WhiteboardElement;
+
+    switch (tool) {
+      case 'pen':
+        newElement = { id, type: 'path', points: [point], color, strokeWidth, userId: currentUserId || '' };
+        break;
+      case 'line':
+        newElement = { id, type: 'line', x1: point.x, y1: point.y, x2: point.x, y2: point.y, color, strokeWidth, userId: currentUserId || '' };
+        break;
+      case 'arrow':
+        newElement = { id, type: 'arrow', x1: point.x, y1: point.y, x2: point.x, y2: point.y, color, strokeWidth, userId: currentUserId || '' };
+        break;
+      case 'rectangle':
+        newElement = { id, type: 'rectangle', x: point.x, y: point.y, width: 0, height: 0, color, strokeWidth, userId: currentUserId || '' };
+        break;
+      case 'ellipse':
+        newElement = { id, type: 'ellipse', x: point.x, y: point.y, width: 0, height: 0, color, strokeWidth, userId: currentUserId || '' };
+        break;
+      default:
+        return;
+    }
+
+    setCurrentElement(newElement);
+  }, [isEnabled, tool, color, strokeWidth, elements, pan, zoom, getCanvasPoint, onElementsChange, isPointInElement, selectedIds, currentUserId, onCursorMove]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isEnabled) return;
+
+    const point = getCanvasPoint(e);
+    
+    // Always broadcast cursor position while moving
+    if (!isPanning) {
+      onCursorMove?.(point, isDrawing);
+    }
+
+    if (isPanning) {
+      setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
+      return;
+    }
+
+    // Update selection box if selecting
+    if (selectionStart && tool === 'select') {
+      setSelectionBox({
+        x: Math.min(selectionStart.x, point.x),
+        y: Math.min(selectionStart.y, point.y),
+        width: Math.abs(point.x - selectionStart.x),
+        height: Math.abs(point.y - selectionStart.y),
+      });
+      return;
+    }
+
+    if (!isDrawing || !currentElement) return;
+
+    setCurrentElement(prev => {
+      if (!prev) return null;
+
+      switch (prev.type) {
+        case 'path':
+          return { ...prev, points: [...(prev.points || []), point] };
+        case 'line':
+        case 'arrow':
+          return { ...prev, x2: point.x, y2: point.y };
+        case 'rectangle':
+        case 'ellipse':
+          return {
+            ...prev,
+            width: point.x - (prev.x || 0),
+            height: point.y - (prev.y || 0),
+          };
+        default:
+          return prev;
+      }
+    });
+  }, [isEnabled, isDrawing, isPanning, currentElement, panStart, getCanvasPoint, selectionStart, tool, onCursorMove]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    (e.target as HTMLCanvasElement).releasePointerCapture(e.pointerId);
+    
+    // Stop broadcasting drawing state
+    onCursorMove?.(null, false);
+
+    if (isPanning) {
+      setIsPanning(false);
+      return;
+    }
+
+    // Finalize selection box
+    if (selectionBox && selectionStart && tool === 'select') {
+      // Find all elements within selection box
+      const selected = elements.filter(el => {
+        let bounds = { x: 0, y: 0, width: 0, height: 0 };
+        
+        if (el.type === 'path' && el.points && el.points.length > 0) {
+          const xs = el.points.map(p => p.x);
+          const ys = el.points.map(p => p.y);
+          bounds = {
+            x: Math.min(...xs),
+            y: Math.min(...ys),
+            width: Math.max(...xs) - Math.min(...xs),
+            height: Math.max(...ys) - Math.min(...ys),
+          };
+        } else if (el.x1 !== undefined && el.y1 !== undefined && el.x2 !== undefined && el.y2 !== undefined) {
+          bounds = {
+            x: Math.min(el.x1, el.x2),
+            y: Math.min(el.y1, el.y2),
+            width: Math.abs(el.x2 - el.x1),
+            height: Math.abs(el.y2 - el.y1),
+          };
+        } else if (el.x !== undefined && el.y !== undefined && el.width !== undefined && el.height !== undefined) {
+          bounds = { x: el.x, y: el.y, width: Math.abs(el.width), height: Math.abs(el.height) };
+        } else if (el.x !== undefined && el.y !== undefined) {
+          bounds = { x: el.x, y: el.y - 20, width: 100, height: 30 };
+        }
+        
+        // Check if element bounds intersect with selection box
+        return !(bounds.x + bounds.width < selectionBox.x ||
+                 bounds.x > selectionBox.x + selectionBox.width ||
+                 bounds.y + bounds.height < selectionBox.y ||
+                 bounds.y > selectionBox.y + selectionBox.height);
+      });
+      
+      if (selected.length > 0) {
+        setSelectedIds(new Set(selected.map(el => el.id)));
+      }
+      
+      setSelectionBox(null);
+      setSelectionStart(null);
+      return;
+    }
+
+    if (!isDrawing || !currentElement) return;
+
+    setIsDrawing(false);
+    const newElements = [...elements, currentElement];
+    setCurrentElement(null);
+    onElementsChange(newElements);
+    addToHistory(newElements);
+  }, [isDrawing, isPanning, currentElement, elements, onElementsChange, selectionBox, selectionStart, tool, onCursorMove]);
+
+  const handleTextSubmit = useCallback(() => {
+    if (!textValue.trim()) {
+      setTextInput({ x: 0, y: 0, visible: false });
+      setTextValue('');
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (textInput.x - rect.left - pan.x) / zoom;
+    const y = (textInput.y - rect.top - pan.y) / zoom;
+
+    const newElement: WhiteboardElement = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type: 'text',
+      x,
+      y,
+      text: textValue,
+      color,
+      strokeWidth,
+      userId: '',
+    };
+
+    const newElements = [...elements, newElement];
+    onElementsChange(newElements);
+    addToHistory(newElements);
+    setTextInput({ x: 0, y: 0, visible: false });
+    setTextValue('');
+  }, [textValue, textInput, pan, zoom, color, strokeWidth, elements, onElementsChange]);
+
+  const addToHistory = (newElements: WhiteboardElement[]) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(newElements);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+      onElementsChange(history[historyIndex - 1]);
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+      onElementsChange(history[historyIndex + 1]);
+    }
+  };
+
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(z => Math.min(Math.max(z * delta, 0.25), 4));
+  }, []);
+
+  if (!isEnabled) {
+    return (
+      <div className="w-full h-full relative bg-[#121212] rounded-lg flex items-center justify-center">
+        <div className="text-center p-6 rounded-xl bg-zinc-900/80 border border-zinc-800/50">
+          <PenTool className="h-8 w-8 text-amber-400 mx-auto mb-3" />
+          <p className="text-sm font-medium text-white mb-1">Mark Attendance to Draw</p>
+          <p className="text-xs text-zinc-500">Click "Attend" in the header to start</p>
+        </div>
+      </div>
+    );
+  }
+
+  const tools: { id: WhiteboardTool; icon: React.ReactNode; label: string }[] = [
+    { id: 'select', icon: <MousePointer2 className="h-4 w-4" />, label: 'Select' },
+    { id: 'pan', icon: <Hand className="h-4 w-4" />, label: 'Pan' },
+    { id: 'pen', icon: <PenTool className="h-4 w-4" />, label: 'Pen' },
+    { id: 'line', icon: <Minus className="h-4 w-4" />, label: 'Line' },
+    { id: 'arrow', icon: <ArrowUpRight className="h-4 w-4" />, label: 'Arrow' },
+    { id: 'rectangle', icon: <Square className="h-4 w-4" />, label: 'Rectangle' },
+    { id: 'ellipse', icon: <CircleIcon className="h-4 w-4" />, label: 'Ellipse' },
+    { id: 'text', icon: <Type className="h-4 w-4" />, label: 'Text' },
+    { id: 'eraser', icon: <Eraser className="h-4 w-4" />, label: 'Eraser' },
+  ];
+
+  return (
+    <div ref={containerRef} className="w-full h-full relative bg-[#121212] rounded-lg overflow-hidden">
+      {/* Toolbar */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 p-1.5 bg-zinc-900/95 backdrop-blur-sm rounded-xl border border-zinc-800/50 shadow-xl">
+        {/* Tools */}
+        {tools.map((t) => (
+          <Tooltip key={t.id}>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setTool(t.id)}
+                className={cn(
+                  "p-2 rounded-lg transition-all",
+                  tool === t.id
+                    ? "bg-amber-500/20 text-amber-400"
+                    : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+                )}
+              >
+                {t.icon}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t.label}</TooltipContent>
+          </Tooltip>
+        ))}
+
+        <div className="w-px h-6 bg-zinc-700/50 mx-1" />
+
+        {/* Colors */}
+        <div className="flex items-center gap-0.5">
+          {colors.map((c) => (
+            <button
+              key={c}
+              onClick={() => setColor(c)}
+              className={cn(
+                "h-6 w-6 rounded-full border-2 transition-all",
+                color === c ? "border-white scale-110" : "border-transparent hover:scale-105"
+              )}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
+
+        <div className="w-px h-6 bg-zinc-700/50 mx-1" />
+
+        {/* Stroke width */}
+        <div className="flex items-center gap-0.5">
+          {strokeWidths.map((w) => (
+            <button
+              key={w}
+              onClick={() => setStrokeWidth(w)}
+              className={cn(
+                "h-7 w-7 rounded flex items-center justify-center transition-all",
+                strokeWidth === w ? "bg-zinc-700 text-white" : "text-zinc-500 hover:bg-zinc-800"
+              )}
+            >
+              <div className="rounded-full bg-current" style={{ width: w + 2, height: w + 2 }} />
+            </button>
+          ))}
+        </div>
+
+        <div className="w-px h-6 bg-zinc-700/50 mx-1" />
+
+        {/* Undo/Redo */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={undo}
+              disabled={historyIndex <= 0}
+              className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Undo</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={redo}
+              disabled={historyIndex >= history.length - 1}
+              className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Redo</TooltipContent>
+        </Tooltip>
+
+        <div className="w-px h-6 bg-zinc-700/50 mx-1" />
+
+        {/* Zoom */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setZoom(z => Math.min(z * 1.2, 4))}
+              className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Zoom In</TooltipContent>
+        </Tooltip>
+        <span className="text-[10px] text-zinc-500 w-10 text-center">{Math.round(zoom * 100)}%</span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setZoom(z => Math.max(z * 0.8, 0.25))}
+              className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Zoom Out</TooltipContent>
+        </Tooltip>
+
+        <div className="w-px h-6 bg-zinc-700/50 mx-1" />
+
+        {/* Clear */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={onClear}
+              className="p-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Clear Board</TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* Canvas */}
+      <canvas
+        ref={canvasRef}
+        width={canvasSize.width}
+        height={canvasSize.height}
+        className={cn(
+          "w-full h-full",
+          tool === 'pan' ? "cursor-grab" : tool === 'eraser' ? "cursor-crosshair" : "cursor-crosshair",
+          isPanning && "cursor-grabbing"
+        )}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onWheel={handleWheel}
+        style={{ touchAction: 'none' }}
+      />
+
+      {/* Text input overlay */}
+      {textInput.visible && (
+        <input
+          ref={textInputRef}
+          type="text"
+          value={textValue}
+          onChange={(e) => setTextValue(e.target.value)}
+          onBlur={handleTextSubmit}
+          onKeyDown={(e) => e.key === 'Enter' && handleTextSubmit()}
+          className="absolute bg-transparent border-2 border-amber-500 text-white px-2 py-1 rounded outline-none"
+          style={{
+            left: textInput.x,
+            top: textInput.y,
+            transform: 'translate(-4px, -50%)',
+            fontSize: strokeWidth * 6,
+            color: color,
+          }}
+          placeholder="Type here..."
+          autoFocus
+        />
+      )}
+
+      {/* Collaborators indicator */}
+      {collaborators.size > 0 && (
+        <div className="absolute bottom-4 left-4 flex flex-col gap-2">
+          {/* People currently drawing */}
+          {Array.from(collaborators.entries()).filter(([_, c]) => c.isDrawing).length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 animate-pulse">
+              <div className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+              <span className="text-[10px] text-emerald-400 font-medium">
+                {Array.from(collaborators.entries())
+                  .filter(([_, c]) => c.isDrawing)
+                  .map(([_, c]) => c.username)
+                  .join(', ')} drawing...
+              </span>
+            </div>
+          )}
+          
+          {/* Active collaborators */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900/90 border border-zinc-800/50">
+            <span className="text-[10px] text-zinc-400">{collaborators.size} online</span>
+            <div className="flex -space-x-1">
+              {Array.from(collaborators.entries()).slice(0, 5).map(([id, collab]) => (
+                <div
+                  key={id}
+                  className={cn(
+                    "h-5 w-5 rounded-full border-2 text-[8px] flex items-center justify-center font-bold transition-all",
+                    collab.isDrawing 
+                      ? "border-emerald-400 ring-2 ring-emerald-400/30 scale-110" 
+                      : "border-zinc-900"
+                  )}
+                  style={{ backgroundColor: collab.color || '#f59e0b' }}
+                  title={`${collab.username}${collab.isDrawing ? ' (drawing)' : ''}`}
+                >
+                  {collab.username?.charAt(0).toUpperCase() || '?'}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard shortcuts hint */}
+      <div className="absolute bottom-4 right-4 px-3 py-2 rounded-lg bg-zinc-900/80 border border-zinc-800/50">
+        <div className="text-[9px] text-zinc-500 space-y-0.5">
+          <div><span className="text-zinc-400">V</span> Select • <span className="text-zinc-400">P</span> Pen • <span className="text-zinc-400">R</span> Rectangle • <span className="text-zinc-400">O</span> Ellipse</div>
+          <div><span className="text-zinc-400">Ctrl+C</span> Copy • <span className="text-zinc-400">Ctrl+V</span> Paste • <span className="text-zinc-400">Ctrl+D</span> Duplicate</div>
+          <div><span className="text-zinc-400">Ctrl+Z</span> Undo • <span className="text-zinc-400">Ctrl+Y</span> Redo • <span className="text-zinc-400">Del</span> Delete</div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// Fullscreen Video Modal
+const FullscreenVideoModal = React.memo(function FullscreenVideoModal({
+  focusedVideo,
+  onClose,
+  localStream,
+  localScreenStream,
+  remoteTracks,
+  isVideoEnabled,
+  isAudioEnabled,
+  audioLevel,
+  currentUserProfile,
+}: {
+  focusedVideo: FocusedVideoType;
+  onClose: () => void;
+  localStream: MediaStream | null;
+  localScreenStream: MediaStream | null;
+  remoteTracks: RemoteTrackView[];
+  isVideoEnabled: boolean;
+  isAudioEnabled: boolean;
+  audioLevel: number;
+  currentUserProfile: any;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const videoEl = videoRef.current;
+    if (!videoEl || !focusedVideo) return;
+
+    if (focusedVideo.type === 'local' && localStream) {
+      videoEl.srcObject = localStream;
+      videoEl.muted = true;
+      videoEl.play().catch(console.error);
+    } else if (focusedVideo.type === 'localScreen' && localScreenStream) {
+      videoEl.srcObject = localScreenStream;
+      videoEl.muted = true;
+      videoEl.play().catch(console.error);
+    } else if (focusedVideo.type === 'remote' && focusedVideo.id) {
+      const remoteTrack = remoteTracks.find(rt => rt.id === focusedVideo.id);
+      if (remoteTrack?.videoTrack) {
+        remoteTrack.videoTrack.attach(videoEl);
+        if (remoteTrack.audioTrack && audioRef.current) {
+          remoteTrack.audioTrack.attach(audioRef.current);
+          audioRef.current.play().catch(console.error);
+        }
+      }
+    }
+
+    return () => {
+      if (focusedVideo?.type === 'remote' && focusedVideo.id) {
+        const remoteTrack = remoteTracks.find(rt => rt.id === focusedVideo.id);
+        if (remoteTrack?.videoTrack && videoEl) {
+          remoteTrack.videoTrack.detach(videoEl);
+        }
+        if (remoteTrack?.audioTrack && audioRef.current) {
+          remoteTrack.audioTrack.detach(audioRef.current);
+        }
+      }
+    };
+  }, [focusedVideo, localStream, localScreenStream, remoteTracks]);
+
+  if (!focusedVideo) return null;
+
+  const title = focusedVideo.type === 'local' 
+    ? 'You' 
+    : focusedVideo.type === 'localScreen' 
+      ? 'Your Screen' 
+      : focusedVideo.fullName || 'Participant';
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      {/* Header */}
+      <div className="h-14 px-4 flex items-center justify-between bg-black/50 border-b border-zinc-800/30">
+        <div className="flex items-center gap-3">
+          <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-white font-medium">{title}</span>
+          {focusedVideo.type === 'localScreen' && (
+            <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px]">SCREEN SHARE</Badge>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="h-10 w-10 rounded-full hover:bg-zinc-800 text-white"
+        >
+          <X className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {/* Video */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="relative w-full max-w-6xl aspect-video rounded-xl overflow-hidden bg-zinc-900 ring-2 ring-zinc-700/50">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted={focusedVideo.type !== 'remote'}
+            className="w-full h-full object-contain"
+          />
+          <audio ref={audioRef} autoPlay />
+          
+          {/* Overlay info */}
+          <div className="absolute bottom-4 left-4 flex items-center gap-3">
+            <div className="px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm flex items-center gap-2">
+              <span className="text-white text-sm font-medium">{title}</span>
+              {focusedVideo.type === 'local' && isAudioEnabled && (
+                <div className="flex items-center gap-0.5">
+                  <div className={cn("w-1 rounded-full bg-emerald-400 transition-all duration-75", audioLevel > 5 ? "h-2" : "h-1")} />
+                  <div className={cn("w-1 rounded-full bg-emerald-400 transition-all duration-75", audioLevel > 15 ? "h-3" : "h-1")} />
+                  <div className={cn("w-1 rounded-full bg-emerald-400 transition-all duration-75", audioLevel > 30 ? "h-2" : "h-1")} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer hint */}
+      <div className="h-12 flex items-center justify-center text-zinc-500 text-sm">
+        Press <kbd className="mx-1 px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">ESC</kbd> or click outside to close
+      </div>
+    </div>
+  );
+});
 
 // Types
 interface Participant {
@@ -118,13 +1306,33 @@ interface RemoteTrackView {
   audioTrack?: RemoteTrack;
 }
 
+// Whiteboard collaborator type (simplified for custom whiteboard)
+interface WhiteboardCollaborator {
+  pointer?: { x: number; y: number };
+  username?: string;
+  color?: string;
+  isDrawing?: boolean;
+}
+
+// Focused video types
+type FocusedVideoType = {
+  type: 'local' | 'localScreen' | 'remote';
+  id?: string;
+  fullName?: string;
+} | null;
+
+// View mode types
+type ViewMode = 'code' | 'whiteboard' | 'cameras';
+
 // Remote Video Tile Component using LiveKit tracks directly
 const RemoteVideoTile = React.memo(function RemoteVideoTile({
   videoTrack,
   audioTrack,
   fullName,
   kind,
-}: RemoteTrackView) {
+  id,
+  onMaximize,
+}: RemoteTrackView & { onMaximize?: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [hasAudio, setHasAudio] = useState(false);
@@ -319,6 +1527,19 @@ const RemoteVideoTile = React.memo(function RemoteVideoTile({
           </div>
         </div>
       )}
+
+      {/* Maximize button - shows on hover */}
+      {onMaximize && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onMaximize();
+          }}
+          className="absolute top-1.5 left-1.5 p-1 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+        >
+          <Maximize2 className="h-3 w-3" />
+        </button>
+      )}
     </div>
   );
 });
@@ -491,6 +1712,17 @@ export default function LiveSessionPage() {
 
   // Typing indicator
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  
+  // View mode state
+  const [viewMode, setViewMode] = useState<ViewMode>('code');
+  
+  // Focused video state (for fullscreen)
+  const [focusedVideo, setFocusedVideo] = useState<FocusedVideoType>(null);
+  
+  // Whiteboard state
+  const [whiteboardElements, setWhiteboardElements] = useState<WhiteboardElement[]>([]);
+  const [whiteboardCollaborators, setWhiteboardCollaborators] = useState<Map<string, WhiteboardCollaborator>>(new Map());
+  const lastSentElementsRef = useRef<string>('');
   
   // Audio analyzer ref
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -1141,6 +2373,47 @@ export default function LiveSessionPage() {
       }
     });
 
+    // Whiteboard elements sync
+    channel.on('broadcast', { event: 'whiteboard_elements' }, ({ payload }) => {
+      console.log('[Broadcast] Whiteboard elements from:', payload.userId);
+      if (payload.userId !== user.id && payload.elements) {
+        setWhiteboardElements(payload.elements);
+      }
+    });
+
+    // Whiteboard collaborator cursor
+    channel.on('broadcast', { event: 'whiteboard_cursor' }, ({ payload }) => {
+      if (payload.userId !== user.id) {
+        setWhiteboardCollaborators(prev => {
+          const newMap = new Map(prev);
+          if (payload.pointer === null) {
+            // User stopped drawing, remove cursor after a delay
+            const existing = newMap.get(payload.userId);
+            if (existing) {
+              newMap.set(payload.userId, { ...existing, isDrawing: false });
+            }
+          } else {
+            newMap.set(payload.userId, {
+              pointer: payload.pointer,
+              username: payload.username,
+              color: payload.color || '#f59e0b',
+              isDrawing: payload.isDrawing || false,
+            });
+          }
+          return newMap;
+        });
+      }
+    });
+
+    // Whiteboard clear
+    channel.on('broadcast', { event: 'whiteboard_clear' }, ({ payload }) => {
+      console.log('[Broadcast] Whiteboard cleared by:', payload.userId);
+      if (payload.userId !== user.id) {
+        setWhiteboardElements([]);
+        toast.info(`${payload.fullName || 'Someone'} cleared the whiteboard`);
+      }
+    });
+
     channel.on('broadcast', { event: 'user_joined_call' }, async ({ payload }) => {
       if (payload.userId !== user.id) {
         toast.success(`${payload.fullName || 'Someone'} joined the call`);
@@ -1415,6 +2688,66 @@ export default function LiveSessionPage() {
 
     setChatInput('');
   };
+
+  // Whiteboard Functions
+  const handleWhiteboardChange = useCallback((elements: WhiteboardElement[]) => {
+    if (!currentUser?.id || !hasMarkedAttendance) return;
+
+    // Add userId to elements
+    const elementsWithUser = elements.map(el => ({
+      ...el,
+      userId: el.userId || currentUser.id,
+    }));
+
+    // Debounce and broadcast changes
+    const elementsJson = JSON.stringify(elementsWithUser);
+    if (elementsJson === lastSentElementsRef.current) return;
+    
+    lastSentElementsRef.current = elementsJson;
+    setWhiteboardElements(elementsWithUser);
+
+    // Broadcast to others
+    safeBroadcast('whiteboard_elements', {
+      userId: currentUser.id,
+      elements: elementsWithUser,
+    });
+  }, [currentUser?.id, hasMarkedAttendance, safeBroadcast]);
+
+  const clearWhiteboard = useCallback(() => {
+    if (!currentUser?.id || !hasMarkedAttendance) return;
+
+    setWhiteboardElements([]);
+    lastSentElementsRef.current = '[]';
+    safeBroadcast('whiteboard_clear', {
+      userId: currentUser.id,
+      fullName: currentUserProfile?.full_name || 'Someone',
+    });
+    toast.success('Whiteboard cleared');
+  }, [currentUser?.id, currentUserProfile?.full_name, hasMarkedAttendance, safeBroadcast]);
+
+  // Broadcast cursor position for whiteboard collaboration
+  const broadcastWhiteboardCursor = useCallback((point: { x: number; y: number } | null, isDrawing: boolean) => {
+    if (!currentUser?.id || !hasMarkedAttendance) return;
+    
+    safeBroadcast('whiteboard_cursor', {
+      userId: currentUser.id,
+      username: currentUserProfile?.full_name || currentUserProfile?.username || 'User',
+      pointer: point,
+      isDrawing,
+      color: '#f59e0b', // Could make this unique per user
+    });
+  }, [currentUser?.id, currentUserProfile?.full_name, currentUserProfile?.username, hasMarkedAttendance, safeBroadcast]);
+
+  // Escape key handler for fullscreen video
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && focusedVideo) {
+        setFocusedVideo(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusedVideo]);
 
   // Video Call Functions
   const joinCall = async () => {
@@ -1721,23 +3054,34 @@ export default function LiveSessionPage() {
       <div className="h-screen flex flex-col bg-[#0a0a0c] overflow-hidden">
       {/* Premium Header */}
         <header className="h-12 px-3 flex items-center justify-between border-b border-zinc-800/40 bg-gradient-to-r from-[#0a0a0c] via-[#0f0f12] to-[#0a0a0c]">
-          {/* Left - Session Info */}
-          <div className="flex items-center gap-2.5">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-lg blur opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="relative p-1.5 rounded-md bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
-                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-      </div>
+          {/* Left - Back + Session Info */}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push(`/study-pods/${podId}`)}
+              className="h-7 w-7 rounded-full bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800/60"
+            >
+              <span className="sr-only">Back to Study Pod</span>
+              <span className="text-lg leading-none">&larr;</span>
+            </Button>
+            <div className="flex items-center gap-2.5">
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-lg blur opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative p-1.5 rounded-md bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
             </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <h1 className="text-[13px] font-semibold text-white tracking-tight">{session?.title || 'Live Session'}</h1>
-                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
-                </div>
               </div>
-              <p className="text-[10px] text-zinc-500 -mt-0.5">{session?.session_type || 'study'}</p>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-[13px] font-semibold text-white tracking-tight">{session?.title || 'Live Session'}</h1>
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-zinc-500 -mt-0.5">{session?.session_type || 'study'}</p>
+              </div>
             </div>
           </div>
 
@@ -1925,8 +3269,8 @@ export default function LiveSessionPage() {
                   <div className="p-2 border-b border-zinc-800/30">
                     <div className="grid grid-cols-2 gap-1.5">
                       {/* Local Video */}
-                      <div className={cn(
-                        "relative aspect-video rounded-md overflow-hidden bg-zinc-900/80 ring-1 transition-all duration-150",
+            <div className={cn(
+                        "relative aspect-video rounded-md overflow-hidden bg-zinc-900/80 ring-1 transition-all duration-150 group",
                         audioLevel > 15 && isAudioEnabled ? "ring-emerald-500/50 shadow-lg shadow-emerald-500/10" : "ring-zinc-800/50"
                       )}>
                         <video
@@ -1945,7 +3289,7 @@ export default function LiveSessionPage() {
                         {!isVideoEnabled && (
                           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900">
                             {renderAvatar({ avatarUrl: currentUserProfile?.avatar_url, fullName: currentUserProfile?.full_name }, 'md')}
-                          </div>
+                  </div>
                         )}
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
                           <div className="flex items-center justify-between">
@@ -1956,42 +3300,59 @@ export default function LiveSessionPage() {
                                   <div className={cn("w-0.5 rounded-full bg-emerald-400 transition-all duration-75", audioLevel > 5 ? "h-1.5" : "h-0.5")} />
                                   <div className={cn("w-0.5 rounded-full bg-emerald-400 transition-all duration-75", audioLevel > 15 ? "h-2" : "h-0.5")} />
                                   <div className={cn("w-0.5 rounded-full bg-emerald-400 transition-all duration-75", audioLevel > 30 ? "h-1.5" : "h-0.5")} />
-                                </div>
+                        </div>
                               ) : (
                                 <MicOff className="h-2 w-2 text-red-400" />
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                        )}
                       </div>
+                </div>
+              </div>
+                        {/* Maximize button */}
+                        <button
+                          onClick={() => setFocusedVideo({ type: 'local' })}
+                          className="absolute top-1 left-1 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                        >
+                          <Maximize2 className="h-2.5 w-2.5" />
+                        </button>
+                    </div>
 
                       {/* Local Screen Share */}
                       {localScreenStream && (
-                        <div className="relative aspect-video rounded-md overflow-hidden bg-zinc-900/80 ring-1 ring-emerald-500/30">
-                          <video
+                        <div className="relative aspect-video rounded-md overflow-hidden bg-zinc-900/80 ring-1 ring-emerald-500/30 group">
+                      <video
                             ref={localScreenVideoRef}
-                            autoPlay
-                            muted
-                            playsInline
-                            className="w-full h-full object-cover"
-                          />
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
                           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
                             <div className="flex items-center gap-1">
                               <span className="text-[8px] font-medium text-white/90">Screen</span>
                               <span className="text-[7px] text-emerald-400 font-bold">LIVE</span>
-                            </div>
-                          </div>
+                        </div>
+                      </div>
+                          {/* Maximize button */}
+                          <button
+                            onClick={() => setFocusedVideo({ type: 'localScreen' })}
+                            className="absolute top-1 left-1 p-0.5 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                          >
+                            <Maximize2 className="h-2.5 w-2.5" />
+                          </button>
                         </div>
                       )}
 
-                      {/* Remote Videos */}
+                    {/* Remote Videos */}
                       {remoteTracks.map(rt => (
                         <RemoteVideoTile
                           key={rt.id}
+                          id={rt.id}
                           videoTrack={rt.videoTrack}
                           audioTrack={rt.audioTrack}
                           fullName={rt.fullName}
                           kind={rt.kind}
+                          participantId={rt.participantId}
+                          onMaximize={() => setFocusedVideo({ type: 'remote', id: rt.id, fullName: rt.fullName })}
                         />
                       ))}
 
@@ -2002,8 +3363,8 @@ export default function LiveSessionPage() {
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
+                          </div>
+                        )}
 
                 {/* Tabs */}
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
@@ -2073,9 +3434,9 @@ export default function LiveSessionPage() {
                           <div className="text-center py-8 text-zinc-600">
                             <PeopleIcon className="h-6 w-6 mx-auto mb-2 opacity-40" />
                             <p className="text-[10px]">No one here yet</p>
-                          </div>
+                  </div>
                         )}
-                      </div>
+                </div>
                     </ScrollArea>
                   </TabsContent>
 
@@ -2135,16 +3496,56 @@ export default function LiveSessionPage() {
 
             <PanelResizeHandle className="w-0.5 bg-zinc-800/20 hover:bg-amber-500/50 transition-colors" />
 
-            {/* Editor + Output */}
+            {/* Main Content Area */}
             <Panel defaultSize={80}>
-              <PanelGroup direction="vertical">
-                {/* Editor */}
-                <Panel defaultSize={70} minSize={40}>
-                  <div className="h-full flex flex-col bg-[#0d0d0f]">
-                    {/* Editor Toolbar - Modernized */}
-                    <div className="h-9 flex items-center justify-between px-2 bg-[#111113] border-b border-zinc-800/30">
-                      <div className="flex items-center gap-2">
-                        {/* File Tab */}
+              <div className="h-full flex flex-col bg-[#0d0d0f]">
+                {/* View Mode Toggle Bar */}
+                <div className="h-9 flex items-center justify-between px-3 bg-[#111113] border-b border-zinc-800/30">
+                  <div className="flex items-center gap-2">
+                    {/* View Mode Tabs */}
+                    <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-zinc-800/50 border border-zinc-700/30">
+                      <button
+                        onClick={() => setViewMode('code')}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-medium transition-all",
+                          viewMode === 'code' 
+                            ? "bg-amber-500/20 text-amber-400" 
+                            : "text-zinc-500 hover:text-white hover:bg-zinc-700/50"
+                        )}
+                      >
+                        <Code2 className="h-3 w-3" />
+                        Code
+                      </button>
+                      <button
+                        onClick={() => setViewMode('whiteboard')}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-medium transition-all",
+                          viewMode === 'whiteboard' 
+                            ? "bg-purple-500/20 text-purple-400" 
+                            : "text-zinc-500 hover:text-white hover:bg-zinc-700/50"
+                        )}
+                      >
+                        <WhiteboardIcon className="h-3 w-3" />
+                        Board
+                      </button>
+                      <button
+                        onClick={() => setViewMode('cameras')}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-medium transition-all",
+                          viewMode === 'cameras' 
+                            ? "bg-blue-500/20 text-blue-400" 
+                            : "text-zinc-500 hover:text-white hover:bg-zinc-700/50"
+                        )}
+                      >
+                        <Grid3X3 className="h-3 w-3" />
+                        Cameras
+                      </button>
+                    </div>
+
+                    {/* Context-specific controls */}
+                    {viewMode === 'code' && (
+                      <>
+                        <div className="w-px h-4 bg-zinc-800/50" />
                         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-800/50 border border-zinc-700/30">
                           <div className={cn(
                             "h-2 w-2 rounded-full",
@@ -2159,10 +3560,8 @@ export default function LiveSessionPage() {
                             main.{language === 'python' ? 'py' : language === 'javascript' ? 'js' : language === 'cpp' ? 'cpp' : language}
                           </span>
                         </div>
-
-                        {/* Language Select */}
                         <Select value={language} onValueChange={handleLanguageChange} disabled={!hasMarkedAttendance}>
-                          <SelectTrigger className="w-[110px] h-6 text-[10px] bg-zinc-800/30 border-zinc-700/30 focus:ring-1 focus:ring-amber-500/30 rounded">
+                          <SelectTrigger className="w-[100px] h-6 text-[10px] bg-zinc-800/30 border-zinc-700/30 focus:ring-1 focus:ring-amber-500/30 rounded">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-[#111113] border-zinc-700/50">
@@ -2173,8 +3572,6 @@ export default function LiveSessionPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        
-                        {/* Typing indicator */}
                         {typingUsersNames.length > 0 && (
                           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20">
                             <div className="flex gap-0.5">
@@ -2183,19 +3580,32 @@ export default function LiveSessionPage() {
                               <span className="h-1 w-1 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                             </div>
                             <span className="text-[9px] text-blue-400 font-medium">
-                              {typingUsersNames.length === 1 
-                                ? `${typingUsersNames[0]} typing`
-                                : `${typingUsersNames.length} typing`
-                              }
+                              {typingUsersNames.length === 1 ? `${typingUsersNames[0]} typing` : `${typingUsersNames.length} typing`}
                             </span>
                           </div>
                         )}
-                      </div>
-                      
-                      <div className="flex items-center gap-0.5">
+                      </>
+                    )}
+
+                    {viewMode === 'whiteboard' && (
+                      <>
+                        <div className="w-px h-4 bg-zinc-800/50" />
+                        {/* Whiteboard has built-in toolbar - no external controls needed */}
+                        <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                          <WhiteboardIcon className="h-3 w-3" />
+                          <span>Shapes, arrows, text &amp; more in canvas toolbar</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Right side controls */}
+                  <div className="flex items-center gap-0.5">
+                    {viewMode === 'code' && (
+                      <>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button
+                    <Button
                               variant="ghost" 
                               size="icon" 
                               onClick={() => handleLanguageChange(language)} 
@@ -2203,14 +3613,14 @@ export default function LiveSessionPage() {
                               disabled={!hasMarkedAttendance}
                             >
                               <RotateCcw className="h-3 w-3" />
-                            </Button>
+                    </Button>
                           </TooltipTrigger>
                           <TooltipContent side="bottom">Reset Code</TooltipContent>
                         </Tooltip>
                         
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button
+                    <Button
                               variant="ghost" 
                               size="icon" 
                               onClick={() => { 
@@ -2229,7 +3639,7 @@ export default function LiveSessionPage() {
                         <div className="w-px h-4 bg-zinc-800/50 mx-1" />
 
                         <Button
-                          size="sm"
+                      size="sm"
                           onClick={runCode}
                           disabled={isExecuting || !hasMarkedAttendance}
                           className={cn(
@@ -2239,131 +3649,262 @@ export default function LiveSessionPage() {
                               : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20"
                           )}
                         >
-                          {isExecuting ? (
-                            <>
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              Running
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-3 w-3 fill-current" />
-                              Run
-                            </>
+                          {isExecuting ? <><Loader2 className="h-3 w-3 animate-spin" />Running</> : <><Play className="h-3 w-3 fill-current" />Run</>}
+                    </Button>
+                      </>
+                    )}
+
+                    {viewMode === 'whiteboard' && (
+                    <Button
+                      size="sm"
+                        onClick={clearWhiteboard}
+                        disabled={!hasMarkedAttendance || whiteboardElements.length === 0}
+                        className="h-6 text-[10px] gap-1 font-medium px-2.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400"
+                    >
+                        <Trash2 className="h-3 w-3" />
+                        Clear Board
+                    </Button>
+              )}
+            </div>
+                </div>
+
+                {/* Content Area - Changes based on viewMode */}
+                <div className="flex-1 overflow-hidden">
+                  {viewMode === 'code' && (
+            <PanelGroup direction="vertical">
+              <Panel defaultSize={70} minSize={40}>
+                <div className="h-full relative">
+                  <Editor
+                    height="100%"
+                            language={LANGUAGES.find(l => l.value === language)?.monacoId || 'python'}
+                    value={code}
+                            onChange={handleCodeChange}
+                            theme="vs-dark"
+                    options={{
+                              fontSize: 13,
+                              fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
+                      fontLigatures: true,
+                              minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      wordWrap: 'on',
+                      automaticLayout: true,
+                              padding: { top: 12, bottom: 12 },
+                              readOnly: !hasMarkedAttendance,
+                              lineNumbers: 'on',
+                              lineNumbersMinChars: 3,
+                              renderLineHighlight: 'line',
+                      cursorBlinking: 'smooth',
+                      cursorSmoothCaretAnimation: 'on',
+                              smoothScrolling: true,
+                              tabSize: 4,
+                      bracketPairColorization: { enabled: true },
+                              guides: { bracketPairs: true },
+                              scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+                            }}
+                            onMount={(editor) => { editorRef.current = editor; }}
+                          />
+                          {!hasMarkedAttendance && (
+                            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
+                              <div className="text-center p-6 rounded-xl bg-zinc-900/80 border border-zinc-800/50">
+                                <Zap className="h-8 w-8 text-amber-400 mx-auto mb-3" />
+                                <p className="text-sm font-medium text-white mb-1">Mark Attendance to Edit</p>
+                                <p className="text-xs text-zinc-500">Click "Attend" in the header to start coding</p>
+                              </div>
+                            </div>
                           )}
-                        </Button>
-                      </div>
-                    </div>
+                </div>
+              </Panel>
 
-                    {/* Monaco Editor */}
-                    <div className="flex-1 relative">
-                      <Editor
-                        height="100%"
-                        language={LANGUAGES.find(l => l.value === language)?.monacoId || 'python'}
-                        value={code}
-                        onChange={handleCodeChange}
-                        theme="vs-dark"
-                        options={{
-                          fontSize: 13,
-                          fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
-                          fontLigatures: true,
-                          minimap: { enabled: false },
-                          scrollBeyondLastLine: false,
-                          wordWrap: 'on',
-                          automaticLayout: true,
-                          padding: { top: 12, bottom: 12 },
-                          readOnly: !hasMarkedAttendance,
-                          lineNumbers: 'on',
-                          lineNumbersMinChars: 3,
-                          renderLineHighlight: 'line',
-                          cursorBlinking: 'smooth',
-                          cursorSmoothCaretAnimation: 'on',
-                          smoothScrolling: true,
-                          tabSize: 4,
-                          bracketPairColorization: { enabled: true },
-                          guides: { bracketPairs: true },
-                          scrollbar: {
-                            verticalScrollbarSize: 8,
-                            horizontalScrollbarSize: 8,
-                          },
-                        }}
-                        onMount={(editor) => { editorRef.current = editor; }}
-                      />
-                      {!hasMarkedAttendance && (
-                        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                          <div className="text-center p-6 rounded-xl bg-zinc-900/80 border border-zinc-800/50">
-                            <Zap className="h-8 w-8 text-amber-400 mx-auto mb-3" />
-                            <p className="text-sm font-medium text-white mb-1">Mark Attendance to Edit</p>
-                            <p className="text-xs text-zinc-500">Click "Attend" in the header to start coding</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      <PanelResizeHandle className="h-1 bg-zinc-800/30 hover:bg-amber-500/50 transition-colors" />
+
+                      <Panel defaultSize={30} minSize={15}>
+                        <div className="h-full flex flex-col bg-[#0d0d0f]">
+                          <div className="h-8 flex items-center justify-between px-3 bg-[#111113] border-b border-zinc-800/30">
+                            <div className="flex items-center gap-2">
+                              <div className="flex gap-1">
+                                <span className="h-2 w-2 rounded-full bg-red-500/80" />
+                                <span className="h-2 w-2 rounded-full bg-amber-500/80" />
+                                <span className="h-2 w-2 rounded-full bg-emerald-500/80" />
                   </div>
-                </Panel>
-
-                <PanelResizeHandle className="h-1 bg-zinc-800/30 hover:bg-amber-500/50 transition-colors" />
-
-              {/* Output Console - Redesigned */}
-                <Panel defaultSize={30} minSize={15}>
-                  <div className="h-full flex flex-col bg-[#0d0d0f]">
-                    <div className="h-8 flex items-center justify-between px-3 bg-[#111113] border-b border-zinc-800/30">
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <div className="flex gap-1">
-                            <span className="h-2 w-2 rounded-full bg-red-500/80" />
-                            <span className="h-2 w-2 rounded-full bg-amber-500/80" />
-                            <span className="h-2 w-2 rounded-full bg-emerald-500/80" />
+                              <div className="h-3 w-px bg-zinc-800/50" />
+                              <TerminalIcon className="h-3 w-3 text-emerald-400" />
+                              <span className="text-[10px] font-medium text-zinc-400">Output</span>
+                              {isExecuting && (
+                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10">
+                                  <Loader2 className="h-2.5 w-2.5 animate-spin text-amber-400" />
+                                  <span className="text-[9px] text-amber-400">Running...</span>
+                                </div>
+                              )}
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => setOutput('')} 
+                              className="h-5 px-2 text-[9px] text-zinc-600 hover:text-white hover:bg-zinc-800/50 rounded"
+                            >
+                              Clear
+                            </Button>
                           </div>
-                        </div>
-                        <div className="h-3 w-px bg-zinc-800/50" />
-                        <TerminalIcon className="h-3 w-3 text-emerald-400" />
-                        <span className="text-[10px] font-medium text-zinc-400">Output</span>
-                        {isExecuting && (
-                          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10">
-                            <Loader2 className="h-2.5 w-2.5 animate-spin text-amber-400" />
-                            <span className="text-[9px] text-amber-400">Running...</span>
+                          <ScrollArea className="flex-1 bg-[#0d0d0f]">
+                            {output ? (
+                              <div className="p-3">
+                  <pre className={cn(
+                                  "text-[11px] font-mono whitespace-pre-wrap leading-relaxed",
+                                  output.includes('❌') || output.includes('Error') || output.includes('error') 
+                                    ? 'text-red-400' 
+                                    : output.includes('✅') || output.includes('Success') 
+                                      ? 'text-emerald-400' 
+                                      : 'text-zinc-300'
+                                )}>
+                                  {output}
+                  </pre>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                                <div className="p-3 rounded-xl bg-zinc-800/30 mb-3">
+                                  <TerminalIcon className="h-6 w-6 text-zinc-600" />
+                                </div>
+                                <p className="text-[11px] text-zinc-500 font-medium">Ready to execute</p>
+                                <p className="text-[10px] text-zinc-700 mt-1">Click <span className="text-emerald-400 font-medium">Run</span> to see output here</p>
+                              </div>
+                            )}
+                          </ScrollArea>
+                </div>
+              </Panel>
+            </PanelGroup>
+                  )}
+
+                  {viewMode === 'whiteboard' && (
+                    <div className="h-full">
+                      <CollaborativeWhiteboard
+                        key={`whiteboard-${sessionId}`}
+                        elements={whiteboardElements}
+                        onElementsChange={handleWhiteboardChange}
+                        isEnabled={hasMarkedAttendance}
+                        collaborators={whiteboardCollaborators}
+                        onClear={clearWhiteboard}
+                        onCursorMove={broadcastWhiteboardCursor}
+                        currentUserId={currentUser?.id}
+                      />
+                    </div>
+                  )}
+
+                  {viewMode === 'cameras' && (
+                    <div className="h-full p-4 overflow-auto">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 auto-rows-fr">
+                        {/* Local Video - Large */}
+                        {isInCall && (
+                          <div className={cn(
+                            "relative aspect-video rounded-xl overflow-hidden bg-zinc-900 ring-2 transition-all duration-150 group",
+                            audioLevel > 15 && isAudioEnabled ? "ring-emerald-500/50 shadow-lg shadow-emerald-500/10" : "ring-zinc-800/50"
+                          )}>
+                            <video
+                              ref={localVideoRef}
+                              autoPlay
+                              muted
+                              playsInline
+                              className={cn("w-full h-full object-cover", !isVideoEnabled && "hidden")}
+                            />
+                            {!isVideoEnabled && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900">
+                                {renderAvatar({ avatarUrl: currentUserProfile?.avatar_url, fullName: currentUserProfile?.full_name }, 'lg')}
+                              </div>
+                            )}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-white">You</span>
+                                <div className="flex items-center gap-2">
+                                  {isAudioEnabled ? (
+                                    <div className="flex items-center gap-0.5">
+                                      <div className={cn("w-1 rounded-full bg-emerald-400 transition-all", audioLevel > 5 ? "h-2" : "h-1")} />
+                                      <div className={cn("w-1 rounded-full bg-emerald-400 transition-all", audioLevel > 15 ? "h-3" : "h-1")} />
+                                      <div className={cn("w-1 rounded-full bg-emerald-400 transition-all", audioLevel > 30 ? "h-2" : "h-1")} />
+                                    </div>
+                                  ) : (
+                                    <MicOff className="h-4 w-4 text-red-400" />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setFocusedVideo({ type: 'local' })}
+                              className="absolute top-2 left-2 p-1.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                            >
+                              <Maximize2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Local Screen Share */}
+                        {localScreenStream && (
+                          <div className="relative aspect-video rounded-xl overflow-hidden bg-zinc-900 ring-2 ring-emerald-500/30 group">
+                            <video
+                              ref={localScreenVideoRef}
+                              autoPlay
+                              muted
+                              playsInline
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-white">Your Screen</span>
+                                <span className="text-[10px] text-emerald-400 font-bold">LIVE</span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setFocusedVideo({ type: 'localScreen' })}
+                              className="absolute top-2 left-2 p-1.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                            >
+                              <Maximize2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Remote Tracks */}
+                        {remoteTracks.map(rt => (
+                          <div key={rt.id} className="relative aspect-video">
+                            <RemoteVideoTile
+                              {...rt}
+                              onMaximize={() => setFocusedVideo({ type: 'remote', id: rt.id, fullName: rt.fullName })}
+                            />
+                          </div>
+                        ))}
+
+                        {/* Empty state for cameras view */}
+                        {!isInCall && remoteTracks.length === 0 && (
+                          <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+                            <div className="p-4 rounded-2xl bg-zinc-800/30 mb-4">
+                              <Video className="h-10 w-10 text-zinc-600" />
+                            </div>
+                            <p className="text-lg font-medium text-zinc-400 mb-2">No Active Cameras</p>
+                            <p className="text-sm text-zinc-600 max-w-sm">
+                              Join the video call to see participants. Click "Join Call" in the header after marking attendance.
+                            </p>
                           </div>
                         )}
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => setOutput('')} 
-                        className="h-5 px-2 text-[9px] text-zinc-600 hover:text-white hover:bg-zinc-800/50 rounded"
-                      >
-                        Clear
-                      </Button>
                     </div>
-                    <ScrollArea className="flex-1 bg-[#0d0d0f]">
-                      {output ? (
-                        <div className="p-3">
-                          <pre className={cn(
-                            "text-[11px] font-mono whitespace-pre-wrap leading-relaxed",
-                            output.includes('❌') || output.includes('Error') || output.includes('error') 
-                              ? 'text-red-400' 
-                              : output.includes('✅') || output.includes('Success') 
-                                ? 'text-emerald-400' 
-                                : 'text-zinc-300'
-                          )}>
-                            {output}
-                          </pre>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                          <div className="p-3 rounded-xl bg-zinc-800/30 mb-3">
-                            <TerminalIcon className="h-6 w-6 text-zinc-600" />
-                          </div>
-                          <p className="text-[11px] text-zinc-500 font-medium">Ready to execute</p>
-                          <p className="text-[10px] text-zinc-700 mt-1">Click <span className="text-emerald-400 font-medium">Run</span> to see output here</p>
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </div>
-                </Panel>
-            </PanelGroup>
+                  )}
+                </div>
+              </div>
           </Panel>
         </PanelGroup>
       </div>
+
+        {/* Fullscreen Video Modal */}
+        {focusedVideo && (
+          <FullscreenVideoModal
+            focusedVideo={focusedVideo}
+            onClose={() => setFocusedVideo(null)}
+            localStream={localStream}
+            localScreenStream={localScreenStream}
+            remoteTracks={remoteTracks}
+            isVideoEnabled={isVideoEnabled}
+            isAudioEnabled={isAudioEnabled}
+            audioLevel={audioLevel}
+            currentUserProfile={currentUserProfile}
+          />
+        )}
     </div>
     </TooltipProvider>
   );
