@@ -69,4 +69,26 @@ declare module 'lucide-react' {
   export const Pencil: Icon;
   export const PenLine: Icon;
   export const Edit: Icon;
+  export const Zap: Icon;
+  export const MoreHorizontal: Icon;
+  export const Maximize2: Icon;
+  export const Minimize2: Icon;
+  export const Eraser: Icon;
+  export const Trash2: Icon;
+  export const Palette: Icon;
+  export const PenTool: Icon;
+  export const Layout: Icon;
+  export const Grid3X3: Icon;
+  export const ArrowLeft: Icon;
+  export const MousePointer2: Icon;
+  export const Hand: Icon;
+  export const Square: Icon;
+  export const CircleIcon: Icon;
+  export const Minus: Icon;
+  export const ArrowUpRight: Icon;
+  export const Type: Icon;
+  export const Undo2: Icon;
+  export const Redo2: Icon;
+  export const ZoomIn: Icon;
+  export const ZoomOut: Icon;
 }

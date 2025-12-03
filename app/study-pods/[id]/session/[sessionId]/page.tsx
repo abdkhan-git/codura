@@ -7,7 +7,7 @@ import { createClient } from '@/utils/supabase/client';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Room, RoomEvent, RemoteParticipant, RemoteTrack, RemoteTrackPublication, Track, ConnectionState, TrackEvent } from 'livekit-client';
+import { Room, RoomEvent, RemoteParticipant, RemoteTrack, RemoteTrackPublication, Track, ConnectionState, TrackEvent, LocalTrackPublication, LocalParticipant } from 'livekit-client';
 import {
   Select,
   SelectContent,
@@ -167,6 +167,10 @@ const CollaborativeWhiteboard = React.memo(function CollaborativeWhiteboard({
   const [clipboard, setClipboard] = useState<WhiteboardElement[]>([]);
   const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+  
+  // Eraser state for continuous erasing
+  const [isErasing, setIsErasing] = useState(false);
+  const erasedIdsRef = useRef<Set<string>>(new Set()); // Track what we've erased in current stroke
 
   // Colors palette
   const colors = ['#ffffff', '#f59e0b', '#ef4444', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4'];
@@ -624,6 +628,16 @@ const CollaborativeWhiteboard = React.memo(function CollaborativeWhiteboard({
     return false;
   }, []);
 
+  // Add to history - defined early so it can be used in handlers
+  const addToHistory = useCallback((newElements: WhiteboardElement[]) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push(newElements);
+      return newHistory;
+    });
+    setHistoryIndex(prev => prev + 1);
+  }, [historyIndex]);
+
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isEnabled) return;
     e.preventDefault();
@@ -679,11 +693,16 @@ const CollaborativeWhiteboard = React.memo(function CollaborativeWhiteboard({
     }
 
     if (tool === 'eraser') {
-      // Find and remove element at point
-      const newElements = elements.filter((el) => !isPointInElement(point, el));
-      if (newElements.length !== elements.length) {
+      // Start continuous erasing
+      setIsErasing(true);
+      erasedIdsRef.current = new Set();
+      
+      // Find and remove all elements at point
+      const elementsToErase = elements.filter((el) => isPointInElement(point, el));
+      if (elementsToErase.length > 0) {
+        elementsToErase.forEach(el => erasedIdsRef.current.add(el.id));
+        const newElements = elements.filter((el) => !erasedIdsRef.current.has(el.id));
         onElementsChange(newElements);
-        addToHistory(newElements);
       }
       return;
     }
@@ -732,6 +751,17 @@ const CollaborativeWhiteboard = React.memo(function CollaborativeWhiteboard({
       return;
     }
 
+    // Continue erasing while dragging
+    if (isErasing && tool === 'eraser') {
+      const elementsToErase = elements.filter((el) => isPointInElement(point, el) && !erasedIdsRef.current.has(el.id));
+      if (elementsToErase.length > 0) {
+        elementsToErase.forEach(el => erasedIdsRef.current.add(el.id));
+        const newElements = elements.filter((el) => !erasedIdsRef.current.has(el.id));
+        onElementsChange(newElements);
+      }
+      return;
+    }
+
     // Update selection box if selecting
     if (selectionStart && tool === 'select') {
       setSelectionBox({
@@ -765,7 +795,7 @@ const CollaborativeWhiteboard = React.memo(function CollaborativeWhiteboard({
           return prev;
       }
     });
-  }, [isEnabled, isDrawing, isPanning, currentElement, panStart, getCanvasPoint, selectionStart, tool, onCursorMove]);
+  }, [isEnabled, isDrawing, isPanning, isErasing, currentElement, panStart, getCanvasPoint, selectionStart, tool, onCursorMove, elements, isPointInElement, onElementsChange]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     (e.target as HTMLCanvasElement).releasePointerCapture(e.pointerId);
@@ -775,6 +805,17 @@ const CollaborativeWhiteboard = React.memo(function CollaborativeWhiteboard({
 
     if (isPanning) {
       setIsPanning(false);
+      return;
+    }
+
+    // Finish erasing and save to history
+    if (isErasing) {
+      setIsErasing(false);
+      if (erasedIdsRef.current.size > 0) {
+        // Elements have already been removed, just save to history
+        addToHistory(elements);
+      }
+      erasedIdsRef.current = new Set();
       return;
     }
 
@@ -829,7 +870,7 @@ const CollaborativeWhiteboard = React.memo(function CollaborativeWhiteboard({
     setCurrentElement(null);
     onElementsChange(newElements);
     addToHistory(newElements);
-  }, [isDrawing, isPanning, currentElement, elements, onElementsChange, selectionBox, selectionStart, tool, onCursorMove]);
+  }, [isDrawing, isPanning, isErasing, currentElement, elements, onElementsChange, addToHistory, selectionBox, selectionStart, tool, onCursorMove]);
 
   const handleTextSubmit = useCallback(() => {
     if (!textValue.trim()) {
@@ -860,28 +901,21 @@ const CollaborativeWhiteboard = React.memo(function CollaborativeWhiteboard({
     addToHistory(newElements);
     setTextInput({ x: 0, y: 0, visible: false });
     setTextValue('');
-  }, [textValue, textInput, pan, zoom, color, strokeWidth, elements, onElementsChange]);
+  }, [textValue, textInput, pan, zoom, color, strokeWidth, elements, onElementsChange, addToHistory]);
 
-  const addToHistory = (newElements: WhiteboardElement[]) => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(newElements);
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-  };
-
-  const undo = () => {
+  const undo = useCallback(() => {
     if (historyIndex > 0) {
       setHistoryIndex(historyIndex - 1);
       onElementsChange(history[historyIndex - 1]);
     }
-  };
+  }, [historyIndex, history, onElementsChange]);
 
-  const redo = () => {
+  const redo = useCallback(() => {
     if (historyIndex < history.length - 1) {
       setHistoryIndex(historyIndex + 1);
       onElementsChange(history[historyIndex + 1]);
     }
-  };
+  }, [historyIndex, history, onElementsChange]);
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -1733,6 +1767,7 @@ export default function LiveSessionPage() {
   const editorRef = useRef<any>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const localScreenVideoRef = useRef<HTMLVideoElement>(null);
+  const camerasViewVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<any>(null);
@@ -1921,21 +1956,22 @@ export default function LiveSessionPage() {
 
   const rebuildLocalStreamFromRoom = useCallback(async () => {
     const room = livekitRoomRef.current;
-    if (!room) return;
+    if (!room || !room.localParticipant) return;
 
-    const videoTracks = room?.localParticipant?.videoTracks
-      ? Array.from(room.localParticipant.videoTracks.values())
+    // Get all track publications and filter by source
+    const allPubs = room.localParticipant.trackPublications
+      ? Array.from(room.localParticipant.trackPublications.values()) as LocalTrackPublication[]
       : [];
-    const audioTracks = room?.localParticipant?.audioTracks
-      ? Array.from(room.localParticipant.audioTracks.values())
-      : [];
+    
+    const videoTracks = allPubs.filter((pub: LocalTrackPublication) => pub.kind === Track.Kind.Video);
+    const audioTracks = allPubs.filter((pub: LocalTrackPublication) => pub.kind === Track.Kind.Audio);
 
     console.log('[LocalStream] Checking room collections - Video:', videoTracks.length, 'Audio:', audioTracks.length);
 
     const cameraPublication = videoTracks.find(
-      (pub) => pub.source === Track.Source.Camera && pub.track?.mediaStreamTrack
+      (pub: LocalTrackPublication) => pub.source === Track.Source.Camera && pub.track?.mediaStreamTrack
     );
-    const audioPublication = audioTracks.find((pub) => pub.track?.mediaStreamTrack);
+    const audioPublication = audioTracks.find((pub: LocalTrackPublication) => pub.track?.mediaStreamTrack);
 
     // Update refs from room collections
     if (cameraPublication?.track?.mediaStreamTrack) {
@@ -2000,7 +2036,10 @@ export default function LiveSessionPage() {
     } else if (isInCall && livekitRoomRef.current?.localParticipant?.isCameraEnabled) {
       // Fallback: try to get track directly from LiveKit room
       const room = livekitRoomRef.current;
-      const cameraPub = room.localParticipant.videoTracks?.values()?.next()?.value;
+      const allPubs = room.localParticipant.trackPublications
+        ? Array.from(room.localParticipant.trackPublications.values()) as LocalTrackPublication[]
+        : [];
+      const cameraPub = allPubs.find((p: LocalTrackPublication) => p.source === Track.Source.Camera && p.track?.mediaStreamTrack);
       if (cameraPub?.track?.mediaStreamTrack) {
         console.log('[LocalVideo] Using fallback - direct from LiveKit');
         localCameraTrackRef.current = cameraPub.track.mediaStreamTrack;
@@ -2030,6 +2069,46 @@ export default function LiveSessionPage() {
     }
   }, [localScreenStream]);
 
+  // Attach local stream to cameras view video element
+  useEffect(() => {
+    const videoEl = camerasViewVideoRef.current;
+    if (!videoEl) return;
+    
+    if (localStream) {
+      console.log('[CamerasView] Setting local stream');
+      videoEl.srcObject = localStream;
+      videoEl.play()
+        .then(() => console.log('[CamerasView] Video playing'))
+        .catch(e => console.error('[CamerasView] Play error:', e));
+    } else if (localVideoTrack) {
+      console.log('[CamerasView] Setting direct video track');
+      const stream = new MediaStream([localVideoTrack]);
+      videoEl.srcObject = stream;
+      videoEl.play()
+        .then(() => console.log('[CamerasView] Direct track playing'))
+        .catch(e => console.error('[CamerasView] Direct track play error:', e));
+    } else if (isInCall && livekitRoomRef.current?.localParticipant?.isCameraEnabled) {
+      // Fallback: try to get track directly from LiveKit room
+      const room = livekitRoomRef.current;
+      const allPubs = room.localParticipant.trackPublications
+        ? Array.from(room.localParticipant.trackPublications.values()) as LocalTrackPublication[]
+        : [];
+      const cameraPub = allPubs.find((p: LocalTrackPublication) => p.source === Track.Source.Camera && p.track?.mediaStreamTrack);
+      if (cameraPub?.track?.mediaStreamTrack) {
+        console.log('[CamerasView] Using fallback - direct from LiveKit');
+        const stream = new MediaStream([cameraPub.track.mediaStreamTrack]);
+        videoEl.srcObject = stream;
+        videoEl.play()
+          .then(() => console.log('[CamerasView] Fallback playing'))
+          .catch(e => console.error('[CamerasView] Fallback play error:', e));
+      } else {
+        videoEl.srcObject = null;
+      }
+    } else {
+      videoEl.srcObject = null;
+    }
+  }, [localStream, localVideoTrack, isInCall, viewMode]);
+
   // Keep refs in sync with state (for use in closures)
   useEffect(() => {
     isInCallRef.current = isInCall;
@@ -2044,15 +2123,14 @@ export default function LiveSessionPage() {
         if (!room) return;
         
         // Try to get tracks from room and store in refs
-        const videoTracks = room.localParticipant?.videoTracks
-          ? Array.from(room.localParticipant.videoTracks.values())
+        const allPubs = room.localParticipant?.trackPublications
+          ? Array.from(room.localParticipant.trackPublications.values()) as LocalTrackPublication[]
           : [];
-        const audioTracks = room.localParticipant?.audioTracks
-          ? Array.from(room.localParticipant.audioTracks.values())
-          : [];
+        const videoTracks = allPubs.filter((p: LocalTrackPublication) => p.kind === Track.Kind.Video);
+        const audioTracks = allPubs.filter((p: LocalTrackPublication) => p.kind === Track.Kind.Audio);
         
-        const cameraPub = videoTracks.find(p => p.source === Track.Source.Camera && p.track?.mediaStreamTrack);
-        const audioPub = audioTracks.find(p => p.track?.mediaStreamTrack);
+        const cameraPub = videoTracks.find((p: LocalTrackPublication) => p.source === Track.Source.Camera && p.track?.mediaStreamTrack);
+        const audioPub = audioTracks.find((p: LocalTrackPublication) => p.track?.mediaStreamTrack);
         
         if (cameraPub?.track?.mediaStreamTrack) {
           console.log('[LocalVideo] Found camera track on retry');
@@ -3001,13 +3079,16 @@ export default function LiveSessionPage() {
       return;
     }
 
+    toast.info('Reconnecting to LiveKit...');
     try {
-      await room.reconnect();
-      toast.success('Reconnecting to LiveKit...');
-    } catch (error) {
-      console.warn('[LiveKit] Reconnect failed, restarting call', error);
+      // Disconnect and reconnect
       await leaveCall();
+      await new Promise(resolve => setTimeout(resolve, 500));
       await joinCall();
+      toast.success('Reconnected successfully');
+    } catch (error) {
+      console.warn('[LiveKit] Reconnect failed', error);
+      toast.error('Failed to reconnect');
     }
   };
 
@@ -3799,7 +3880,7 @@ export default function LiveSessionPage() {
                             audioLevel > 15 && isAudioEnabled ? "ring-emerald-500/50 shadow-lg shadow-emerald-500/10" : "ring-zinc-800/50"
                           )}>
                             <video
-                              ref={localVideoRef}
+                              ref={camerasViewVideoRef}
                               autoPlay
                               muted
                               playsInline
