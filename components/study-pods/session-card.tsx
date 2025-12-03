@@ -415,8 +415,8 @@ export function SessionCard({
                     </>
                   ) : session.user_attending ? (
                     <>
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      Attending
+                      <Play className="w-4 h-4 mr-2" />
+                      Enter Session
                     </>
                   ) : (
                     <>

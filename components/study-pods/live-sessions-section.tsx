@@ -98,9 +98,16 @@ export function LiveSessionsSection({
   // Get live sessions count - only count actually live sessions
   const liveSessionsCount = localSessions.filter(s => isActuallyLive(s)).length;
 
-  const handleJoinSession = async (sessionId: string, isLiveSession: boolean) => {
+  const handleJoinSession = async (sessionId: string, isLiveSession: boolean, hasAlreadyAttended: boolean = false) => {
     try {
-      // If it's a live session or user wants to join, mark attendance first
+      // If user has already marked attendance, just navigate directly
+      if (hasAlreadyAttended) {
+        window.location.href = `/study-pods/${podId}/session/${sessionId}`;
+        return;
+      }
+
+      // If it's a live session, mark attendance automatically
+      // Otherwise, ask for confirmation
       if (isLiveSession || confirm('Would you like to mark your attendance for this session?')) {
         const response = await fetch(`/api/study-pods/sessions/${sessionId}/join`, {
           method: 'POST',
@@ -126,6 +133,9 @@ export function LiveSessionsSection({
           // Refresh sessions to get server data
           setTimeout(() => onRefresh(), 500);
         }
+      } else {
+        // User declined to mark attendance, don't navigate
+        return;
       }
 
       // Navigate to the collaborative session page
@@ -298,7 +308,7 @@ export function LiveSessionsSection({
                 setShowDetailModal(true);
               }}
               onJoin={async () => {
-                await handleJoinSession(session.id, isActuallyLive(session));
+                await handleJoinSession(session.id, isActuallyLive(session), session.user_attending);
               }}
             />
           ))}
