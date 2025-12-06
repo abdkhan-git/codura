@@ -169,7 +169,13 @@ interface Annotation {
 // COLLABORATION HOOK
 // ============================================
 
-const useCollaboration = (roomId: string, problemId: number, userId: string, userName: string) => {
+const useCollaboration = (
+  roomId: string, 
+  problemId: number, 
+  userId: string, 
+  userName: string,
+  enabled: boolean = false // NEW: Add enabled parameter with default false
+) => {
   const supabase = createClient()
   const [collaborators, setCollaborators] = useState<Collaborator[]>([])
   const [isConnected, setIsConnected] = useState(false)
@@ -180,7 +186,19 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
   const userColor = useRef(`hsl(${Math.random() * 360}, 70%, 60%)`)
 
   useEffect(() => {
-    if (!roomId || !userId) return
+    // NEW: Early return if collaboration is not enabled
+    if (!enabled || !roomId || !userId) {
+      // Clean up if collaboration was previously enabled
+      if (channelRef.current) {
+        channelRef.current.unsubscribe()
+        channelRef.current = null
+      }
+      setCollaborators([])
+      setIsConnected(false)
+      setMessages([])
+      setAnnotations([])
+      return
+    }
 
     const channel = supabase.channel(`room:${roomId}`, {
       config: {
@@ -284,11 +302,11 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
     return () => {
       channel.unsubscribe()
     }
-  }, [roomId, userId, userName, supabase])
+  }, [roomId, userId, userName, supabase, enabled]) // NEW: Add enabled to dependency array
 
   const broadcastCode = useCallback(
     (code: string) => {
-      if (channelRef.current) {
+      if (channelRef.current && enabled) { // NEW: Check if enabled
         channelRef.current.send({
           type: 'broadcast',
           event: 'code-change',
@@ -296,7 +314,7 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
         })
       }
     },
-    [userId]
+    [userId, enabled] // NEW: Add enabled to dependency
   )
 
   const broadcastCursor = useCallback(
@@ -306,7 +324,7 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
       endLine: number
       endColumn: number
     } | null) => {
-      if (channelRef.current) {
+      if (channelRef.current && enabled) { // NEW: Check if enabled
         channelRef.current.send({
           type: 'broadcast',
           event: 'cursor-move',
@@ -314,11 +332,13 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
         })
       }
     },
-    [userId]
+    [userId, enabled] // NEW: Add enabled to dependency
   )
 
   const sendChatMessage = useCallback(
     (text: string) => {
+      if (!enabled) return // NEW: Guard clause
+      
       const message: ChatMessage = {
         id: Date.now().toString(),
         userId,
@@ -336,11 +356,13 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
         })
       }
     },
-    [userId, userName]
+    [userId, userName, enabled] // NEW: Add enabled to dependency
   )
 
   const addAnnotation = useCallback(
     (lineNumber: number, text: string) => {
+      if (!enabled) return '' // NEW: Guard clause
+      
       const annotation: Annotation = {
         id: `${userId}-${Date.now()}`,
         lineNumber,
@@ -362,11 +384,13 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
       }
       return annotation.id
     },
-    [userId, userName]
+    [userId, userName, enabled] // NEW: Add enabled to dependency
   )
 
   const addAnnotationComment = useCallback(
     (annotationId: string, text: string) => {
+      if (!enabled) return // NEW: Guard clause
+      
       const comment: AnnotationComment = {
         id: `${userId}-${Date.now()}`,
         userId,
@@ -390,11 +414,13 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
         })
       }
     },
-    [userId, userName]
+    [userId, userName, enabled] // NEW: Add enabled to dependency
   )
 
   const deleteAnnotation = useCallback(
     (annotationId: string) => {
+      if (!enabled) return // NEW: Guard clause
+      
       setAnnotations((prev) => prev.filter((ann) => ann.id !== annotationId))
       if (channelRef.current) {
         channelRef.current.send({
@@ -404,11 +430,13 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
         })
       }
     },
-    [userId]
+    [userId, enabled] // NEW: Add enabled to dependency
   )
 
   const toggleAnnotationResolved = useCallback(
     (annotationId: string) => {
+      if (!enabled) return // NEW: Guard clause
+      
       setAnnotations((prev) =>
         prev.map((ann) =>
           ann.id === annotationId ? { ...ann, resolved: !ann.resolved } : ann
@@ -423,7 +451,7 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
         })
       }
     },
-    [userId, annotations]
+    [userId, annotations, enabled] // NEW: Add enabled to dependency
   )
 
   return {
@@ -862,6 +890,7 @@ export default function ProblemPage() {
   const selectionDecorationsRef = useRef<Map<string, string[]>>(new Map())
   const annotationWidgetsRef = useRef<Map<string, editor.IContentWidget>>(new Map())
   const annotationDecorationsRef = useRef<string[]>([])
+  const [collaborationEnabled, setCollaborationEnabled] = useState(false)
   
   // Annotation modal state
   const [showAnnotationModal, setShowAnnotationModal] = useState(false)
@@ -923,7 +952,8 @@ export default function ProblemPage() {
     roomId,
     Number(params.id),
     session?.user?.id || 'anonymous',
-    session?.user?.email?.split('@')[0] || 'Anonymous'
+    session?.user?.email?.split('@')[0] || 'Anonymous',
+    collaborationEnabled
   )
 
   // Sync collaboration code with local code
@@ -1460,7 +1490,7 @@ export default function ProblemPage() {
     )
   }
 
-  return (
+return (
     <div className="caffeine-theme h-screen w-full bg-background flex flex-col overflow-hidden relative">
       <style jsx global>{tabScrollStyles}</style>
 
@@ -1471,8 +1501,8 @@ export default function ProblemPage() {
         <div className="absolute bottom-[10%] left-[15%] w-[400px] h-[400px] bg-brand/3 dark:bg-brand/5 rounded-full blur-[80px] animate-float-slow" style={{ animationDelay: '2s' }} />
       </div>
 
-      {/* Annotation Modal */}
-      {showAnnotationModal && (
+      {/* Annotation Modal - Only show when collaboration is enabled */}
+      {collaborationEnabled && showAnnotationModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           {/* Backdrop */}
           <div
@@ -1542,113 +1572,157 @@ export default function ProblemPage() {
         </div>
       )}
       
-      {/* Collaboration Header Bar */}
-      <div className="relative z-10 h-12 bg-gradient-to-r from-card/80 via-card/50 to-transparent backdrop-blur-xl border-b border-border/20 flex items-center justify-between px-4 shadow-lg">
-        <div className="flex items-center gap-4">
-          <h2 className="font-semibold text-sm">Live Collaboration</h2>
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xs text-muted-foreground">
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
-          {annotations.filter(a => !a.resolved).length > 0 && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <MessageCircle className="w-3 h-3" />
-              <span>{annotations.filter(a => !a.resolved).length} unresolved</span>
+      {/* Collaboration Header Bar - Only show when collaboration is enabled */}
+      {collaborationEnabled && (
+        <div className="relative z-10 h-12 bg-gradient-to-r from-card/80 via-card/50 to-transparent backdrop-blur-xl border-b border-border/20 flex items-center justify-between px-4 shadow-lg">
+          <div className="flex items-center gap-4">
+            <h2 className="font-semibold text-sm">Live Collaboration</h2>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className="text-xs text-muted-foreground">
+                {isConnected ? 'Connected' : 'Disconnected'}
+              </span>
             </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Collaborator Avatars */}
-          <div className="flex items-center gap-2">
-            <div className="flex -space-x-2">
-              {collaborators.slice(0, 3).map((user) => (
-                <div
-                  key={user.id}
-                  className="w-8 h-8 rounded-full border-2 border-background flex items-center justify-center text-xs font-medium text-white"
-                  style={{ backgroundColor: user.color }}
-                  title={user.name}
-                >
-                  {user.name[0].toUpperCase()}
-                </div>
-              ))}
-            </div>
-            {collaborators.length > 3 && (
-              <span className="text-xs text-muted-foreground">+{collaborators.length - 3}</span>
+            {annotations.filter(a => !a.resolved).length > 0 && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <MessageCircle className="w-3 h-3" />
+                <span>{annotations.filter(a => !a.resolved).length} unresolved</span>
+              </div>
             )}
           </div>
 
-          {/* Toggle Cursors Button */}
-          <Button
-            onClick={() => setShowRemoteCursors(!showRemoteCursors)}
-            size="sm"
-            variant={showRemoteCursors ? 'secondary' : 'outline'}
-            title={showRemoteCursors ? 'Hide remote cursors' : 'Show remote cursors'}
-            className='cursor-pointer hover:scale-105 transition-all duration-300'
-          >
-            <svg
-              className="w-4 h-4 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              {showRemoteCursors ? (
-                <>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </>
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+          <div className="flex items-center gap-3">
+            {/* Collaborator Avatars */}
+            <div className="flex items-center gap-2">
+              <div className="flex -space-x-2">
+                {collaborators.slice(0, 3).map((user) => (
+                  <div
+                    key={user.id}
+                    className="w-8 h-8 rounded-full border-2 border-background flex items-center justify-center text-xs font-medium text-white"
+                    style={{ backgroundColor: user.color }}
+                    title={user.name}
+                  >
+                    {user.name[0].toUpperCase()}
+                  </div>
+                ))}
+              </div>
+              {collaborators.length > 3 && (
+                <span className="text-xs text-muted-foreground">+{collaborators.length - 3}</span>
               )}
-            </svg>
-            {showRemoteCursors ? 'Cursors On' : 'Cursors Off'}
-          </Button>
+            </div>
 
-          {/* Toggle Sidebar Button */}
-          <Button
-            onClick={() => setShowCollabSidebar(!showCollabSidebar)}
-            size="sm"
-            variant={showCollabSidebar ? 'default' : 'outline'}
-            className={`cursor-pointer hover:scale-105 transition-all duration-300 ${
-              showCollabSidebar ? 'bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 shadow-lg shadow-brand/30' : ''
-            }`}
-          >
-            <Users className="w-4 h-4 mr-2" />
-            {showCollabSidebar ? 'Hide' : 'Show'} Collaboration
-          </Button>
+            {/* Toggle Cursors Button */}
+            <Button
+              onClick={() => setShowRemoteCursors(!showRemoteCursors)}
+              size="sm"
+              variant={showRemoteCursors ? 'secondary' : 'outline'}
+              title={showRemoteCursors ? 'Hide remote cursors' : 'Show remote cursors'}
+              className='cursor-pointer hover:scale-105 transition-all duration-300'
+            >
+              <svg
+                className="w-4 h-4 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                {showRemoteCursors ? (
+                  <>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </>
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                )}
+              </svg>
+              {showRemoteCursors ? 'Cursors On' : 'Cursors Off'}
+            </Button>
 
-          <Button
-            onClick={() => setShowWhiteboard(!showWhiteboard)}
-            size="sm"
-            variant={showWhiteboard ? 'secondary' : 'outline'}
-            className='cursor-pointer hover:scale-105 transition-all duration-300'
-          >
-            <Brush className="w-4 h-4" />
-          </Button>
+            {/* Toggle Sidebar Button */}
+            <Button
+              onClick={() => setShowCollabSidebar(!showCollabSidebar)}
+              size="sm"
+              variant={showCollabSidebar ? 'default' : 'outline'}
+              className={`cursor-pointer hover:scale-105 transition-all duration-300 ${
+                showCollabSidebar ? 'bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 shadow-lg shadow-brand/30' : ''
+              }`}
+            >
+              <Users className="w-4 h-4 mr-2" />
+              {showCollabSidebar ? 'Hide' : 'Show'} Collaboration
+            </Button>
 
+            <Button
+              onClick={() => setShowWhiteboard(!showWhiteboard)}
+              size="sm"
+              variant={showWhiteboard ? 'secondary' : 'outline'}
+              className='cursor-pointer hover:scale-105 transition-all duration-300'
+            >
+              <Brush className="w-4 h-4" />
+            </Button>
+
+            {/* Disable Collaboration Button */}
+            <Button 
+              onClick={() => setCollaborationEnabled(false)}
+              size="sm"
+              variant="destructive"
+              className="cursor-pointer hover:scale-105 transition-all duration-300"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Disable
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Whiteboard (rendered at root level for proper positioning) */}
+      {/* Enable Collaboration Button - Only show when collaboration is disabled */}
+      {!collaborationEnabled && (
+        <div className="relative z-10 h-12 bg-gradient-to-r from-card/80 via-card/50 to-transparent backdrop-blur-xl border-b border-border/20 flex items-center justify-between px-4 shadow-lg">
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-muted-foreground" />
+            <h2 className="font-semibold text-sm text-muted-foreground">Collaboration Disabled</h2>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Whiteboard Button - Always visible */}
+            <Button
+              onClick={() => setShowWhiteboard(!showWhiteboard)}
+              size="sm"
+              variant={showWhiteboard ? 'secondary' : 'outline'}
+              className='cursor-pointer hover:scale-105 transition-all duration-300'
+            >
+              <Brush className="w-4 h-4 mr-2" />
+              {showWhiteboard ? 'Hide' : 'Show'} Whiteboard
+            </Button>
+
+            <Button 
+              onClick={() => setCollaborationEnabled(true)}
+              size="sm"
+              className="bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 shadow-lg shadow-brand/30 cursor-pointer hover:scale-105 transition-all duration-300"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Enable Collaboration
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Whiteboard - Always available, but only broadcasts when collaboration is enabled */}
       {showWhiteboard && (
         <CollaborativeWhiteboard
           initialPosition={{ x: 100, y: 150 }}
           initialSize={{ width: 600, height: 400 }}
           sendDataMessage={(msg) => {
-            // Broadcast whiteboard changes via collaboration channel if connected
-            if (channelRef.current) {
+            // Only broadcast if collaboration is enabled
+            if (collaborationEnabled && channelRef?.current) {
               channelRef.current.send({
                 type: 'broadcast',
                 event: 'whiteboard-update',
                 payload: msg
               })
             }
+            // Otherwise, whiteboard works in local-only mode
           }}
         />
       )}
-
       {/* Main Content Area */}
       <div className="relative z-10 flex-1 p-2 overflow-hidden">
         <ResizablePanelGroup direction="horizontal" className="h-full">
@@ -1681,7 +1755,7 @@ export default function ProblemPage() {
           <ResizableHandle withHandle />
 
           {/* RIGHT: AI Chatbot OR Collaboration Sidebar */}
-          {showCollabSidebar ? (
+          {collaborationEnabled && showCollabSidebar ? (
             <ResizablePanel defaultSize={25} minSize={20} maxSize={35}>
               <CollaborationSidebar
                 roomId={roomId}
