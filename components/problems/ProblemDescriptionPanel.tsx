@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tag, ChevronDown, ChevronUp } from 'lucide-react'
 import SubmissionHistory from './SubmissionHistory'
 import parse from 'html-react-parser'
+import CommunitySolutions from './CommunitySolutions'
 
 interface ProblemDescriptionPanelProps {
     problem: any
@@ -41,7 +42,7 @@ export default function ProblemDescriptionPanel({
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
                 <div className="border-b border-zinc-800/50 overflow-x-scroll shrink-0">
                     <TabsList className="inline-flex w-auto min-w-full justify-start h-auto px-6 bg-transparent gap-6">
-                        {['Description', 'Solution', 'Community', 'Submissions'].map(tab => (
+                        {['Description', 'Solutions', 'Submissions'].map(tab => (
                             <TabsTrigger
                                 key={tab.toLowerCase()}
                                 value={tab.toLowerCase()}
@@ -144,24 +145,11 @@ export default function ProblemDescriptionPanel({
                     </ScrollArea>
                 </TabsContent>
 
-                <TabsContent value="solution" className="flex-1 mt-0 overflow-hidden min-h-0">
-                    <ScrollArea className="h-full">
-                        <div className="p-4 space-y-4">
-                            <h2 className="text-xl font-bold">Solution Approach</h2>
-                            <p className="text-sm text-muted-foreground">
-                                The solution content will go here.
-                            </p>
-                        </div>
-                    </ScrollArea>
-                </TabsContent>
 
-                <TabsContent value="community" className="flex-1 mt-0 overflow-hidden min-h-0">
+                <TabsContent value="solutions" className="flex-1 mt-0 overflow-hidden min-h-0">
                     <ScrollArea className="h-full">
-                        <div className="p-4 space-y-4">
-                            <h2 className="text-xl font-bold">Community Solutions</h2>
-                            <p className="text-sm text-muted-foreground">
-                                Top community solutions will be displayed here.
-                            </p>
+                        <div className="p-4">
+                            <CommunitySolutions problemId={problem.id} />
                         </div>
                     </ScrollArea>
                 </TabsContent>
