@@ -346,6 +346,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
 
             let upvoteDelta = 0
             let downvoteDelta = 0
+            let newUserVote: 'up' | 'down' | null = null
 
             if (existingVote) {
                 if (existingVote.vote_type === voteType) {
@@ -360,6 +361,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
 
                     upvoteDelta = voteType === 'up' ? -1 : 0
                     downvoteDelta = voteType === 'down' ? -1 : 0
+                    newUserVote = null
                 } else {
                     // User changed their vote
                     const { error } = await supabase
@@ -372,6 +374,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
 
                     upvoteDelta = voteType === 'up' ? 1 : -1
                     downvoteDelta = voteType === 'down' ? 1 : -1
+                    newUserVote = voteType
                 }
             } else {
                 // New vote
@@ -387,9 +390,10 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
 
                 upvoteDelta = voteType === 'up' ? 1 : 0
                 downvoteDelta = voteType === 'down' ? 1 : 0
+                newUserVote = voteType
             }
 
-            // Update the vote counts
+            // Update the vote counts in database
             if (upvoteDelta !== 0 || downvoteDelta !== 0) {
                 const { error } = await supabase
                     .rpc('increment_solution_votes', {
@@ -401,8 +405,27 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                 if (error) throw error
             }
 
-            // Refresh the solutions list
-            await fetchSolutions()
+            // Update local state immediately
+            setSolutions(prev => prev.map(s => 
+                s.id === solutionId 
+                    ? { 
+                        ...s, 
+                        upvotes: s.upvotes + upvoteDelta,
+                        downvotes: s.downvotes + downvoteDelta,
+                        user_vote: newUserVote
+                    }
+                    : s
+            ))
+
+            // Update selectedSolution if it's the one being voted on
+            if (selectedSolution?.id === solutionId) {
+                setSelectedSolution(prev => prev ? {
+                    ...prev,
+                    upvotes: prev.upvotes + upvoteDelta,
+                    downvotes: prev.downvotes + downvoteDelta,
+                    user_vote: newUserVote
+                } : null)
+            }
 
         } catch (error) {
             console.error('Error voting:', error)
