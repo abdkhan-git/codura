@@ -15,6 +15,17 @@ import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { DefaultAvatar } from '../ui/default-avatar'
+import Link from 'next/link'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface CommunitySolutionsProps {
     problemId: string
@@ -74,6 +85,10 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
     const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string[]>([])
     const [selectedAlgorithmFilter, setSelectedAlgorithmFilter] = useState<string[]>([])
     const [showFilters, setShowFilters] = useState(false)
+
+    // Delete confirmation
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+    const [solutionToDelete, setSolutionToDelete] = useState<string | null>(null)
 
     // Tag options
     const languageOptions = [
@@ -416,17 +431,27 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
     }
 
     const handleDeleteSolution = async (solutionId: string) => {
-        if (!confirm('Are you sure you want to delete this solution?')) return
+        setSolutionToDelete(solutionId)
+        setDeleteConfirmOpen(true)
+    }
+
+    const confirmDelete = async () => {
+        if (!solutionToDelete) return
 
         try {
-            await supabase
+            const { error } = await supabase
                 .from('community_solutions')
                 .delete()
-                .eq('id', solutionId)
+                .eq('id', solutionToDelete)
+
+            if (error) throw error
 
             fetchSolutions()
+            setDeleteConfirmOpen(false)
+            setSolutionToDelete(null)
         } catch (error) {
             console.error('Error deleting solution:', error)
+            alert('Failed to delete solution')
         }
     }
 
@@ -533,12 +558,12 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-                        <SelectTrigger className="w-32">
+                        <SelectTrigger className="cursor-pointer w-32">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="top">Top Voted</SelectItem>
-                            <SelectItem value="new">Most Recent</SelectItem>
+                            <SelectItem className="cursor-pointer" value="top">Top Voted</SelectItem>
+                            <SelectItem className="cursor-pointer" value="new">Most Recent</SelectItem>
                         </SelectContent>
                     </Select>
                     <span className="text-sm text-zinc-500">
@@ -552,7 +577,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                 {!isCreating && (
                     <Button
                         onClick={() => setIsCreating(true)}
-                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                        className="cursor-pointer bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                     >
                         <Edit2 className="w-4 h-4 mr-2" />
                         Share Your Solution
@@ -584,7 +609,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                     <Button
                         variant="outline"
                         onClick={() => setShowFilters(!showFilters)}
-                        className={`border-zinc-700 relative ${activeFiltersCount > 0 ? 'border-green-600 text-green-400' : ''}`}
+                        className={`cursor-pointer border-zinc-700 relative ${activeFiltersCount > 0 ? 'border-green-600 text-green-400' : ''}`}
                     >
                         <Filter className="w-4 h-4 mr-2" />
                         Filters
@@ -619,7 +644,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                                         key={lang}
                                         type="button"
                                         onClick={() => toggleFilterTag(lang, 'language')}
-                                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                        className={`cursor-pointer px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                                             selectedLanguageFilter.includes(lang)
                                                 ? 'bg-green-600 text-white border-green-500'
                                                 : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-green-600'
@@ -641,7 +666,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                                         key={algo}
                                         type="button"
                                         onClick={() => toggleFilterTag(algo, 'algorithm')}
-                                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                        className={`cursor-pointer px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                                             selectedAlgorithmFilter.includes(algo)
                                                 ? 'bg-blue-600 text-white border-blue-500'
                                                 : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-blue-600'
@@ -694,7 +719,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                                             key={lang}
                                             type="button"
                                             onClick={() => toggleTag(lang, 'language')}
-                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                            className={`cursor-pointer px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                                                 languageTags.includes(lang)
                                                     ? 'bg-green-600 text-white border-green-500'
                                                     : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-green-600'
@@ -716,7 +741,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                                             key={algo}
                                             type="button"
                                             onClick={() => toggleTag(algo, 'algorithm')}
-                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                            className={`cursor-pointer px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                                                 algorithmTags.includes(algo)
                                                     ? 'bg-blue-600 text-white border-blue-500'
                                                     : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-blue-600'
@@ -740,11 +765,11 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                             
                             <Tabs value={previewMode} onValueChange={(v: any) => setPreviewMode(v)} className="w-full">
                                 <TabsList className="grid w-full grid-cols-2 mb-2 bg-zinc-900/50 p-1">
-                                    <TabsTrigger value="write" className="data-[state=active]:bg-zinc-800">
+                                    <TabsTrigger value="write" className="cursor-pointer data-[state=active]:bg-zinc-800">
                                         <Edit2 className="w-3 h-3 mr-2" />
                                         Write
                                     </TabsTrigger>
-                                    <TabsTrigger value="preview" className="data-[state=active]:bg-zinc-800">
+                                    <TabsTrigger value="preview" className="cursor-pointer data-[state=active]:bg-zinc-800">
                                         <Eye className="w-3 h-3 mr-2" />
                                         Preview
                                     </TabsTrigger>
@@ -752,17 +777,16 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                                 
                                 <TabsContent value="write" className="mt-0">
                                     <Textarea
-                                        value={description}
-                                        onChange={(e) => setDescription(e.target.value)}
-                                        placeholder="Explain your solution approach, key insights, and implementation details...
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    placeholder={`Explain your solution approach, key insights, and implementation details...
 
-**Tips:**
-- Use `code` for inline code
-- Use ```language for code blocks
-- Use **bold** and *italic* for emphasis
-- Use - or 1. for lists"
-                                        className="min-h-48 bg-zinc-900/50 border-zinc-700 focus:border-green-600 font-mono text-sm"
-                                    />
+Tips:
+- Use \`code\` for inline code
+- Use \`\`\`language for code blocks
+- Use - to put text on new lines`}
+                                    className="min-h-48 bg-zinc-900/50 border-zinc-700 focus:border-green-600 font-mono text-sm whitespace-pre-wrap"
+                                />
                                 </TabsContent>
                                 
                                 <TabsContent value="preview" className="mt-0">
@@ -811,16 +835,16 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                             <div>
                                 <label className="block text-sm font-medium mb-2 text-zinc-300">Time Complexity</label>
                                 <Select value={timeComplexity} onValueChange={setTimeComplexity}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className='cursor-pointer'>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="O(1)">O(1) - Constant</SelectItem>
-                                        <SelectItem value="O(log n)">O(log n) - Logarithmic</SelectItem>
-                                        <SelectItem value="O(n)">O(n) - Linear</SelectItem>
-                                        <SelectItem value="O(n log n)">O(n log n) - Linearithmic</SelectItem>
-                                        <SelectItem value="O(n²)">O(n²) - Quadratic</SelectItem>
-                                        <SelectItem value="O(2^n)">O(2^n) - Exponential</SelectItem>
+                                        <SelectItem className='cursor-pointer' value="O(1)">O(1) - Constant</SelectItem>
+                                        <SelectItem className='cursor-pointer' value="O(log n)">O(log n) - Logarithmic</SelectItem>
+                                        <SelectItem className='cursor-pointer' value="O(n)">O(n) - Linear</SelectItem>
+                                        <SelectItem className='cursor-pointer' value="O(n log n)">O(n log n) - Linearithmic</SelectItem>
+                                        <SelectItem className='cursor-pointer' value="O(n²)">O(n²) - Quadratic</SelectItem>
+                                        <SelectItem className='cursor-pointer' value="O(2^n)">O(2^n) - Exponential</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -828,14 +852,14 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                             <div>
                                 <label className="block text-sm font-medium mb-2 text-zinc-300">Space Complexity</label>
                                 <Select value={spaceComplexity} onValueChange={setSpaceComplexity}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className='cursor-pointer'>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="O(1)">O(1) - Constant</SelectItem>
-                                        <SelectItem value="O(log n)">O(log n) - Logarithmic</SelectItem>
-                                        <SelectItem value="O(n)">O(n) - Linear</SelectItem>
-                                        <SelectItem value="O(n²)">O(n²) - Quadratic</SelectItem>
+                                        <SelectItem className='cursor-pointer' value="O(1)">O(1) - Constant</SelectItem>
+                                        <SelectItem className='cursor-pointer' value="O(log n)">O(log n) - Logarithmic</SelectItem>
+                                        <SelectItem className='cursor-pointer' value="O(n)">O(n) - Linear</SelectItem>
+                                        <SelectItem className='cursor-pointer' value="O(n²)">O(n²) - Quadratic</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -844,7 +868,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                         <div className="flex gap-3 pt-2">
                             <Button
                                 onClick={handleCreateSolution}
-                                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                                className="cursor-pointer flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                             >
                                 <Check className="w-4 h-4 mr-2" />
                                 Submit Solution
@@ -852,7 +876,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                             <Button
                                 variant="outline"
                                 onClick={() => setIsCreating(false)}
-                                className="border-zinc-700 hover:bg-zinc-800"
+                                className="cursor-pointer border-zinc-700 hover:bg-zinc-800"
                             >
                                 Cancel
                             </Button>
@@ -951,7 +975,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                                             e.stopPropagation()
                                             handleDeleteSolution(solution.id)
                                         }}
-                                        className="text-red-400 hover:text-red-300 hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="cursor-pointer ml-[-6px] text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </Button>
@@ -973,7 +997,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                                             e.stopPropagation()
                                             handleVote(solution.id, 'up')
                                         }}
-                                        className={`${
+                                        className={`cursor-pointer ${
                                             solution.user_vote === 'up'
                                                 ? 'text-green-400 bg-green-950/30'
                                                 : 'text-zinc-400 hover:text-green-400'
@@ -989,7 +1013,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                                             e.stopPropagation()
                                             handleVote(solution.id, 'down')
                                         }}
-                                        className={`${
+                                        className={`cursor-pointer ${
                                             solution.user_vote === 'down'
                                                 ? 'text-red-400 bg-red-950/30'
                                                 : 'text-zinc-400 hover:text-red-400'
@@ -1003,7 +1027,7 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="text-zinc-400 hover:text-white"
+                                    className="cursor-pointer text-zinc-400 hover:text-white"
                                 >
                                     <MessageSquare className="w-4 h-4 mr-1" />
                                     {solution.comment_count || 0}
@@ -1024,18 +1048,28 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0 bg-zinc-950 border-zinc-800">
                     <DialogHeader className="px-6 pt-6 pb-4 border-b border-zinc-800">
                         <div className="flex items-start gap-4">
-                            <Avatar className="w-12 h-12 bg-gradient-to-br from-green-600 to-emerald-600">
-                                <AvatarFallback className="text-white font-semibold">
-                                    {selectedSolution && getInitials(getDisplayName(selectedSolution))}
-                                </AvatarFallback>
-                            </Avatar>
+                            {selectedSolution && 
+                                <DefaultAvatar
+                                    src={selectedSolution.avatar_url}
+                                    name={selectedSolution.full_name}
+                                    username={selectedSolution.username}
+                                    size="md"
+                                    className="ring-2 ring-background"
+                                />
+                            }
                             <div className="flex-1">
                                 <DialogTitle className="text-2xl font-bold text-white mb-2">
                                     {selectedSolution?.title}
                                 </DialogTitle>
                                 <div className="flex items-center gap-3 mb-3">
                                     <span className="text-sm text-zinc-400">
-                                        by <span className="text-green-400 font-medium">{selectedSolution && getDisplayName(selectedSolution)}</span>
+                                        by{' '}
+                                        <Link 
+                                            href={`/profile/${selectedSolution?.username || selectedSolution?.user_id}`}
+                                            className="text-green-400 font-medium hover:text-green-300 transition-colors hover:underline"
+                                        >
+                                            {selectedSolution && getDisplayName(selectedSolution)}
+                                        </Link>
                                     </span>
                                     <span className="text-xs text-zinc-600">•</span>
                                     <span className="text-xs text-zinc-500">
@@ -1170,9 +1204,9 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                                                 size="sm"
                                                 onClick={handleAddComment}
                                                 disabled={!newComment.trim()}
-                                                className="bg-green-600 hover:bg-green-700"
+                                                className="cursor-pointer bg-green-600 hover:bg-green-700"
                                             >
-                                                <Send className="w-3 h-3 mr-2" />
+                                                <Send className="w-3 h-3 mr-0" />
                                                 Post Comment
                                             </Button>
                                         </div>
@@ -1217,6 +1251,28 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+                <AlertDialogContent className="bg-zinc-900 border-zinc-800">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-white">Delete Solution</AlertDialogTitle>
+                        <AlertDialogDescription className="text-zinc-400">
+                            Are you sure you want to delete this solution? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="cursor-pointer bg-zinc-800 text-white hover:bg-zinc-700 border-zinc-700">
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDelete}
+                            className="cursor-pointer bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }
