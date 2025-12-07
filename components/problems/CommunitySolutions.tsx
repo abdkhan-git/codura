@@ -90,6 +90,9 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
     const [solutionToDelete, setSolutionToDelete] = useState<string | null>(null)
 
+    // Voting
+    const [votingInProgress, setVotingInProgress] = useState<string | null>(null)
+
     // Tag options
     const languageOptions = [
         'JavaScript', 'TypeScript', 'Python', 'Java', 'C++', 'C#', 'Go', 
@@ -324,53 +327,55 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
             return
         }
 
-        try {
-            const solution = solutions.find(s => s.id === solutionId)
-            if (!solution) return
+        // Prevent multiple simultaneous votes
+        if (votingInProgress === solutionId) {
+            return
+        }
 
-            // Check existing vote
-            const { data: existingVote } = await supabase
+        setVotingInProgress(solutionId)
+
+        try {
+            // Check for existing vote
+            const { data: existingVotes } = await supabase
                 .from('solution_votes')
-                .select('*')
+                .select('vote_type')
                 .eq('solution_id', solutionId)
                 .eq('user_id', currentUser.id)
-                .single()
+
+            const existingVote = existingVotes && existingVotes.length > 0 ? existingVotes[0] : null
+
+            let upvoteDelta = 0
+            let downvoteDelta = 0
 
             if (existingVote) {
                 if (existingVote.vote_type === voteType) {
-                    // Remove vote
-                    await supabase
+                    // User clicked same vote - remove it
+                    const { error } = await supabase
                         .from('solution_votes')
                         .delete()
                         .eq('solution_id', solutionId)
                         .eq('user_id', currentUser.id)
 
-                    const updateField = voteType === 'up' ? 'upvotes' : 'downvotes'
-                    await supabase
-                        .from('community_solutions')
-                        .update({ [updateField]: solution[updateField] - 1 })
-                        .eq('id', solutionId)
+                    if (error) throw error
+
+                    upvoteDelta = voteType === 'up' ? -1 : 0
+                    downvoteDelta = voteType === 'down' ? -1 : 0
                 } else {
-                    // Change vote
-                    await supabase
+                    // User changed their vote
+                    const { error } = await supabase
                         .from('solution_votes')
                         .update({ vote_type: voteType })
                         .eq('solution_id', solutionId)
                         .eq('user_id', currentUser.id)
 
-                    const increaseField = voteType === 'up' ? 'upvotes' : 'downvotes'
-                    const decreaseField = voteType === 'up' ? 'downvotes' : 'upvotes'
-                    await supabase
-                        .from('community_solutions')
-                        .update({
-                            [increaseField]: solution[increaseField] + 1,
-                            [decreaseField]: solution[decreaseField] - 1
-                        })
-                        .eq('id', solutionId)
+                    if (error) throw error
+
+                    upvoteDelta = voteType === 'up' ? 1 : -1
+                    downvoteDelta = voteType === 'down' ? 1 : -1
                 }
             } else {
                 // New vote
-                await supabase
+                const { error } = await supabase
                     .from('solution_votes')
                     .insert({
                         solution_id: solutionId,
@@ -378,16 +383,33 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                         vote_type: voteType
                     })
 
-                const updateField = voteType === 'up' ? 'upvotes' : 'downvotes'
-                await supabase
-                    .from('community_solutions')
-                    .update({ [updateField]: solution[updateField] + 1 })
-                    .eq('id', solutionId)
+                if (error) throw error
+
+                upvoteDelta = voteType === 'up' ? 1 : 0
+                downvoteDelta = voteType === 'down' ? 1 : 0
             }
 
-            fetchSolutions()
+            // Update the vote counts
+            if (upvoteDelta !== 0 || downvoteDelta !== 0) {
+                const { error } = await supabase
+                    .rpc('increment_solution_votes', {
+                        solution_id_param: solutionId,
+                        upvote_delta: upvoteDelta,
+                        downvote_delta: downvoteDelta
+                    })
+
+                if (error) throw error
+            }
+
+            // Refresh the solutions list
+            await fetchSolutions()
+
         } catch (error) {
             console.error('Error voting:', error)
+            alert('Failed to register vote. Please try again.')
+            await fetchSolutions() // Refresh to show correct state
+        } finally {
+            setVotingInProgress(null)
         }
     }
 
