@@ -14,6 +14,7 @@ import { formatDistanceToNow } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { DefaultAvatar } from '../ui/default-avatar'
 
 interface CommunitySolutionsProps {
     problemId: string
@@ -100,93 +101,94 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
     }
 
     const fetchSolutions = async () => {
-        setLoading(true)
-        try {
-            // First, fetch basic solutions
-            const { data: solutionsData, error: solutionsError } = await supabase
-                .from('community_solutions')
-                .select('*')
-                .eq('problem_id', problemId)
-                .order(sortBy === 'top' ? 'upvotes' : 'created_at', { ascending: false })
+    setLoading(true)
+    try {
+        // First, fetch basic solutions
+        const { data: solutionsData, error: solutionsError } = await supabase
+            .from('community_solutions')
+            .select('*')
+            .eq('problem_id', problemId)
+            .order(sortBy === 'top' ? 'upvotes' : 'created_at', { ascending: false })
 
-            if (solutionsError) {
-                console.error('Error fetching solutions:', solutionsError)
-                throw solutionsError
-            }
+        if (solutionsError) {
+            console.error('Error fetching solutions:', solutionsError)
+            throw solutionsError
+        }
 
-            if (!solutionsData || solutionsData.length === 0) {
-                setSolutions([])
-                return
-            }
+        if (!solutionsData || solutionsData.length === 0) {
+            setSolutions([])
+            return
+        }
 
-            // Fetch user info (username, full_name) from your users table
-            const userIds = [...new Set(solutionsData.map(s => s.user_id))]
-            const { data: usersData, error: usersError } = await supabase
-                .from('users')
-                .select('user_id, username, full_name')
-                .in('user_id', userIds)
+        // Fetch user info (username, full_name, avatar_url) from your users table
+        const userIds = [...new Set(solutionsData.map(s => s.user_id))]
+        const { data: usersData, error: usersError } = await supabase
+            .from('users')
+            .select('user_id, username, full_name, avatar_url')
+            .in('user_id', userIds)
 
-            if (usersError) {
-                console.error('Error fetching users:', usersError)
-            }
+        if (usersError) {
+            console.error('Error fetching users:', usersError)
+        }
 
-            const userInfoMap = new Map(usersData?.map(u => [u.user_id, { username: u.username, full_name: u.full_name }]) || [])
+        const userInfoMap = new Map(usersData?.map(u => [u.user_id, { username: u.username, full_name: u.full_name, avatar_url: u.avatar_url }]) || [])
 
-            // Fetch votes for current user
-            let userVotesMap = new Map()
-            if (currentUser) {
-                const { data: votesData, error: votesError } = await supabase
-                    .from('solution_votes')
-                    .select('solution_id, vote_type')
-                    .eq('user_id', currentUser.id)
-                    .in('solution_id', solutionsData.map(s => s.id))
-
-                if (votesError) {
-                    console.error('Error fetching votes:', votesError)
-                } else {
-                    userVotesMap = new Map(votesData?.map(v => [v.solution_id, v.vote_type]) || [])
-                }
-            }
-
-            // Fetch comment counts
-            const { data: commentsData, error: commentsError } = await supabase
-                .from('solution_comments')
-                .select('solution_id')
+        // Fetch votes for current user
+        let userVotesMap = new Map()
+        if (currentUser) {
+            const { data: votesData, error: votesError } = await supabase
+                .from('solution_votes')
+                .select('solution_id, vote_type')
+                .eq('user_id', currentUser.id)
                 .in('solution_id', solutionsData.map(s => s.id))
 
-            if (commentsError) {
-                console.error('Error fetching comment counts:', commentsError)
+            if (votesError) {
+                console.error('Error fetching votes:', votesError)
+            } else {
+                userVotesMap = new Map(votesData?.map(v => [v.solution_id, v.vote_type]) || [])
             }
-
-            const commentCountsMap = new Map()
-            commentsData?.forEach(c => {
-                commentCountsMap.set(c.solution_id, (commentCountsMap.get(c.solution_id) || 0) + 1)
-            })
-
-            const processedSolutions = solutionsData.map((sol: any) => {
-                const userInfo = userInfoMap.get(sol.user_id)
-                return {
-                    ...sol,
-                    username: userInfo?.username,
-                    full_name: userInfo?.full_name,
-                    user_vote: userVotesMap.get(sol.id) || null,
-                    comment_count: commentCountsMap.get(sol.id) || 0
-                }
-            })
-
-            setSolutions(processedSolutions)
-        } catch (error: any) {
-            console.error('Error fetching solutions:', error)
-            console.error('Error details:', {
-                message: error?.message,
-                details: error?.details,
-                hint: error?.hint,
-                code: error?.code
-            })
-        } finally {
-            setLoading(false)
         }
+
+        // Fetch comment counts
+        const { data: commentsData, error: commentsError } = await supabase
+            .from('solution_comments')
+            .select('solution_id')
+            .in('solution_id', solutionsData.map(s => s.id))
+
+        if (commentsError) {
+            console.error('Error fetching comment counts:', commentsError)
+        }
+
+        const commentCountsMap = new Map()
+        commentsData?.forEach(c => {
+            commentCountsMap.set(c.solution_id, (commentCountsMap.get(c.solution_id) || 0) + 1)
+        })
+
+        const processedSolutions = solutionsData.map((sol: any) => {
+            const userInfo = userInfoMap.get(sol.user_id)
+            return {
+                ...sol,
+                username: userInfo?.username,
+                full_name: userInfo?.full_name,
+                avatar_url: userInfo?.avatar_url,
+                user_vote: userVotesMap.get(sol.id) || null,
+                comment_count: commentCountsMap.get(sol.id) || 0
+            }
+        })
+
+        setSolutions(processedSolutions)
+    } catch (error: any) {
+        console.error('Error fetching solutions:', error)
+        console.error('Error details:', {
+            message: error?.message,
+            details: error?.details,
+            hint: error?.hint,
+            code: error?.code
+        })
+    } finally {
+        setLoading(false)
     }
+}
 
     const fetchComments = async (solutionId: string) => {
         setLoadingComments(true)
@@ -892,11 +894,13 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                         >
                             {/* Solution Header */}
                             <div className="flex items-start gap-4 mb-3">
-                                <Avatar className="w-10 h-10 bg-gradient-to-br from-green-600 to-emerald-600">
-                                    <AvatarFallback className="text-white font-semibold">
-                                        {getInitials(getDisplayName(solution))}
-                                    </AvatarFallback>
-                                </Avatar>
+                                <DefaultAvatar
+                                    src={solution.avatar_url}
+                                    name={solution.full_name}
+                                    username={solution.username}
+                                    size="md"
+                                    className="ring-2 ring-background"
+                                />
 
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-start justify-between gap-4 mb-2">
