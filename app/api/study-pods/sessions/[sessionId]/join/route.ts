@@ -25,7 +25,7 @@ export async function POST(
     // Get session details
     const { data: session, error: sessionError } = await supabase
       .from('study_pod_sessions')
-      .select('pod_id, status, scheduled_at, title')
+      .select('pod_id, status, scheduled_at, title, ended_at, duration_minutes')
       .eq('id', sessionId)
       .single();
 
@@ -34,6 +34,41 @@ export async function POST(
         { error: 'Session not found' },
         { status: 404 }
       );
+    }
+
+    // Check if session has expired or ended
+    const now = new Date();
+    const scheduledDate = new Date(session.scheduled_at);
+    
+    // Check if session has explicitly ended
+    if (session.ended_at) {
+      const endedDate = new Date(session.ended_at);
+      if (endedDate < now) {
+        return NextResponse.json(
+          { error: 'This session has already ended' },
+          { status: 400 }
+        );
+      }
+    }
+    
+    // Check if session status indicates it's completed or cancelled
+    if (session.status === 'completed' || session.status === 'cancelled') {
+      return NextResponse.json(
+        { error: `This session has been ${session.status}` },
+        { status: 400 }
+      );
+    }
+    
+    // Check if session has expired based on scheduled time + duration
+    if (session.duration_minutes && session.status !== 'in_progress') {
+      const durationMs = session.duration_minutes * 60 * 1000;
+      const expectedEndTime = scheduledDate.getTime() + durationMs;
+      if (expectedEndTime < now.getTime()) {
+        return NextResponse.json(
+          { error: 'This session has expired' },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if user is a pod member

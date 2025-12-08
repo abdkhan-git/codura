@@ -27,9 +27,6 @@ import {
   Settings,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
-import {
-  ChartConfig,
-} from "@/components/ui/chart";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { PlanDialog } from "@/components/study-plans/plan-dialog";
 import { StudyPlanDetailDialog } from "@/components/study-plans/study-plan-detail-dialog";
@@ -434,11 +431,49 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchActivityChart() {
       try {
+        console.log('🔵 Fetching chart data for timeframe:', selectedTimeframe);
         const response = await fetch(`/api/dashboard/activity-chart?timeframe=${selectedTimeframe}`);
+        console.log('🔵 Response status:', response.status, response.statusText);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('🔴 API Error Response:', errorText);
+          throw new Error(`Failed to fetch data: ${response.status}`);
+        }
+        
         const data = await response.json();
-        setActivityChartData(data.data || []);
+        console.log('🟢 Activity Chart Data Received:', {
+          hasData: !!data.data,
+          dataLength: data.data?.length || 0,
+          timeframe: data.timeframe,
+          first3Items: data.data?.slice(0, 3),
+          last3Items: data.data?.slice(-3)
+        });
+        
+        // Ensure data is valid
+        if (data.data && Array.isArray(data.data)) {
+          // Filter out any invalid entries and ensure problems is a number
+          const validData = data.data.filter((item: any) => 
+            item && 
+            typeof item.problems === 'number' && 
+            item.label
+          );
+          
+          console.log('🟢 Valid data points:', validData.length);
+          
+          if (validData.length > 0) {
+            setActivityChartData(validData);
+          } else {
+            console.warn('⚠️ No valid data points after filtering');
+            setActivityChartData([]);
+          }
+        } else {
+          console.warn('⚠️ No data array in response');
+          setActivityChartData([]);
+        }
       } catch (error) {
-        console.error('Error fetching activity chart:', error);
+        console.error('🔴 Error fetching activity chart:', error);
+        setActivityChartData([]);
       }
     }
 
@@ -828,72 +863,83 @@ export default function DashboardPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={activityChartData}
-                    margin={{
-                      left: 0,
-                      right: 0,
-                      top: 10,
-                      bottom: 0,
-                    }}
-                  >
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis
-                      dataKey="label"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis 
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-                      allowDecimals={false}
-                      width={30}
-                    />
-                    <Tooltip 
-                      cursor={false}
-                      contentStyle={{ 
-                        backgroundColor: 'rgba(30, 30, 30, 0.95)', 
-                        borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                        padding: '8px 12px',
-                        color: '#fff'
-                      }}
-                      labelStyle={{ color: '#fff', fontWeight: 500, marginBottom: '4px' }}
-                      itemStyle={{ color: '#a1a1aa' }}
-                      formatter={(value: number) => [`${value} problems`, 'Solved']}
-                    />
-                    <defs>
-                      <linearGradient id="fillProblems" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="5%"
-                          stopColor="#06b6d4"
-                          stopOpacity={0.8}
+              <CardContent className="h-[300px] p-6">
+                {activityChartData.length > 0 ? (
+                  <div className="h-full w-full" style={{ minHeight: '280px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={activityChartData}
+                        margin={{
+                          left: 0,
+                          right: 0,
+                          top: 10,
+                          bottom: 0,
+                        }}
+                      >
+                        <defs>
+                          <linearGradient id="fillProblems" x1="0" y1="0" x2="0" y2="1">
+                            <stop
+                              offset="5%"
+                              stopColor="var(--brand)"
+                              stopOpacity={0.8}
+                            />
+                            <stop
+                              offset="95%"
+                              stopColor="var(--brand)"
+                              stopOpacity={0.1}
+                            />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
+                        <XAxis
+                          dataKey="label"
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                          interval="preserveStartEnd"
                         />
-                        <stop
-                          offset="95%"
-                          stopColor="#06b6d4"
-                          stopOpacity={0.1}
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                          width={40}
                         />
-                      </linearGradient>
-                    </defs>
-                    <Area
-                      dataKey="problems"
-                      type="monotone"
-                      fill="url(#fillProblems)"
-                      fillOpacity={0.4}
-                      stroke="#06b6d4"
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                        <Tooltip 
+                          cursor={false} 
+                          content={({ active, payload }) => {
+                            if (!active || !payload || !payload.length) return null;
+                            const data = payload[0].payload;
+                            return (
+                              <div className="rounded-lg border bg-background/95 backdrop-blur-sm p-2 shadow-md">
+                                <p className="font-medium text-sm">{data.label}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Problems: <span className="font-semibold text-foreground">{data.problems}</span>
+                                </p>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Area
+                          dataKey="problems"
+                          type="monotone"
+                          fill="url(#fillProblems)"
+                          fillOpacity={0.4}
+                          stroke="var(--brand)"
+                          strokeWidth={2}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+                    <div className="text-center">
+                      <BarChart3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No activity data available</p>
+                      <p className="text-xs mt-1">Try selecting a different timeframe</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

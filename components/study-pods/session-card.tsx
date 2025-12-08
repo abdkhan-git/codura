@@ -138,6 +138,13 @@ export function SessionCard({
   const isPast = scheduledDate < now && session.status !== 'in_progress';
   const isUpcoming = scheduledDate > now && session.status === 'scheduled';
   const isLive = session.status === 'in_progress';
+  
+  // Check if session has expired
+  const hasEnded = session.ended_at ? new Date(session.ended_at) < now : false;
+  const durationMs = session.duration_minutes ? session.duration_minutes * 60 * 1000 : 0;
+  const expectedEndTime = scheduledDate.getTime() + durationMs;
+  const isExpired = hasEnded || (!isLive && !isUpcoming && expectedEndTime > 0 && expectedEndTime < now.getTime());
+  const canJoin = !isExpired && session.status !== 'cancelled' && session.status !== 'completed';
 
   // Time until session
   const timeUntil = isUpcoming ? formatDistanceToNow(scheduledDate, { addSuffix: true }) : null;
@@ -231,46 +238,48 @@ export function SessionCard({
             </div>
           </div>
 
-          {/* Actions Menu */}
+          {/* Actions Menu - Only show if there are actions available */}
           {canManage && session.status !== 'cancelled' && session.status !== 'completed' && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => e.stopPropagation()}
-                  className={cn(
-                    "h-8 w-8 p-0",
-                    theme === 'light' ? "hover:bg-gray-100" : "hover:bg-white/10"
-                  )}
-                >
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {onEdit && (
-                  <DropdownMenuItem onClick={() => handleAction(onEdit)}>
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Edit Session
-                  </DropdownMenuItem>
-                )}
-                {onStart && session.status === 'scheduled' && (
-                  <DropdownMenuItem onClick={() => handleAction(onStart)}>
-                    <Play className="w-4 h-4 mr-2" />
-                    Start Session
-                  </DropdownMenuItem>
-                )}
-                {onCancel && (
-                  <DropdownMenuItem
-                    onClick={() => handleAction(onCancel)}
-                    className="text-red-600 focus:text-red-600"
+            (onEdit || (onStart && session.status === 'scheduled') || onCancel) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => e.stopPropagation()}
+                    className={cn(
+                      "h-8 w-8 p-0",
+                      theme === 'light' ? "hover:bg-gray-100" : "hover:bg-white/10"
+                    )}
                   >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Cancel Session
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {onEdit && (
+                    <DropdownMenuItem onClick={() => handleAction(onEdit)}>
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Edit Session
+                    </DropdownMenuItem>
+                  )}
+                  {onStart && session.status === 'scheduled' && (
+                    <DropdownMenuItem onClick={() => handleAction(onStart)}>
+                      <Play className="w-4 h-4 mr-2" />
+                      Start Session
+                    </DropdownMenuItem>
+                  )}
+                  {onCancel && (
+                    <DropdownMenuItem
+                      onClick={() => handleAction(onCancel)}
+                      className="text-red-600 focus:text-red-600"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Cancel Session
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
           )}
         </div>
 
@@ -391,7 +400,7 @@ export function SessionCard({
             </Button>
           )}
 
-          {onJoin && session.status !== 'cancelled' && session.status !== 'completed' && (
+          {onJoin && canJoin && (
             <Button
               size="sm"
               onClick={(e) => {
@@ -426,6 +435,17 @@ export function SessionCard({
                   )}
                 </>
               )}
+            </Button>
+          )}
+          {onJoin && isExpired && (
+            <Button
+              size="sm"
+              disabled
+              variant="outline"
+              className="flex-1 opacity-50 cursor-not-allowed"
+            >
+              <XCircle className="w-4 h-4 mr-2" />
+              Session Expired
             </Button>
           )}
         </div>

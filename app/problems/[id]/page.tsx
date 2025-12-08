@@ -317,6 +317,18 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
     [userId]
   )
 
+  const broadcastWhiteboard = useCallback(
+    (message: any) => {
+      if (!channelRef.current) return
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'whiteboard-update',
+        payload: { userId, message },
+      })
+    },
+    [userId]
+  )
+
   const sendChatMessage = useCallback(
     (text: string) => {
       const message: ChatMessage = {
@@ -434,6 +446,7 @@ const useCollaboration = (roomId: string, problemId: number, userId: string, use
     annotations,
     broadcastCode,
     broadcastCursor,
+    broadcastWhiteboard,
     sendChatMessage,
     addAnnotation,
     addAnnotationComment,
@@ -913,6 +926,7 @@ export default function ProblemPage() {
     annotations,
     broadcastCode,
     broadcastCursor,
+    broadcastWhiteboard,
     sendChatMessage,
     addAnnotation,
     addAnnotationComment,
@@ -1638,13 +1652,7 @@ export default function ProblemPage() {
           initialSize={{ width: 600, height: 400 }}
           sendDataMessage={(msg) => {
             // Broadcast whiteboard changes via collaboration channel if connected
-            if (channelRef.current) {
-              channelRef.current.send({
-                type: 'broadcast',
-                event: 'whiteboard-update',
-                payload: msg
-              })
-            }
+            broadcastWhiteboard(msg)
           }}
         />
       )}

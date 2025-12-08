@@ -87,12 +87,7 @@ export function PodSidebar({
   ];
 
   return (
-    <aside className={cn(
-      "w-56 flex-shrink-0 border-r min-h-[calc(100vh-8rem)]",
-      theme === "light"
-        ? "border-gray-200 bg-gray-50/80"
-        : "border-white/5 bg-zinc-950/50"
-    )}>
+    <div className="h-full overflow-y-auto">
       {/* Section Label */}
       <div className={cn(
         "px-4 pt-4 pb-2",
@@ -164,6 +159,6 @@ export function PodSidebar({
           </div>
         )}
       </nav>
-    </aside>
+    </div>
   );
 }
