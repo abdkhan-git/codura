@@ -27,7 +27,9 @@ export async function GET() {
       submissionsResult,
       studyPlansResult,
       eventsResult,
-      dailyChallengeResult
+      dailyChallengeResult,
+      studyPodAttendanceResult,
+      studyPodSessionsResult
     ] = await Promise.all([
       // Profile
       supabase
@@ -70,7 +72,25 @@ export async function GET() {
       // Daily challenge (random problem not yet solved)
       supabase
         .rpc('get_daily_challenge', { p_user_id: user.id })
-        .single()
+        .single(),
+
+      // Study pod attendance (last 30 days)
+      supabase
+        .from('study_pod_attendance')
+        .select('*, study_pod_sessions(title, session_type, scheduled_at, study_pods(name))')
+        .eq('user_id', user.id)
+        .gte('marked_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+        .order('marked_at', { ascending: false })
+        .limit(20),
+
+      // Upcoming study pod sessions
+      supabase
+        .from('study_pod_sessions')
+        .select('*, study_pods(name), study_pod_members!inner(user_id)')
+        .eq('study_pod_members.user_id', user.id)
+        .gte('scheduled_at', new Date().toISOString())
+        .order('scheduled_at', { ascending: true })
+        .limit(10)
     ]);
 
     const profile = profileResult.data;
@@ -79,6 +99,8 @@ export async function GET() {
     const studyPlans = studyPlansResult.data || [];
     const events = eventsResult.data || [];
     const dailyChallenge = dailyChallengeResult.data;
+    const studyPodAttendance = studyPodAttendanceResult.data || [];
+    const studyPodSessions = studyPodSessionsResult.data || [];
 
     // OPTIMIZED: Calculate streaks in database (10x faster)
     const { data: streakData } = await supabase
@@ -98,48 +120,80 @@ export async function GET() {
     const { data: studyPlansWithCounts } = await supabase
       .rpc('get_user_study_plans_with_counts', { p_user_id: user.id });
 
-    // Process recent activity from submissions (last 7 days only, max 5 items)
+    // Process recent activity from submissions and study pod attendance (last 7 days only)
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    const recentActivity = submissions
+
+    const getTimeAgo = (timestamp: string) => {
+      const date = new Date(timestamp);
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
+      if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+      return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+    };
+
+    // Submission activities
+    const submissionActivities = submissions
       .filter(sub => new Date(sub.submitted_at) >= sevenDaysAgo)
+      .map(sub => ({
+        id: sub.id,
+        type: 'problem',
+        title: sub.problem_title,
+        difficulty: sub.difficulty,
+        time: getTimeAgo(sub.submitted_at),
+        timestamp: new Date(sub.submitted_at).getTime(),
+      }));
+
+    // Study pod attendance activities
+    const studyPodActivities = studyPodAttendance
+      .filter((attendance: any) => new Date(attendance.marked_at) >= sevenDaysAgo)
+      .map((attendance: any) => ({
+        id: attendance.id,
+        type: 'study',
+        title: `Attended: ${attendance.study_pod_sessions?.title || 'Study Session'}`,
+        podName: attendance.study_pod_sessions?.study_pods?.name,
+        time: getTimeAgo(attendance.marked_at),
+        timestamp: new Date(attendance.marked_at).getTime(),
+      }));
+
+    // Combine and sort by timestamp, take top 5
+    const recentActivity = [...submissionActivities, ...studyPodActivities]
+      .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, 5)
-      .map(sub => {
-        const submittedAt = new Date(sub.submitted_at);
-        const diffMs = now.getTime() - submittedAt.getTime();
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
+      .map(({ timestamp, ...rest }) => rest);
 
-        let timeAgo;
-        if (diffMins < 1) {
-          timeAgo = 'Just now';
-        } else if (diffMins < 60) {
-          timeAgo = `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
-        } else if (diffHours < 24) {
-          timeAgo = `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
-        } else {
-          timeAgo = `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
-        }
-
-        return {
-          id: sub.id,
-          type: 'problem', // Always 'problem' for submissions
-          title: sub.problem_title,
-          difficulty: sub.difficulty,
-          time: timeAgo,
-        };
-      });
-
-    // Process upcoming events
-    const upcomingEvents = events.map(event => ({
+    // Process upcoming events from calendar and study pod sessions
+    const calendarEvents = events.map(event => ({
       id: event.id,
       type: event.event_type,
       title: event.title,
       date: event.event_date,
       time: event.start_time,
+      timestamp: new Date(`${event.event_date}T${event.start_time || '00:00:00'}`).getTime(),
     }));
+
+    const studySessionEvents = studyPodSessions.map((session: any) => {
+      const scheduledDate = new Date(session.scheduled_at);
+      return {
+        id: session.id,
+        type: 'study_pod',
+        title: `${session.title} - ${session.study_pods?.name || 'Study Pod'}`,
+        date: scheduledDate.toISOString().split('T')[0],
+        time: scheduledDate.toTimeString().split(' ')[0].substring(0, 5),
+        timestamp: scheduledDate.getTime(),
+      };
+    });
+
+    // Combine and sort by timestamp, take top 10
+    const upcomingEvents = [...calendarEvents, ...studySessionEvents]
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .slice(0, 10)
+      .map(({ timestamp, ...rest }) => rest);
 
     // Generate activity chart data (last 30 days)
     const activityChartData = generateActivityChartData(submissions, 30);

@@ -1135,7 +1135,7 @@ const CollaborativeWhiteboard = React.memo(function CollaborativeWhiteboard({
           
           {/* Active collaborators */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900/90 border border-zinc-800/50">
-            <span className="text-[10px] text-zinc-400">{collaborators.size} online</span>
+            <span className="text-[10px] text-zinc-200 font-semibold">{collaborators.size} online</span>
             <div className="flex -space-x-1">
               {Array.from(collaborators.entries()).slice(0, 5).map(([id, collab]) => (
                 <div
@@ -3132,109 +3132,130 @@ export default function LiveSessionPage() {
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex flex-col bg-[#0a0a0c] overflow-hidden">
+      <div className="h-screen flex flex-col bg-[#0a0a0c] relative">
+        {/* Animated Background Glows */}
+        <div className="fixed inset-0 pointer-events-none z-0">
+          {/* Floating orbs - Much more visible */}
+          <div
+            className="absolute top-[5%] right-[10%] w-[700px] h-[700px] rounded-full blur-[140px] animate-pulse-slow"
+            style={{
+              background: 'radial-gradient(circle, rgba(251, 146, 60, 0.15) 0%, rgba(251, 146, 60, 0.05) 50%, transparent 100%)'
+            }}
+          />
+          <div
+            className="absolute bottom-[15%] left-[5%] w-[600px] h-[600px] rounded-full blur-[120px] animate-float-slow"
+            style={{
+              background: 'radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, rgba(168, 85, 247, 0.04) 50%, transparent 100%)',
+              animationDelay: '2s'
+            }}
+          />
+          <div
+            className="absolute top-[40%] right-[35%] w-[500px] h-[500px] rounded-full blur-[100px] animate-float"
+            style={{
+              background: 'radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.03) 50%, transparent 100%)',
+              animationDelay: '4s'
+            }}
+          />
+        </div>
+
       {/* Premium Header */}
-        <header className="h-12 px-3 flex items-center justify-between border-b border-zinc-800/40 bg-gradient-to-r from-[#0a0a0c] via-[#0f0f12] to-[#0a0a0c]">
+        <header className="relative h-16 px-6 flex items-center justify-between border-b border-zinc-800/40 bg-gradient-to-r from-[#0a0a0c]/80 via-[#0f0f12]/80 to-[#0a0a0c]/80 backdrop-blur-xl z-10">
+          {/* Glow effect on hover */}
+          <div className="absolute inset-0 bg-gradient-to-r from-brand/0 via-brand/5 to-brand/0 opacity-0 hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
           {/* Left - Back + Session Info */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4 relative z-10">
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={() => router.push(`/study-pods/${podId}`)}
-              className="h-7 w-7 rounded-full bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800/60"
+              className="h-9 px-3 gap-2 rounded-lg bg-zinc-900/50 hover:bg-zinc-800/80 text-zinc-300 hover:text-white border border-zinc-800/60 hover:border-zinc-700 backdrop-blur-sm transition-all hover:shadow-lg hover:shadow-brand/10 group"
             >
-              <span className="sr-only">Back to Study Pod</span>
-              <span className="text-lg leading-none">&larr;</span>
+              <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
+              <span className="text-xs font-medium">Back to Pod</span>
             </Button>
-            <div className="flex items-center gap-2.5">
-              <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-lg blur opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative p-1.5 rounded-md bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            </div>
-              </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-[13px] font-semibold text-white tracking-tight">{session?.title || 'Live Session'}</h1>
-                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
-                  </div>
-                </div>
-                <p className="text-[10px] text-zinc-500 -mt-0.5">{session?.session_type || 'study'}</p>
+            <div className="flex items-center gap-3">
+              <h1 className="text-sm font-semibold text-white tracking-tight">{session?.title || 'Live Session'}</h1>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 shadow-lg shadow-emerald-500/10">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
               </div>
             </div>
           </div>
 
           {/* Center - Connection + Participants */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 relative z-10">
             {/* Connection Status */}
             <div className={cn(
-              "flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium",
-              realtimeStatus === 'connected' 
-                ? "bg-emerald-500/10 text-emerald-400" 
-                : "bg-red-500/10 text-red-400"
+              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-sm border transition-all duration-300 shadow-lg",
+              realtimeStatus === 'connected'
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-emerald-500/10"
+                : "bg-red-500/10 text-red-400 border-red-500/20 shadow-red-500/10"
             )}>
               {realtimeStatus === 'connected' ? (
-                <Wifi className="h-3 w-3" />
+                <Wifi className="h-3.5 w-3.5" />
               ) : (
-                <WifiOff className="h-3 w-3" />
+                <WifiOff className="h-3.5 w-3.5" />
               )}
-              {realtimeStatus}
+              <span className="capitalize">{realtimeStatus}</span>
             </div>
 
             {/* Participant Avatars */}
-            <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-zinc-800/50 border border-zinc-700/30">
-              <div className="flex -space-x-1.5">
+            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-zinc-900/50 border border-zinc-700/30 backdrop-blur-sm shadow-lg hover:border-zinc-700/50 transition-all">
+              <div className="flex -space-x-2">
                 {participants.slice(0, 5).map((p) => (
                   <Tooltip key={p.oduserId}>
                     <TooltipTrigger asChild>
-                      <div className="relative">
-                        <Avatar className="h-6 w-6 border-2 border-[#0a0a0c] ring-1 ring-zinc-700/50">
+                      <div className="relative cursor-pointer">
+                        <Avatar className="h-7 w-7 border-2 border-[#0a0a0c] ring-1 ring-zinc-700/50 transition-transform hover:scale-110 hover:z-10">
                           {p.avatarUrl && <AvatarImage src={p.avatarUrl} />}
-                          <AvatarFallback className="bg-gradient-to-br from-amber-500 to-orange-600 text-white text-[8px] font-bold">
+                          <AvatarFallback className="bg-gradient-to-br from-amber-500 to-orange-600 text-white text-[9px] font-bold">
                             {p.fullName.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                          </AvatarFallback>
+                        </Avatar>
                         {p.isInCall && (
-                          <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-400 border border-[#0a0a0c]" />
+                          <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-[#0a0a0c] animate-pulse" />
                         )}
                       </div>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom" className="bg-zinc-900 border-zinc-700">
-                      <p className="font-medium text-xs">{p.fullName}</p>
-                      <p className="text-[10px] text-zinc-400">@{p.odusername}</p>
+                    <TooltipContent
+                      side="right"
+                      sideOffset={10}
+                      className="bg-zinc-900/95 border border-zinc-700 shadow-2xl z-[9999] px-2.5 py-1.5 backdrop-blur-xl"
+                    >
+                      <p className="text-[11px] font-semibold text-white whitespace-nowrap">{p.fullName}</p>
+                      <p className="text-[10px] text-zinc-400 whitespace-nowrap">@{p.odusername}</p>
                     </TooltipContent>
                   </Tooltip>
                 ))}
-                  </div>
-              {participants.length > 5 && (
-                <span className="text-[10px] text-zinc-400">+{participants.length - 5}</span>
-                )}
-              <span className="text-[10px] text-zinc-400 font-medium">{participants.length} online</span>
               </div>
+              {participants.length > 5 && (
+                <span className="text-xs text-zinc-300">+{participants.length - 5}</span>
+              )}
+              <span className="text-xs text-zinc-200 font-semibold">{participants.length} online</span>
             </div>
+          </div>
 
           {/* Right - Actions */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 relative z-10">
             {/* Attendance */}
-              <Button
-                size="sm"
+            <Button
+              size="sm"
               onClick={markAttendance}
               disabled={hasMarkedAttendance || isMarkingAttendance}
               className={cn(
-                "h-7 text-[11px] gap-1.5 font-medium rounded-md px-2.5",
+                "h-9 text-xs gap-2 font-medium rounded-lg px-4 transition-all duration-300",
                 hasMarkedAttendance
-                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/10 cursor-default"
-                  : "bg-gradient-to-r from-amber-500 to-orange-500 text-black hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/20"
+                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/10 cursor-default shadow-lg shadow-emerald-500/10"
+                  : "bg-gradient-to-r from-amber-500 to-orange-500 text-black hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 hover:scale-105"
               )}
             >
-              {isMarkingAttendance ? <Loader2 className="h-3 w-3 animate-spin" /> :
-               hasMarkedAttendance ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+              {isMarkingAttendance ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> :
+               hasMarkedAttendance ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
               {hasMarkedAttendance ? 'Attended' : 'Attend'}
-              </Button>
+            </Button>
 
-            <div className="h-4 w-px bg-zinc-800/50" />
+            <div className="h-6 w-px bg-zinc-700/50" />
 
             {/* Video Controls */}
             {!isInCall ? (
@@ -3242,30 +3263,33 @@ export default function LiveSessionPage() {
                 size="sm"
                 onClick={joinCall}
                 disabled={!hasMarkedAttendance || isConnectingCall}
-                className="h-7 text-[11px] gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium px-2.5"
+                className="relative h-9 text-xs gap-2 bg-gradient-to-r from-blue-600/20 to-cyan-600/20 hover:from-blue-600/30 hover:to-cyan-600/30 text-white rounded-lg font-medium px-4 border border-blue-500/30 hover:border-blue-400/40 backdrop-blur-xl shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20 transition-all overflow-hidden group"
               >
-                {isConnectingCall ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Video className="h-3 w-3" />
-                )}
-                {isConnectingCall ? 'Joining...' : 'Join Call'}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="relative flex items-center gap-2">
+                  {isConnectingCall ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Video className="h-3.5 w-3.5" />
+                  )}
+                  {isConnectingCall ? 'Joining...' : 'Join Call'}
+                </div>
               </Button>
             ) : (
-              <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-zinc-800/50 border border-zinc-700/30">
+              <div className="flex items-center gap-1 p-1 rounded-lg bg-zinc-900/50 border border-zinc-700/30 backdrop-blur-sm shadow-lg">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      size="icon" 
-                      onClick={toggleAudio} 
+                      size="icon"
+                      onClick={toggleAudio}
                       className={cn(
-                        "h-6 w-6 rounded-md",
-                        isAudioEnabled 
-                          ? "bg-transparent hover:bg-zinc-700/50 text-white" 
-                          : "bg-red-500/20 text-red-400"
+                        "h-7 w-7 rounded-md transition-all",
+                        isAudioEnabled
+                          ? "bg-transparent hover:bg-zinc-700/50 text-white"
+                          : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
                       )}
                     >
-                      {isAudioEnabled ? <Mic className="h-3 w-3" /> : <MicOff className="h-3 w-3" />}
+                      {isAudioEnabled ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">{isAudioEnabled ? 'Mute' : 'Unmute'}</TooltipContent>
@@ -3273,17 +3297,17 @@ export default function LiveSessionPage() {
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-            <Button
-                      size="icon" 
-                      onClick={toggleVideo} 
+                    <Button
+                      size="icon"
+                      onClick={toggleVideo}
                       className={cn(
-                        "h-6 w-6 rounded-md",
-                        isVideoEnabled 
-                          ? "bg-transparent hover:bg-zinc-700/50 text-white" 
-                          : "bg-red-500/20 text-red-400"
+                        "h-7 w-7 rounded-md transition-all",
+                        isVideoEnabled
+                          ? "bg-transparent hover:bg-zinc-700/50 text-white"
+                          : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
                       )}
                     >
-                      {isVideoEnabled ? <Video className="h-3 w-3" /> : <VideoOff className="h-3 w-3" />}
+                      {isVideoEnabled ? <Video className="h-3.5 w-3.5" /> : <VideoOff className="h-3.5 w-3.5" />}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">{isVideoEnabled ? 'Stop Video' : 'Start Video'}</TooltipContent>
@@ -3291,32 +3315,32 @@ export default function LiveSessionPage() {
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button 
-                      size="icon" 
-                      onClick={toggleScreenShare} 
+                    <Button
+                      size="icon"
+                      onClick={toggleScreenShare}
                       className={cn(
-                        "h-6 w-6 rounded-md",
-                        isScreenSharing 
-                          ? "bg-emerald-500/20 text-emerald-400" 
+                        "h-7 w-7 rounded-md transition-all",
+                        isScreenSharing
+                          ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
                           : "bg-transparent hover:bg-zinc-700/50 text-white"
                       )}
                     >
-                      {isScreenSharing ? <MonitorOff className="h-3 w-3" /> : <MonitorUp className="h-3 w-3" />}
-            </Button>
+                      {isScreenSharing ? <MonitorOff className="h-3.5 w-3.5" /> : <MonitorUp className="h-3.5 w-3.5" />}
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">{isScreenSharing ? 'Stop Share' : 'Share Screen'}</TooltipContent>
                 </Tooltip>
 
-                <div className="w-px h-4 bg-zinc-700/50 mx-0.5" />
+                <div className="w-px h-5 bg-zinc-700/50 mx-0.5" />
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button 
-                      size="icon" 
-                      onClick={retryConnections} 
-                      className="h-6 w-6 rounded-md bg-transparent hover:bg-zinc-700/50 text-amber-400"
+                    <Button
+                      size="icon"
+                      onClick={retryConnections}
+                      className="h-7 w-7 rounded-md bg-transparent hover:bg-amber-500/10 text-amber-400 transition-all"
                     >
-                      <RotateCcw className="h-3 w-3" />
+                      <RotateCcw className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">Refresh</TooltipContent>
@@ -3324,27 +3348,27 @@ export default function LiveSessionPage() {
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button 
-                      size="icon" 
-                      onClick={leaveCall} 
-                      className="h-6 w-6 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-400"
+                    <Button
+                      size="icon"
+                      onClick={leaveCall}
+                      className="h-7 w-7 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-all"
                     >
-                      <PhoneOff className="h-3 w-3" />
+                      <PhoneOff className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">Leave</TooltipContent>
                 </Tooltip>
-          </div>
+              </div>
             )}
-        </div>
+          </div>
       </header>
 
       {/* Main Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden relative z-10">
           <PanelGroup direction="horizontal">
             {/* Sidebar - Redesigned for scalability */}
             <Panel defaultSize={20} minSize={16} maxSize={28}>
-              <div className="h-full flex flex-col border-r border-zinc-800/30 bg-[#0a0a0c]">
+              <div className="h-full flex flex-col border-r border-zinc-800/30 bg-[#0a0a0c]/70 backdrop-blur-sm">
                 {/* Video Grid - Always visible when in call */}
                 {isInCall && (
                   <div className="p-2 border-b border-zinc-800/30">
@@ -3450,22 +3474,22 @@ export default function LiveSessionPage() {
                 {/* Tabs */}
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
                   <TabsList className="w-full justify-start rounded-none border-b border-zinc-800/30 bg-transparent px-2 h-9 gap-0.5 shrink-0">
-                    <TabsTrigger 
-                      value="participants" 
-                      className="text-[10px] gap-1 font-medium px-2.5 h-6 rounded data-[state=active]:bg-zinc-800/80 data-[state=active]:text-white text-zinc-500"
+                    <TabsTrigger
+                      value="participants"
+                      className="text-xs gap-1.5 font-medium px-3 h-7 rounded-lg data-[state=active]:bg-zinc-800/80 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-brand/10 text-zinc-500 transition-all hover:bg-zinc-800/40"
                     >
-                      <PeopleIcon className="h-3 w-3" />
+                      <PeopleIcon className="h-3.5 w-3.5" />
                       People
                       <span className="text-zinc-600 ml-0.5">({participants.length})</span>
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="chat" 
-                      className="text-[10px] gap-1 font-medium px-2.5 h-6 rounded data-[state=active]:bg-zinc-800/80 data-[state=active]:text-white text-zinc-500 relative"
+                    <TabsTrigger
+                      value="chat"
+                      className="text-xs gap-1.5 font-medium px-3 h-7 rounded-lg data-[state=active]:bg-zinc-800/80 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-brand/10 text-zinc-500 relative transition-all hover:bg-zinc-800/40"
                     >
-                      <ChatIcon className="h-3 w-3" />
+                      <ChatIcon className="h-3.5 w-3.5" />
                       Chat
                       {unreadMessages > 0 && activeTab !== 'chat' && (
-                        <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-black flex items-center justify-center">
+                        <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-[9px] font-bold text-black flex items-center justify-center shadow-lg shadow-amber-500/30 animate-pulse">
                           {unreadMessages > 99 ? '99+' : unreadMessages}
                         </span>
                       )}
@@ -3474,40 +3498,53 @@ export default function LiveSessionPage() {
 
                   <TabsContent value="participants" className="flex-1 m-0 overflow-hidden">
                     <ScrollArea className="h-full">
-                      <div className="p-2 space-y-0.5">
+                      <div className="p-3 space-y-2">
                         {participants.map(p => (
-                          <div 
-                            key={p.oduserId} 
-                            className="flex items-center gap-2 p-1.5 rounded-md hover:bg-zinc-800/40 transition-colors group"
+                          <div
+                            key={p.oduserId}
+                            className="relative flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-800/60 transition-all duration-200 group border border-zinc-800/30 hover:border-zinc-700/50 hover:shadow-xl hover:shadow-brand/10 cursor-pointer backdrop-blur-sm"
+                            onClick={() => window.open(`/profile/${p.odusername}`, '_blank')}
                           >
                             <div className="relative shrink-0">
-                              {renderAvatar({ avatarUrl: p.avatarUrl, fullName: p.fullName, username: p.odusername }, 'sm')}
+                              {renderAvatar({ avatarUrl: p.avatarUrl, fullName: p.fullName, username: p.odusername }, 'md')}
                               <span className={cn(
-                                "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-[#0a0a0c]",
-                                p.isInCall ? "bg-emerald-400" : "bg-zinc-600"
+                                "absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[#0a0a0c] transition-all",
+                                p.isInCall ? "bg-emerald-400 shadow-lg shadow-emerald-400/50 animate-pulse" : "bg-zinc-600"
                               )} />
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] font-medium text-zinc-200 truncate flex items-center gap-1">
-                                {p.fullName}
-                                {p.oduserId === currentUser?.id && <span className="text-zinc-600">(you)</span>}
-                                {p.isHost && <Crown className="h-2.5 w-2.5 text-amber-400" />}
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                              <p className="text-xs font-semibold text-zinc-100 flex items-center gap-1.5 mb-0.5 overflow-hidden">
+                                <span className="truncate">{p.fullName}</span>
+                                {p.oduserId === currentUser?.id && <span className="text-zinc-500 font-normal flex-shrink-0">(you)</span>}
+                                {p.isHost && <Crown className="h-3 w-3 text-amber-400 flex-shrink-0" />}
                               </p>
-                              <p className="text-[9px] text-zinc-600 truncate flex items-center gap-1">
-                                @{p.odusername}
+                              <p className="text-[10px] text-zinc-500 flex items-center gap-1.5 overflow-hidden">
+                                <span className="truncate">@{p.odusername}</span>
                                 {p.isTyping && (
-                                  <span className="text-blue-400 flex items-center gap-0.5 animate-pulse">
-                                    <Code2 className="h-2 w-2" />
+                                  <span className="text-blue-400 flex items-center gap-1 animate-pulse flex-shrink-0">
+                                    <Code2 className="h-2.5 w-2.5" />
                                     typing
                                   </span>
                                 )}
                               </p>
                             </div>
-                            {p.isInCall && (
-                              <div className="shrink-0">
-                                <Video className="h-3 w-3 text-emerald-400" />
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {p.isInCall && (
+                                <div className="p-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+                                  <Video className="h-3 w-3 text-emerald-400" />
+                                </div>
+                              )}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="p-1.5 rounded-md bg-brand/20 border border-brand/30 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-brand/30">
+                                    <ArrowUpRight className="h-3 w-3 text-brand" />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="bg-zinc-800 border-brand/30 shadow-lg shadow-brand/20">
+                                  <p className="text-xs font-medium text-white">View profile</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
                           </div>
                         ))}
 
@@ -3581,32 +3618,32 @@ export default function LiveSessionPage() {
             <Panel defaultSize={80}>
               <div className="h-full flex flex-col bg-[#0d0d0f]">
                 {/* View Mode Toggle Bar */}
-                <div className="h-9 flex items-center justify-between px-3 bg-[#111113] border-b border-zinc-800/30">
-                  <div className="flex items-center gap-2">
+                <div className="h-11 flex items-center justify-between px-4 bg-[#111113] border-b border-zinc-800/30">
+                  <div className="flex items-center gap-3">
                     {/* View Mode Tabs */}
-                    <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-zinc-800/50 border border-zinc-700/30">
+                    <div className="flex items-center gap-1 p-1 rounded-lg bg-zinc-900/50 border border-zinc-700/30 backdrop-blur-sm shadow-lg">
                       <button
                         onClick={() => setViewMode('code')}
                         className={cn(
-                          "flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-medium transition-all",
-                          viewMode === 'code' 
-                            ? "bg-amber-500/20 text-amber-400" 
+                          "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                          viewMode === 'code'
+                            ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 shadow-lg shadow-amber-500/10"
                             : "text-zinc-500 hover:text-white hover:bg-zinc-700/50"
                         )}
                       >
-                        <Code2 className="h-3 w-3" />
+                        <Code2 className="h-3.5 w-3.5" />
                         Code
                       </button>
                       <button
                         onClick={() => setViewMode('whiteboard')}
                         className={cn(
-                          "flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-medium transition-all",
-                          viewMode === 'whiteboard' 
-                            ? "bg-purple-500/20 text-purple-400" 
+                          "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                          viewMode === 'whiteboard'
+                            ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400 shadow-lg shadow-purple-500/10"
                             : "text-zinc-500 hover:text-white hover:bg-zinc-700/50"
                         )}
                       >
-                        <WhiteboardIcon className="h-3 w-3" />
+                        <WhiteboardIcon className="h-3.5 w-3.5" />
                         Board
                       </button>
                       <button
@@ -3642,12 +3679,12 @@ export default function LiveSessionPage() {
                           </span>
                         </div>
                         <Select value={language} onValueChange={handleLanguageChange} disabled={!hasMarkedAttendance}>
-                          <SelectTrigger className="w-[100px] h-6 text-[10px] bg-zinc-800/30 border-zinc-700/30 focus:ring-1 focus:ring-amber-500/30 rounded">
+                          <SelectTrigger className="w-[110px] h-8 text-xs bg-zinc-800/30 border-zinc-700/30 focus:ring-2 focus:ring-amber-500/30 rounded-lg hover:bg-zinc-800/50 transition-all shadow-lg">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="bg-[#111113] border-zinc-700/50">
+                          <SelectContent className="bg-[#111113] border-zinc-700/50 shadow-2xl">
                             {LANGUAGES.map(l => (
-                              <SelectItem key={l.value} value={l.value} className="text-[10px]">
+                              <SelectItem key={l.value} value={l.value} className="text-xs hover:bg-zinc-800/50 transition-colors">
                                 {l.label}
                               </SelectItem>
                             ))}
@@ -3724,13 +3761,18 @@ export default function LiveSessionPage() {
                           onClick={runCode}
                           disabled={isExecuting || !hasMarkedAttendance}
                           className={cn(
-                            "h-6 text-[10px] gap-1 font-medium px-2.5 rounded",
-                            isExecuting 
-                              ? "bg-amber-500/20 text-amber-400"
-                              : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20"
+                            "relative h-8 text-xs gap-2 font-semibold px-4 rounded-lg transition-all duration-300 border shadow-lg overflow-hidden group",
+                            isExecuting
+                              ? "bg-amber-500/40 text-amber-100 border-amber-500/40 shadow-amber-500/20 backdrop-blur-xl"
+                              : "bg-gradient-to-r from-emerald-600/50 to-green-600/50 hover:from-emerald-600/60 hover:to-green-600/60 text-white border-emerald-500/30 hover:border-emerald-400/40 backdrop-blur-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:scale-105"
                           )}
                         >
-                          {isExecuting ? <><Loader2 className="h-3 w-3 animate-spin" />Running</> : <><Play className="h-3 w-3 fill-current" />Run</>}
+                          {!isExecuting && (
+                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-green-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          )}
+                          <div className="relative flex items-center gap-2">
+                            {isExecuting ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Running</> : <><Play className="h-3.5 w-3.5 fill-current" />Run</>}
+                          </div>
                     </Button>
                       </>
                     )}
