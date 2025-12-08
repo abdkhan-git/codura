@@ -21,6 +21,7 @@ export function StreamVideoPlayer({
 }: StreamVideoPlayerProps) {
   const { theme } = useTheme();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hasJoinedRef = useRef(false);
   const {
     remoteStream,
     isConnected,
@@ -29,16 +30,19 @@ export function StreamVideoPlayer({
   } = useLiveStreamViewer(roomId, userId, userName);
 
   useEffect(() => {
-    if (roomId && !remoteStream) {
+    if (roomId && userId && !hasJoinedRef.current) {
+      hasJoinedRef.current = true;
       joinStream();
     }
 
     return () => {
-      if (remoteStream) {
+      if (hasJoinedRef.current) {
+        hasJoinedRef.current = false;
         leaveStream();
       }
     };
-  }, [roomId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, userId]);
 
   useEffect(() => {
     if (videoRef.current && remoteStream) {

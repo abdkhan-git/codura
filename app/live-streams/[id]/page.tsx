@@ -56,9 +56,9 @@ export default function LiveStreamChatroomPage() {
 
   useEffect(() => {
     if (streamId) {
-      fetchStream();
-      // Refresh stream data every 5 seconds to update viewer count
-      const interval = setInterval(fetchStream, 5000);
+      fetchStream(true);
+      // Refresh stream data every 5 seconds to update viewer count (without showing loading)
+      const interval = setInterval(() => fetchStream(false), 5000);
       return () => clearInterval(interval);
     }
   }, [streamId]);
@@ -81,14 +81,17 @@ export default function LiveStreamChatroomPage() {
     }
   };
 
-  const fetchStream = async () => {
+  const fetchStream = async (showLoading: boolean = true) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       const response = await fetch(`/api/live-streams/${streamId}`);
       
       if (!response.ok) {
         if (response.status === 404) {
           setError("Stream not found or has ended");
+          setStream(null);
         } else {
           setError("Failed to load stream");
         }
@@ -101,9 +104,13 @@ export default function LiveStreamChatroomPage() {
     } catch (error) {
       console.error("Error fetching stream:", error);
       setError("Failed to load stream");
-      toast.error("Failed to load stream");
+      if (showLoading) {
+        toast.error("Failed to load stream");
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 

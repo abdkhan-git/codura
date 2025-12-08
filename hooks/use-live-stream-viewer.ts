@@ -17,31 +17,111 @@ export function useLiveStreamViewer(roomId: string, userId: string, userName: st
     { urls: 'stun:stun1.l.google.com:19302' },
   ]
 
+  const createPeerConnection = useCallback((streamerUserId: string) => {
+    // Don't create if already exists for this streamer
+    if (peerConnectionRef.current) {
+      console.log('Peer connection already exists, skipping...')
+      return
+    }
+
+    console.log('Creating peer connection for streamer:', streamerUserId)
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+
+    pc.ontrack = (event) => {
+      console.log('Received track from streamer')
+      const [stream] = event.streams
+      setRemoteStream(stream)
+      setIsConnected(true)
+    }
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate && channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'viewer-ice',
+          payload: {
+            streamerId: streamerUserId,
+            viewerId: userId,
+            candidate: event.candidate,
+          },
+        })
+      }
+    }
+
+    pc.onconnectionstatechange = () => {
+      console.log('Connection state:', pc.connectionState)
+      if (pc.connectionState === 'connected') {
+        setIsConnected(true)
+      } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        setIsConnected(false)
+        if (pc.connectionState === 'failed') {
+          setRemoteStream(null)
+          peerConnectionRef.current = null
+        }
+      }
+    }
+
+    peerConnectionRef.current = pc
+
+    // Send offer to streamer
+    pc.createOffer().then(offer => {
+      pc.setLocalDescription(offer)
+      if (channelRef.current) {
+        console.log('Sending offer to streamer')
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'viewer-offer',
+          payload: {
+            streamerId: streamerUserId,
+            viewerId: userId,
+            viewerName: userName,
+            offer,
+          },
+        })
+      }
+    }).catch(error => {
+      console.error('Error creating offer:', error)
+      pc.close()
+      peerConnectionRef.current = null
+    })
+  }, [userId, userName])
+
   const joinStream = useCallback(async () => {
-    if (hasJoinedRef.current) return
+    if (hasJoinedRef.current || !roomId || !userId) return
     
-    const channel = supabase.channel(`live-stream:${roomId}`)
+    hasJoinedRef.current = true
+    const channel = supabase.channel(`live-stream:${roomId}`, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: userId },
+      },
+    })
 
     // Find streamer when presence syncs
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState()
-      const streamer = Object.values(state)
-        .flat()
-        .find((p: any) => p.isStreamer)
+      console.log('Presence sync - current state:', state)
+      const allPresences = Object.values(state).flat() as any[]
+      console.log('All presences:', allPresences)
+      const streamer = allPresences.find((p: any) => p.isStreamer && p.userId !== userId)
       
-      if (streamer && streamer.userId !== userId) {
+      if (streamer && !peerConnectionRef.current) {
+        console.log('Found streamer on sync:', streamer.userId, streamer.userName)
         setStreamerId(streamer.userId)
         setStreamerName(streamer.userName || 'Anonymous')
-        if (!peerConnectionRef.current) {
-          createPeerConnection(streamer.userId)
-        }
+        createPeerConnection(streamer.userId)
+      } else if (!streamer) {
+        console.log('No streamer found in presence state yet')
+      } else if (peerConnectionRef.current) {
+        console.log('Peer connection already exists, skipping...')
       }
     })
 
     // Handle new streamer joining
     channel.on('presence', { event: 'join' }, ({ newPresences }) => {
-      const streamer = newPresences.find((p: any) => p.isStreamer && p.userId !== userId)
+      const streamer = (newPresences as any[]).find((p: any) => p.isStreamer && p.userId !== userId)
       if (streamer && !peerConnectionRef.current) {
+        console.log('Streamer joined:', streamer.userId)
         setStreamerId(streamer.userId)
         setStreamerName(streamer.userName || 'Anonymous')
         createPeerConnection(streamer.userId)
@@ -50,8 +130,9 @@ export function useLiveStreamViewer(roomId: string, userId: string, userName: st
 
     // Handle streamer leaving
     channel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
-      const streamerLeft = leftPresences.find((p: any) => p.isStreamer && p.userId === streamerId)
+      const streamerLeft = (leftPresences as any[]).find((p: any) => p.isStreamer)
       if (streamerLeft) {
+        console.log('Streamer left, cleaning up...')
         leaveStream()
       }
     })
@@ -84,77 +165,21 @@ export function useLiveStreamViewer(roomId: string, userId: string, userName: st
 
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
+        console.log('Viewer subscribed to channel, tracking presence...')
         await channel.track({
           userId,
           userName,
           isViewer: true,
         })
-        hasJoinedRef.current = true
+        console.log('Viewer presence tracked')
       }
     })
 
     channelRef.current = channel
-  }, [roomId, userId, userName, supabase, streamerId])
-
-  const createPeerConnection = useCallback((streamerUserId: string) => {
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close()
-    }
-
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
-
-    pc.ontrack = (event) => {
-      const [stream] = event.streams
-      setRemoteStream(stream)
-      setIsConnected(true)
-    }
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'viewer-ice',
-          payload: {
-            streamerId: streamerUserId,
-            viewerId: userId,
-            candidate: event.candidate,
-          },
-        })
-      }
-    }
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') {
-        setIsConnected(true)
-      } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        setIsConnected(false)
-        setRemoteStream(null)
-      }
-    }
-
-    peerConnectionRef.current = pc
-
-    // Send offer to streamer
-    pc.createOffer().then(offer => {
-      pc.setLocalDescription(offer)
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'viewer-offer',
-          payload: {
-            streamerId: streamerUserId,
-            viewerId: userId,
-            viewerName: userName,
-            offer,
-          },
-        })
-      }
-    }).catch(error => {
-      console.error('Error creating offer:', error)
-    })
-  }, [userId, userName])
+  }, [roomId, userId, userName, supabase, createPeerConnection])
 
   const leaveStream = useCallback(() => {
+    console.log('Leaving stream...')
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close()
       peerConnectionRef.current = null
