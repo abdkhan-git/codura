@@ -60,7 +60,7 @@ export function StreamCard({ stream, className }: StreamCardProps) {
   const handleJoinStream = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    router.push(`/problems/${problem?.id}?room=${stream.room_id}`);
+    router.push(`/live-streams/${stream.id}`);
   };
 
   return (
