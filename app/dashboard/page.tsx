@@ -26,13 +26,10 @@ import {
   BarChart3,
   Settings,
 } from "lucide-react";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import {
   ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart"; // Ensure this file exists or update the path to the correct location
+} from "@/components/ui/chart";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { PlanDialog } from "@/components/study-plans/plan-dialog";
 import { StudyPlanDetailDialog } from "@/components/study-plans/study-plan-detail-dialog";
@@ -831,10 +828,9 @@ export default function DashboardPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="h-[300px]">
-                <ChartContainer config={chartConfig} className="h-full w-full">
+              <CardContent className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
-                    accessibilityLayer
                     data={activityChartData}
                     margin={{
                       left: 0,
@@ -852,17 +848,38 @@ export default function DashboardPage() {
                       tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
                       interval="preserveStartEnd"
                     />
-                    <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                    <YAxis 
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                      allowDecimals={false}
+                      width={30}
+                    />
+                    <Tooltip 
+                      cursor={false}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(30, 30, 30, 0.95)', 
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        padding: '8px 12px',
+                        color: '#fff'
+                      }}
+                      labelStyle={{ color: '#fff', fontWeight: 500, marginBottom: '4px' }}
+                      itemStyle={{ color: '#a1a1aa' }}
+                      formatter={(value: number) => [`${value} problems`, 'Solved']}
+                    />
                     <defs>
                       <linearGradient id="fillProblems" x1="0" y1="0" x2="0" y2="1">
                         <stop
                           offset="5%"
-                          stopColor="var(--brand)"
+                          stopColor="#06b6d4"
                           stopOpacity={0.8}
                         />
                         <stop
                           offset="95%"
-                          stopColor="var(--brand)"
+                          stopColor="#06b6d4"
                           stopOpacity={0.1}
                         />
                       </linearGradient>
@@ -872,11 +889,11 @@ export default function DashboardPage() {
                       type="monotone"
                       fill="url(#fillProblems)"
                       fillOpacity={0.4}
-                      stroke="var(--brand)"
+                      stroke="#06b6d4"
                       strokeWidth={2}
                     />
                   </AreaChart>
-                </ChartContainer>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
 
