@@ -979,7 +979,8 @@ export default function ProblemPage() {
   } = useLiveStream(
     roomId,
     session?.user?.id || 'anonymous',
-    session?.user?.email?.split('@')[0] || 'Anonymous'
+    session?.user?.email?.split('@')[0] || 'Anonymous',
+    Number(params.id)
   )
 
   const {

@@ -8,7 +8,7 @@ interface Viewer {
   peerConnection: RTCPeerConnection
 }
 
-export function useLiveStream(roomId: string, userId: string, userName: string) {
+export function useLiveStream(roomId: string, userId: string, userName: string, problemId?: number) {
   const supabase = createClient()
   const [isStreaming, setIsStreaming] = useState(false)
   const [viewers, setViewers] = useState<Viewer[]>([])
@@ -16,6 +16,8 @@ export function useLiveStream(roomId: string, userId: string, userName: string) 
   const channelRef = useRef<RealtimeChannel | null>(null)
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map())
   const streamRef = useRef<MediaStream | null>(null)
+  const streamIdRef = useRef<string | null>(null)
+  const viewerCountIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -39,6 +41,26 @@ export function useLiveStream(roomId: string, userId: string, userName: string) 
       streamRef.current = stream
       setLocalStream(stream)
       setIsStreaming(true)
+
+      // Notify API that stream has started
+      if (problemId) {
+        try {
+          const response = await fetch('/api/live-streams/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              problemId,
+              roomId,
+            }),
+          })
+          if (response.ok) {
+            const data = await response.json()
+            streamIdRef.current = data.stream?.id || null
+          }
+        } catch (error) {
+          console.error('Error notifying API of stream start:', error)
+        }
+      }
 
       // Setup signaling channel
       const channel = supabase.channel(`live-stream:${roomId}`, {
@@ -64,7 +86,12 @@ export function useLiveStream(roomId: string, userId: string, userName: string) 
           if (pc) {
             pc.close()
             peerConnectionsRef.current.delete(presence.userId)
-            setViewers(prev => prev.filter(v => v.id !== presence.userId))
+            setViewers(prev => {
+              const newViewers = prev.filter(v => v.id !== presence.userId)
+              // Update viewer count in API
+              updateViewerCount(newViewers.length)
+              return newViewers
+            })
           }
         })
       })
@@ -106,7 +133,12 @@ export function useLiveStream(roomId: string, userId: string, userName: string) 
             if (pc!.connectionState === 'failed' || pc!.connectionState === 'disconnected') {
               pc!.close()
               peerConnectionsRef.current.delete(viewerId)
-              setViewers(prev => prev.filter(v => v.id !== viewerId))
+              setViewers(prev => {
+                const newViewers = prev.filter(v => v.id !== viewerId)
+                // Update viewer count in API
+                updateViewerCount(newViewers.length)
+                return newViewers
+              })
             }
           }
 
@@ -114,7 +146,10 @@ export function useLiveStream(roomId: string, userId: string, userName: string) 
           setViewers(prev => {
             const exists = prev.find(v => v.id === viewerId)
             if (!exists) {
-              return [...prev, { id: viewerId, name: payload.viewerName || 'Anonymous', peerConnection: pc! }]
+              const newViewers = [...prev, { id: viewerId, name: payload.viewerName || 'Anonymous', peerConnection: pc! }]
+              // Update viewer count in API
+              updateViewerCount(newViewers.length)
+              return newViewers
             }
             return prev
           })
@@ -167,13 +202,39 @@ export function useLiveStream(roomId: string, userId: string, userName: string) 
         stopStream()
       })
 
+      // Periodically update viewer count
+      viewerCountIntervalRef.current = setInterval(() => {
+        setViewers(current => {
+          updateViewerCount(current.length)
+          return current
+        })
+      }, 5000) // Update every 5 seconds
+
     } catch (error) {
       console.error('Error starting stream:', error)
       setIsStreaming(false)
       setLocalStream(null)
       throw error
     }
-  }, [roomId, userId, userName, supabase])
+  }, [roomId, userId, userName, supabase, problemId, updateViewerCount])
+
+  // Update viewer count in API
+  const updateViewerCount = useCallback(async (count: number) => {
+    if (!streamIdRef.current) return
+    
+    try {
+      await fetch('/api/live-streams/viewer-count', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          streamId: streamIdRef.current,
+          viewerCount: count,
+        }),
+      })
+    } catch (error) {
+      console.error('Error updating viewer count:', error)
+    }
+  }, [])
 
   // Create peer connection for a new viewer (legacy - now handled in viewer-offer)
   const createPeerConnectionForViewer = useCallback(async (viewerId: string, viewerName: string) => {
@@ -182,7 +243,7 @@ export function useLiveStream(roomId: string, userId: string, userName: string) 
   }, [])
 
   // Stop streaming
-  const stopStream = useCallback(() => {
+  const stopStream = useCallback(async () => {
     // Stop all tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop())
@@ -193,10 +254,29 @@ export function useLiveStream(roomId: string, userId: string, userName: string) 
     peerConnectionsRef.current.forEach(pc => pc.close())
     peerConnectionsRef.current.clear()
 
+    // Clear viewer count interval
+    if (viewerCountIntervalRef.current) {
+      clearInterval(viewerCountIntervalRef.current)
+      viewerCountIntervalRef.current = null
+    }
+
     // Unsubscribe from channel
     if (channelRef.current) {
       channelRef.current.unsubscribe()
       channelRef.current = null
+    }
+
+    // Notify API that stream has stopped
+    if (streamIdRef.current) {
+      try {
+        await fetch('/api/live-streams/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (error) {
+        console.error('Error notifying API of stream stop:', error)
+      }
+      streamIdRef.current = null
     }
 
     setLocalStream(null)
