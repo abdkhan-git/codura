@@ -24,6 +24,24 @@ export function useLiveStream(roomId: string, userId: string, userName: string, 
     { urls: 'stun:stun1.l.google.com:19302' },
   ]
 
+  // Update viewer count in API
+  const updateViewerCount = useCallback(async (count: number) => {
+    if (!streamIdRef.current) return
+    
+    try {
+      await fetch('/api/live-streams/viewer-count', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          streamId: streamIdRef.current,
+          viewerCount: count,
+        }),
+      })
+    } catch (error) {
+      console.error('Error updating viewer count:', error)
+    }
+  }, [])
+
   // Start streaming
   const startStream = useCallback(async () => {
     try {
@@ -217,24 +235,6 @@ export function useLiveStream(roomId: string, userId: string, userName: string, 
       throw error
     }
   }, [roomId, userId, userName, supabase, problemId, updateViewerCount])
-
-  // Update viewer count in API
-  const updateViewerCount = useCallback(async (count: number) => {
-    if (!streamIdRef.current) return
-    
-    try {
-      await fetch('/api/live-streams/viewer-count', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          streamId: streamIdRef.current,
-          viewerCount: count,
-        }),
-      })
-    } catch (error) {
-      console.error('Error updating viewer count:', error)
-    }
-  }, [])
 
   // Create peer connection for a new viewer (legacy - now handled in viewer-offer)
   const createPeerConnectionForViewer = useCallback(async (viewerId: string, viewerName: string) => {

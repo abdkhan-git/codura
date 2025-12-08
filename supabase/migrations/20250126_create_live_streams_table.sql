@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS live_streams (
   ended_at TIMESTAMPTZ,
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 
   -- Note: We'll handle one active stream per streamer in application logic
   -- The unique constraint would prevent multiple streams even if one is inactive
