@@ -100,6 +100,26 @@ export function LiveSessionsSection({
 
   const handleJoinSession = async (sessionId: string, isLiveSession: boolean, hasAlreadyAttended: boolean = false) => {
     try {
+      // Check if session is expired before attempting to join
+      const session = localSessions.find(s => s.id === sessionId);
+      if (session) {
+        const now = new Date();
+        const scheduledDate = new Date(session.scheduled_at);
+        const hasEnded = session.ended_at ? new Date(session.ended_at) < now : false;
+        const durationMs = session.duration_minutes ? session.duration_minutes * 60 * 1000 : 0;
+        const expectedEndTime = scheduledDate.getTime() + durationMs;
+        const isExpired = hasEnded || 
+          (session.status !== 'in_progress' && 
+           session.status !== 'scheduled' && 
+           expectedEndTime > 0 && 
+           expectedEndTime < now.getTime());
+        
+        if (isExpired || session.status === 'completed' || session.status === 'cancelled') {
+          toast.error('This session has expired or ended');
+          return;
+        }
+      }
+
       // If user has already marked attendance, just navigate directly
       if (hasAlreadyAttended) {
         window.location.href = `/study-pods/${podId}/session/${sessionId}`;

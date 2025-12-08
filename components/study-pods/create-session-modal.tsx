@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
-import { format, addDays, setHours, setMinutes, startOfDay } from "date-fns";
+import { format, addDays, addMinutes, setHours, setMinutes, startOfDay } from "date-fns";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -108,10 +108,13 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
   // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [selectedTime, setSelectedTime] = useState("10:00");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [startTime, setStartTime] = useState("10:00");
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [endTime, setEndTime] = useState("11:00");
   const [sessionType, setSessionType] = useState("study");
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
+  const [useExplicitEndTime, setUseExplicitEndTime] = useState(false);
 
   // Problems selection
   const [problems, setProblems] = useState<Problem[]>([]);
@@ -126,23 +129,38 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
     if (!isOpen) {
       setTitle("");
       setDescription("");
-      setSelectedDate(undefined);
-      setSelectedTime("10:00");
+      setStartDate(undefined);
+      setStartTime("10:00");
+      setEndDate(undefined);
+      setEndTime("11:00");
       setSessionType("study");
       setDurationMinutes(60);
       setSelectedProblems([]);
       setSearchQuery("");
       setShowProblemsSection(false);
+      setUseExplicitEndTime(false);
     }
   }, [isOpen]);
 
-  // Set default date to tomorrow
+  // Set default dates to tomorrow
   useEffect(() => {
-    if (isOpen && !selectedDate) {
+    if (isOpen && !startDate) {
       const tomorrow = addDays(new Date(), 1);
-      setSelectedDate(tomorrow);
+      setStartDate(tomorrow);
+      setEndDate(tomorrow);
     }
-  }, [isOpen, selectedDate]);
+  }, [isOpen, startDate]);
+
+  // Auto-update end time when start time or duration changes (if not using explicit end time)
+  useEffect(() => {
+    if (!useExplicitEndTime && startDate && startTime) {
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const startDateTime = setMinutes(setHours(startOfDay(startDate), hours), minutes);
+      const endDateTime = addMinutes(startDateTime, durationMinutes);
+      setEndDate(endDateTime);
+      setEndTime(format(endDateTime, 'HH:mm'));
+    }
+  }, [startDate, startTime, durationMinutes, useExplicitEndTime]);
 
   // Load problems when problems section is shown
   useEffect(() => {
@@ -198,25 +216,43 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
       return;
     }
 
-    if (!selectedDate) {
-      toast.error("Please select a date");
+    if (!startDate) {
+      toast.error("Please select a start date");
       return;
     }
 
-    // Parse time string (HH:MM format)
-    const [hours, minutes] = selectedTime.split(':').map(Number);
+    if (!endDate) {
+      toast.error("Please select an end date");
+      return;
+    }
 
-    // Combine date and time
-    const scheduledDateTime = setMinutes(
-      setHours(startOfDay(selectedDate), hours),
-      minutes
+    // Parse start time
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    const startDateTime = setMinutes(
+      setHours(startOfDay(startDate), startHours),
+      startMinutes
     );
 
-    // Check if date is in the future
-    if (scheduledDateTime < new Date()) {
-      toast.error("Session must be scheduled for a future time");
+    // Parse end time
+    const [endHours, endMinutes] = endTime.split(':').map(Number);
+    const endDateTime = setMinutes(
+      setHours(startOfDay(endDate), endHours),
+      endMinutes
+    );
+
+    // Validation checks
+    if (startDateTime < new Date()) {
+      toast.error("Session start time must be in the future");
       return;
     }
+
+    if (endDateTime <= startDateTime) {
+      toast.error("End time must be after start time");
+      return;
+    }
+
+    // Calculate duration from start and end times
+    const calculatedDuration = Math.round((endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60));
 
     setSubmitting(true);
 
@@ -227,9 +263,10 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim() || null,
-          scheduled_at: scheduledDateTime.toISOString(),
+          scheduled_at: startDateTime.toISOString(),
+          ended_at: endDateTime.toISOString(),
           session_type: sessionType,
-          duration_minutes: durationMinutes,
+          duration_minutes: calculatedDuration,
           problems_covered: selectedProblems,
         }),
       });
@@ -285,12 +322,13 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
     );
   };
 
-  const isSelected = (day: number) => {
-    if (!selectedDate) return false;
+  const isSelected = (day: number, dateToCheck?: Date) => {
+    const checkDate = dateToCheck || startDate;
+    if (!checkDate) return false;
     return (
-      day === selectedDate.getDate() &&
-      currentMonth.getMonth() === selectedDate.getMonth() &&
-      currentMonth.getFullYear() === selectedDate.getFullYear()
+      day === checkDate.getDate() &&
+      currentMonth.getMonth() === checkDate.getMonth() &&
+      currentMonth.getFullYear() === checkDate.getFullYear()
     );
   };
 
@@ -301,10 +339,14 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
     return date < today;
   };
 
-  const handleDayClick = (day: number) => {
+  const handleDayClick = (day: number, isEndDate: boolean = false) => {
     if (isPastDate(day)) return;
     const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    setSelectedDate(newDate);
+    if (isEndDate) {
+      setEndDate(newDate);
+    } else {
+      setStartDate(newDate);
+    }
     setDatePickerOpen(false);
   };
 
@@ -398,16 +440,16 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
               />
             </div>
 
-            {/* Date & Time Selection */}
+            {/* Start Date & Time Selection */}
             <div className="grid md:grid-cols-2 gap-5">
-              {/* Date Picker */}
+              {/* Start Date Picker */}
               <div className="space-y-2.5">
                 <Label className={cn(
                   "text-sm font-semibold flex items-center gap-2",
                   theme === 'light' ? "text-gray-700" : "text-white/90"
                 )}>
                   <CalendarIcon className="w-4 h-4 text-cyan-400" />
-                  Date *
+                  Start Date *
                 </Label>
                 <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                   <PopoverTrigger asChild>
@@ -430,9 +472,9 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
                       </div>
                       <span className={cn(
                         "flex-1 pl-2",
-                        !selectedDate && "text-muted-foreground"
+                        !startDate && "text-muted-foreground"
                       )}>
-                        {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : "Select date"}
+                        {startDate ? format(startDate, "EEEE, MMMM d, yyyy") : "Select start date"}
                       </span>
                       <ChevronDown className={cn(
                         "h-4 w-4 transition-transform duration-300",
@@ -520,7 +562,7 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
                         {/* Actual days */}
                         {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
                           const day = i + 1;
-                          const selected = isSelected(day);
+                          const selected = isSelected(day, startDate);
                           const today = isToday(day);
                           const past = isPastDate(day);
                           const hovered = hoveredDay === day;
@@ -530,7 +572,7 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
                               key={day}
                               type="button"
                               disabled={past}
-                              onClick={() => handleDayClick(day)}
+                              onClick={() => handleDayClick(day, false)}
                               onMouseEnter={() => setHoveredDay(day)}
                               onMouseLeave={() => setHoveredDay(null)}
                               className={cn(
@@ -577,7 +619,8 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
                           type="button"
                           onClick={() => {
                             const tomorrow = addDays(new Date(), 1);
-                            setSelectedDate(tomorrow);
+                            setStartDate(tomorrow);
+                            setEndDate(tomorrow);
                             setCurrentMonth(tomorrow);
                             setDatePickerOpen(false);
                           }}
@@ -594,7 +637,8 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
                           type="button"
                           onClick={() => {
                             const nextWeek = addDays(new Date(), 7);
-                            setSelectedDate(nextWeek);
+                            setStartDate(nextWeek);
+                            setEndDate(nextWeek);
                             setCurrentMonth(nextWeek);
                             setDatePickerOpen(false);
                           }}
@@ -613,20 +657,202 @@ export function CreateSessionModal({ isOpen, onClose, podId, onSuccess }: Create
                 </Popover>
               </div>
 
-              {/* Time Picker */}
+              {/* Start Time Picker */}
               <div className="space-y-2.5">
-                <Label htmlFor="time-picker" className={cn(
+                <Label htmlFor="start-time-picker" className={cn(
                   "text-sm font-semibold flex items-center gap-2",
                   theme === 'light' ? "text-gray-700" : "text-white/90"
                 )}>
                   <Clock className="w-4 h-4 text-purple-400" />
-                  Time *
+                  Start Time *
                 </Label>
                 <Input
                   type="time"
-                  id="time-picker"
-                  value={selectedTime}
-                  onChange={(e) => setSelectedTime(e.target.value)}
+                  id="start-time-picker"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="h-11 bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                />
+              </div>
+            </div>
+
+            {/* End Date & Time Selection */}
+            <div className="grid md:grid-cols-2 gap-5">
+              {/* End Date Picker */}
+              <div className="space-y-2.5">
+                <Label className={cn(
+                  "text-sm font-semibold flex items-center gap-2",
+                  theme === 'light' ? "text-gray-700" : "text-white/90"
+                )}>
+                  <CalendarIcon className="w-4 h-4 text-red-400" />
+                  End Date *
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        "group relative flex w-full items-center rounded-xl border-2 px-4 py-2.5 pl-11 text-left text-sm font-medium shadow-sm transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 hover:scale-[1.01]",
+                        theme === 'light'
+                          ? "bg-white/90 backdrop-blur-sm border-gray-200 text-gray-900 hover:border-red-300 hover:shadow-md focus-visible:ring-red-200"
+                          : "bg-white/5 backdrop-blur-sm border-white/10 text-white/90 hover:border-red-500/30 hover:bg-white/10 focus-visible:ring-red-500/40 focus-visible:ring-offset-zinc-900"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute left-3 flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-300",
+                        theme === 'light'
+                          ? "bg-gradient-to-br from-red-50 to-pink-50 group-hover:from-red-100 group-hover:to-pink-100"
+                          : "bg-gradient-to-br from-red-500/10 to-pink-500/10 group-hover:from-red-500/20 group-hover:to-pink-500/20"
+                      )}>
+                        <CalendarIcon className="h-4 w-4 text-red-500" />
+                      </div>
+                      <span className={cn(
+                        "flex-1 pl-2",
+                        !endDate && "text-muted-foreground"
+                      )}>
+                        {endDate ? format(endDate, "EEEE, MMMM d, yyyy") : "Select end date"}
+                      </span>
+                      <ChevronDown className={cn(
+                        "h-4 w-4 transition-transform duration-300",
+                        theme === 'light' ? "text-gray-400" : "text-white/50"
+                      )} />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    className="w-auto border-0 bg-transparent p-0 shadow-none"
+                  >
+                    <div className={cn(
+                      "relative overflow-hidden rounded-2xl border-2 p-4 shadow-2xl backdrop-blur-xl transition-all duration-300",
+                      theme === 'light'
+                        ? "bg-white/95 border-red-100"
+                        : "bg-zinc-900/95 border-white/10"
+                    )}>
+                      {/* Calendar Header */}
+                      <div className="relative mb-4 flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => navigateMonth('prev')}
+                          className={cn(
+                            "flex h-9 w-9 items-center justify-center rounded-lg border-2 transition-all duration-200 hover:scale-110",
+                            theme === 'light'
+                              ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                              : "border-white/10 bg-white/5 text-red-400 hover:bg-red-500/20 hover:border-red-500/30"
+                          )}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <h3 className={cn(
+                          "text-base font-bold",
+                          theme === 'light'
+                            ? "text-gray-900"
+                            : "bg-gradient-to-r from-red-400 to-pink-400 bg-clip-text text-transparent"
+                        )}>
+                          {format(currentMonth, "MMMM yyyy")}
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={() => navigateMonth('next')}
+                          className={cn(
+                            "flex h-9 w-9 items-center justify-center rounded-lg border-2 transition-all duration-200 hover:scale-110",
+                            theme === 'light'
+                              ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                              : "border-white/10 bg-white/5 text-red-400 hover:bg-red-500/20 hover:border-red-500/30"
+                          )}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {/* Weekday Headers */}
+                      <div className="relative mb-2 grid grid-cols-7 gap-1">
+                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                          <div
+                            key={day}
+                            className={cn(
+                              "flex h-9 items-center justify-center text-xs font-bold uppercase tracking-wider",
+                              theme === 'light' ? "text-gray-500" : "text-gray-400"
+                            )}
+                          >
+                            {day}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Calendar Days */}
+                      <div className="relative grid grid-cols-7 gap-1">
+                        {Array.from({ length: getDaysInMonth(currentMonth).startingDayOfWeek }).map((_, i) => (
+                          <div key={`empty-${i}`} className="h-10" />
+                        ))}
+                        
+                        {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
+                          const day = i + 1;
+                          const selected = isSelected(day, endDate);
+                          const today = isToday(day);
+                          const past = isPastDate(day);
+                          const hovered = hoveredDay === day;
+
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              disabled={past || (startDate && new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day) < startDate)}
+                              onClick={() => handleDayClick(day, true)}
+                              onMouseEnter={() => setHoveredDay(day)}
+                              onMouseLeave={() => setHoveredDay(null)}
+                              className={cn(
+                                "relative flex h-10 w-10 items-center justify-center rounded-lg text-sm font-medium transition-all duration-200",
+                                !past && "hover:scale-110",
+                                selected && !past && (
+                                  theme === 'light'
+                                    ? "bg-gradient-to-br from-red-400 to-pink-500 text-white shadow-lg shadow-red-500/30 scale-105"
+                                    : "bg-gradient-to-br from-red-400 to-pink-500 text-white shadow-lg shadow-red-500/30 scale-105"
+                                ),
+                                !selected && today && !past && (
+                                  theme === 'light'
+                                    ? "border-2 border-red-400 text-red-600 font-bold"
+                                    : "border-2 border-red-500 text-red-400 font-bold"
+                                ),
+                                !selected && !today && !past && (
+                                  theme === 'light'
+                                    ? "text-gray-700 hover:bg-red-50 hover:text-red-600"
+                                    : "text-gray-100 hover:bg-white/10 hover:text-red-400"
+                                ),
+                                past && (
+                                  theme === 'light'
+                                    ? "text-gray-300 cursor-not-allowed"
+                                    : "text-gray-600 cursor-not-allowed"
+                                ),
+                                hovered && !past && !selected && "ring-2 ring-red-500/30"
+                              )}
+                            >
+                              {day}
+                              {selected && (
+                                <div className="absolute inset-0 rounded-lg bg-white/20 animate-pulse" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* End Time Picker */}
+              <div className="space-y-2.5">
+                <Label htmlFor="end-time-picker" className={cn(
+                  "text-sm font-semibold flex items-center gap-2",
+                  theme === 'light' ? "text-gray-700" : "text-white/90"
+                )}>
+                  <Clock className="w-4 h-4 text-red-400" />
+                  End Time *
+                </Label>
+                <Input
+                  type="time"
+                  id="end-time-picker"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
                   className="h-11 bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
                 />
               </div>

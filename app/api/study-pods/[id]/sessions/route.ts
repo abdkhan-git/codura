@@ -178,6 +178,7 @@ export async function POST(
       title,
       description,
       scheduled_at,
+      ended_at,
       session_type,
       problems_covered,
       duration_minutes,
@@ -200,10 +201,32 @@ export async function POST(
       );
     }
 
+    const startTime = new Date(scheduled_at);
+    
     // Validate scheduled_at is in the future
-    if (new Date(scheduled_at) < new Date()) {
+    if (startTime < new Date()) {
       return NextResponse.json(
-        { error: 'Session must be scheduled for a future time' },
+        { error: 'Session start time must be in the future' },
+        { status: 400 }
+      );
+    }
+
+    // Determine end time
+    let endTime: Date;
+    if (ended_at) {
+      endTime = new Date(ended_at);
+      if (endTime <= startTime) {
+        return NextResponse.json(
+          { error: 'End time must be after start time' },
+          { status: 400 }
+        );
+      }
+    } else if (duration_minutes) {
+      // Calculate end time from duration if not provided
+      endTime = new Date(startTime.getTime() + duration_minutes * 60 * 1000);
+    } else {
+      return NextResponse.json(
+        { error: 'Either ended_at or duration_minutes must be provided' },
         { status: 400 }
       );
     }
@@ -216,11 +239,12 @@ export async function POST(
         title,
         description: description || null,
         scheduled_at,
+        ended_at: endTime.toISOString(),
         host_user_id: user.id,
         status: 'scheduled',
         session_type,
         problems_covered: problems_covered || [],
-        duration_minutes: duration_minutes || null,
+        duration_minutes: duration_minutes || Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)),
       })
       .select()
       .single();
