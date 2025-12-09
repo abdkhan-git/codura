@@ -37,6 +37,7 @@ import { ChallengeDetailModal } from "@/components/study-pods/challenge-detail-m
 import { MembersTabSection } from "@/components/study-pods/members-tab-section";
 import { ProblemDiscussionThread } from "@/components/study-pods/problem-discussion-thread";
 import { PodSettingsForm } from "@/components/study-pods/pod-settings-form";
+import { PodAnalyticsDashboard } from "@/components/study-pods/pod-analytics-dashboard";
 
 export default function StudyPodDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { theme } = useTheme();
@@ -96,7 +97,7 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
     const action = searchParams.get('action');
 
     // Handle tab parameter
-    if (tab && ['overview', 'live-sessions', 'practice', 'challenges', 'members', 'settings'].includes(tab)) {
+    if (tab && ['overview', 'live-sessions', 'practice', 'challenges', 'study-plan', 'analytics', 'members', 'settings'].includes(tab)) {
       setActiveSection(tab as PodSection);
 
       // Clear URL params after handling to prevent stuck state
@@ -692,6 +693,11 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* Analytics Section */}
+              {activeSection === "analytics" && (
+                <PodAnalyticsDashboard podId={podId} />
               )}
 
               {/* Members Section */}

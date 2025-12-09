@@ -10,6 +10,8 @@ import {
   Video,
   Settings,
   MessageCircle,
+  BarChart3,
+  BookOpen,
 } from "lucide-react";
 
 export type PodSection =
@@ -17,6 +19,8 @@ export type PodSection =
   | "live-sessions"
   | "practice"
   | "challenges"
+  | "study-plan"
+  | "analytics"
   | "members"
   | "settings";
 
@@ -69,6 +73,12 @@ export function PodSidebar({
       id: "challenges" as PodSection,
       label: "Challenges",
       icon: Trophy,
+      show: true,
+    },
+    {
+      id: "analytics" as PodSection,
+      label: "Analytics",
+      icon: BarChart3,
       show: true,
     },
     {

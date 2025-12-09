@@ -348,8 +348,6 @@ export default function DashboardPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
-  const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
@@ -357,8 +355,6 @@ export default function DashboardPage() {
   const [eventToEdit, setEventToEdit] = useState<any>(null);
   const [activityChartData, setActivityChartData] = useState<any[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1M');
-  const [selectedStudyPlan, setSelectedStudyPlan] = useState<{ id: string; name: string; color: string; is_public?: boolean } | null>(null);
-  const [showStudyPlanDialog, setShowStudyPlanDialog] = useState(false);
   
   // Onboarding and Questionnaire modal state
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
@@ -390,9 +386,9 @@ export default function DashboardPage() {
 
         const data = await response.json();
 
-        // Set all state at once
+        // Set all state at once (study plans hidden for now)
         setUser(data.user);
-        setStudyPlans(data.studyPlans || []);
+        setStudyPlans([]);
         setRecentActivity(data.recentActivity || []);
         setUpcomingEvents(data.upcomingEvents || []);
         setDailyChallenge(data.dailyChallenge);
@@ -521,7 +517,7 @@ export default function DashboardPage() {
       }
       const data = await response.json();
       setUser(data.user);
-      setStudyPlans(data.studyPlans || []);
+      setStudyPlans([]);
       setRecentActivity(data.recentActivity || []);
       setUpcomingEvents(data.upcomingEvents || []);
       setDailyChallenge(data.dailyChallenge);
@@ -1113,129 +1109,6 @@ export default function DashboardPage() {
           <div className="space-y-6">
             <Calendar streak={user.streak} />
 
-            {/* Study Plan Progress */}
-            <Card 
-              className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-green-500/30 transition-all duration-500 shadow-xl hover:scale-[1.01] shine-effect"
-              style={{ '--glow-color': '#22c55e' } as React.CSSProperties}
-            >
-              {/* Animated glow borders */}
-              <div className="glow-border-top" />
-              <div className="glow-border-bottom" />
-              <div className="glow-border-left" />
-              <div className="glow-border-right" />
-              
-              {/* Enhanced background gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-15 transition-opacity duration-700 pointer-events-none" />
-
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                    <Target className="w-5 h-5 text-green-500" />
-                    Study Plans
-                  </CardTitle>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 gap-1 hover:bg-brand/10 hover:text-brand"
-                    onClick={() => setShowPlanDialog(true)}
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span className="hidden sm:inline">Create</span>
-                  </Button>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {studyPlans.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p className="text-sm mb-4">No study plans yet</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowPlanDialog(true)}
-                      className="border-brand/30 hover:bg-brand/10 hover:border-brand/50"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Your First Plan
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    {studyPlans.slice(0, 3).map((plan) => {
-                      // Calculate progress stats
-                      const total = plan.problem_count || 0;
-                      const completed = plan.solved_count || 0; // Will be real data from API
-                      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-                      return (
-                        <div
-                          key={plan.id}
-                          className="group/plan cursor-pointer"
-                          onClick={() => {
-                            setSelectedStudyPlan({ id: plan.id, name: plan.name, color: plan.color, is_public: plan.is_public });
-                            setShowStudyPlanDialog(true);
-                          }}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-foreground hover:text-brand transition-colors">{plan.name}</span>
-                              {plan.is_default && (
-                                <Badge variant="outline" className="text-xs h-5 border-brand/30">
-                                  Default
-                                </Badge>
-                              )}
-                              {plan.is_public && (
-                                <Badge variant="outline" className="text-xs h-5 bg-green-500/10 text-green-500 border-green-500/30">
-                                  Public
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">
-                                {completed}/{total} solved ({percentage}%)
-                              </span>
-                            </div>
-                          </div>
-                          <div className="relative w-full bg-muted/30 rounded-full h-2.5 overflow-hidden group-hover/plan:h-3 transition-all">
-                            <div
-                              className={`bg-gradient-to-r ${plan.color} h-full rounded-full transition-all duration-500 relative`}
-                              style={{ width: `${percentage}%` }}
-                            >
-                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {studyPlans.length > 3 && (
-                      <Link href="/study-plans" className="block">
-                        <Button variant="outline" size="sm" className="w-full border-brand/30 hover:bg-brand/10 hover:border-brand/50">
-                          View All Plans ({studyPlans.length})
-                        </Button>
-                      </Link>
-                    )}
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full border-brand/30 hover:bg-brand/10 hover:border-brand/50"
-                      onClick={() => setShowPlanDialog(true)}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Custom Plan
-                    </Button>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <PlanDialog
-              open={showPlanDialog}
-              onOpenChange={setShowPlanDialog}
-              onPlanCreated={refetchDashboard}
-            />
-
             <EventDialog
               open={showUpcomingEventDialog}
               onOpenChange={setShowUpcomingEventDialog}
@@ -1243,18 +1116,6 @@ export default function DashboardPage() {
               onEventCreated={refetchDashboard}
               existingEvent={eventToEdit}
             />
-
-            {selectedStudyPlan && (
-              <StudyPlanDetailDialog
-                open={showStudyPlanDialog}
-                onOpenChange={setShowStudyPlanDialog}
-                listId={selectedStudyPlan.id}
-                listName={selectedStudyPlan.name}
-                listColor={selectedStudyPlan.color}
-                isPublic={selectedStudyPlan.is_public}
-                onListUpdated={refetchDashboard}
-              />
-            )}
 
             {/* Onboarding Modal - Shows for users without school code */}
             {showOnboardingModal && !hasSchoolCode && (

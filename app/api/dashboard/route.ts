@@ -25,7 +25,6 @@ export async function GET() {
       profileResult,
       statsResult,
       submissionsResult,
-      studyPlansResult,
       eventsResult,
       dailyChallengeResult,
       studyPodAttendanceResult,
@@ -52,13 +51,6 @@ export async function GET() {
         .eq('user_id', user.id)
         .order('submitted_at', { ascending: false })
         .limit(50),
-
-      // Study plans
-      supabase
-        .from('user_problem_lists')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true }),
 
       // Upcoming events
       supabase
@@ -96,7 +88,7 @@ export async function GET() {
     const profile = profileResult.data;
     const stats = statsResult.data;
     const submissions = submissionsResult.data || [];
-    const studyPlans = studyPlansResult.data || [];
+    const studyPlans: any[] = [];
     const events = eventsResult.data || [];
     const dailyChallenge = dailyChallengeResult.data;
     const studyPodAttendance = studyPodAttendanceResult.data || [];
@@ -116,9 +108,8 @@ export async function GET() {
       stats.longest_streak = Math.max(longestStreak, stats.longest_streak || 0);
     }
 
-    // OPTIMIZED: Get study plans with counts in ONE query (90% faster - fixes N+1)
-    const { data: studyPlansWithCounts } = await supabase
-      .rpc('get_user_study_plans_with_counts', { p_user_id: user.id });
+    // Skip study plans for now
+    const studyPlansWithCounts: any[] = [];
 
     // Process recent activity from submissions and study pod attendance (last 7 days only)
     const now = new Date();

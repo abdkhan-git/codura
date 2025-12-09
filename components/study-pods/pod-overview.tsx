@@ -20,6 +20,7 @@ import { formatDistanceToNow, format, isPast, isFuture } from "date-fns";
 import { PodSection } from "./pod-sidebar";
 import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { Badge } from "@/components/ui/badge";
+import { PodReputationCard } from "./pod-reputation-card";
 import {
   AreaChart,
   Area,
@@ -771,6 +772,16 @@ export function PodOverview({
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Reputation Card Row */}
+      <div
+        className={cn(
+          "transition-all duration-700 delay-300",
+          isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        )}
+      >
+        <PodReputationCard podId={pod?.id} />
       </div>
 
       {/* Recent Discussions & Bookmarks Row */}
