@@ -387,7 +387,7 @@ export default function DashboardPage() {
 
         // Set all state at once (study plans hidden for now)
         setUser(data.user);
-        setStudyPlans([]);
+        // setStudyPlans([]); // Disabled - study plans feature hidden
         setRecentActivity(data.recentActivity || []);
         setUpcomingEvents(data.upcomingEvents || []);
         setDailyChallenge(data.dailyChallenge);
@@ -516,7 +516,7 @@ export default function DashboardPage() {
       }
       const data = await response.json();
       setUser(data.user);
-      setStudyPlans([]);
+      // setStudyPlans([]); // Disabled - study plans feature hidden
       setRecentActivity(data.recentActivity || []);
       setUpcomingEvents(data.upcomingEvents || []);
       setDailyChallenge(data.dailyChallenge);
@@ -1116,19 +1116,7 @@ export default function DashboardPage() {
               existingEvent={eventToEdit}
             />
 
-            {/* Onboarding Modal - Shows for users without school code */}
-            {showOnboardingModal && !hasSchoolCode && (
-            {selectedStudyPlan && (
-              <StudyPlanDetailDialog
-                open={showStudyPlanDialog}
-                onOpenChange={setShowStudyPlanDialog}
-                listId={selectedStudyPlan.id}
-                listName={selectedStudyPlan.name}
-                listColor={selectedStudyPlan.color}
-                isPublic={selectedStudyPlan.is_public}
-                onListUpdated={refetchDashboard}
-              />
-            )}
+            {/* StudyPlanDetailDialog removed - study plans feature hidden */}
 
             {/* Onboarding Modal - Shows for users who haven't completed onboarding */}
             {showOnboardingModal && (
