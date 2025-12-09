@@ -398,6 +398,17 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
         scale: window.devicePixelRatio || 1,
         logging: false,
         useCORS: true,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+        onclone: (cloneDoc) => {
+          // Strip unsupported CSS color functions from root backgrounds
+          cloneDoc.documentElement.style.background = "transparent";
+          cloneDoc.body.style.background = "transparent";
+          const nextRoot = cloneDoc.getElementById("__next");
+          if (nextRoot) {
+            (nextRoot as HTMLElement).style.background = "transparent";
+          }
+        },
       })
 
       // Get whiteboard position on screen (prefer full container so buttons/borders are captured)
