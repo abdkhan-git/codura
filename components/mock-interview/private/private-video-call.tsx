@@ -7,9 +7,6 @@ import {
   Mic,
   MicOff,
   Phone,
-  Monitor,
-  MonitorOff,
-  Circle,
   MessageSquare,
   Code,
   Palette,
@@ -51,6 +48,7 @@ export function PrivateVideoCall({ sessionId, user, isHost, onLeave }: PrivateVi
     partnerName,
     iceConnectionState,
     signalingState,
+    remoteWhiteboardOpen,
     timerEndMs,
     timerReminderMinutes,
     timerRemainingMs,
@@ -78,9 +76,6 @@ export function PrivateVideoCall({ sessionId, user, isHost, onLeave }: PrivateVi
   });
 
   const handleLeave = () => {
-    if (isRecording) {
-      stopRecording();
-    }
     if (confirm("Are you sure you want to leave the interview?")) {
       cleanup(true);
       onLeave();
@@ -102,9 +97,6 @@ export function PrivateVideoCall({ sessionId, user, isHost, onLeave }: PrivateVi
       <SessionNavbar
         sessionId={sessionId}
         isHost={isHost}
-        isRecording={isRecording}
-        onStartRecording={startRecording}
-        onStopRecording={stopRecording}
         onLeave={handleLeave}
       />
 
@@ -194,16 +186,6 @@ export function PrivateVideoCall({ sessionId, user, isHost, onLeave }: PrivateVi
                 </Button>
 
                 <Button
-                  variant={screenSharing ? "default" : "secondary"}
-                  size="lg"
-                  onClick={toggleScreenShare}
-                  className="rounded-full w-14 h-14 p-0"
-                  title={screenSharing ? "Stop sharing" : "Share screen"}
-                >
-                  {screenSharing ? <MonitorOff className="w-6 h-6" /> : <Monitor className="w-6 h-6" />}
-                </Button>
-
-                <Button
                   variant={showCodeEditor ? "default" : "secondary"}
                   size="lg"
                   onClick={() => setShowCodeEditor(!showCodeEditor)}
@@ -244,13 +226,6 @@ export function PrivateVideoCall({ sessionId, user, isHost, onLeave }: PrivateVi
                 </Button>
               </div>
             </div>
-
-            {isRecording && (
-              <div className="absolute top-6 left-6 flex items-center gap-2 bg-red-500/90 backdrop-blur-sm px-4 py-2 rounded-full">
-                <Circle className="w-3 h-3 fill-white animate-pulse" />
-                <span className="text-white text-sm font-medium">Recording</span>
-              </div>
-            )}
 
             {connectionStatus === "connecting" && (
               <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-yellow-500/90 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -351,6 +326,7 @@ export function PrivateVideoCall({ sessionId, user, isHost, onLeave }: PrivateVi
           sendDataMessage={sendDataMessage}
           initialPosition={{ x: 150, y: 150 }}
           initialSize={{ width: 600, height: 400 }}
+          remoteWhiteboardOpen={remoteWhiteboardOpen}
         />
       )}
     </div>
