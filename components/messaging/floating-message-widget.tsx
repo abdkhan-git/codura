@@ -53,8 +53,10 @@ export default function FloatingMessageWidget() {
   const pathname = usePathname();
   const supabase = createClient();
   
-  // Hide widget on problems page to avoid blocking stream chat send button
+  // Hide widget on problems and live streams pages to avoid blocking stream chat send button
   const isProblemsPage = pathname?.startsWith('/problems/');
+  const isLiveStreamsPage = pathname?.startsWith('/live-streams/');
+  const shouldHideWidget = isProblemsPage || isLiveStreamsPage;
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -338,8 +340,8 @@ export default function FloatingMessageWidget() {
     (c) => c.id === selectedConversationId
   );
 
-  // Don't render on problems page
-  if (isProblemsPage) {
+  // Don't render on problems or live streams pages
+  if (shouldHideWidget) {
     return null;
   }
 
