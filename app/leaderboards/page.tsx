@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Trophy, Award, TrendingUp, Shield, Settings } from "lucide-react";
+import { Trophy, Award, TrendingUp, Settings } from "lucide-react";
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { LeaderboardEntry } from "@/types/database";
@@ -16,6 +16,8 @@ import dynamic from 'next/dynamic';
 const Info: any = dynamic(() => import('lucide-react').then(mod => mod.Info), { ssr: false });
 // @ts-ignore
 const XCircle: any = dynamic(() => import('lucide-react').then(mod => mod.XCircle || mod.X), { ssr: false });
+// @ts-ignore
+const Shield: any = dynamic(() => import('lucide-react').then(mod => mod.Shield), { ssr: false });
 
 interface UserData {
   name: string;
@@ -54,6 +56,7 @@ export default function LeaderboardPage() {
   const [showSchoolResults, setShowSchoolResults] = useState(false);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [userSchool, setUserSchool] = useState<School | null>(null);
+  const skipSearchRef = useRef(false);
 
   useEffect(() => {
     fetchUserAndLeaderboard();
@@ -152,6 +155,12 @@ export default function LeaderboardPage() {
 
   // Debounce school search
   useEffect(() => {
+    // Skip search if a school was just selected
+    if (skipSearchRef.current) {
+      skipSearchRef.current = false;
+      return;
+    }
+
     const timer = setTimeout(() => {
       searchSchools(schoolSearchQuery);
     }, 300);
@@ -174,8 +183,10 @@ export default function LeaderboardPage() {
 
   const handleSelectSchool = (school: School) => {
     setSelectedSchool(school);
+    skipSearchRef.current = true; // Prevent debounced search from running
     setSchoolSearchQuery(school.name);
     setShowSchoolResults(false);
+    setSchoolResults([]); // Clear results
     fetchUserAndLeaderboard(school.code);
   };
 
@@ -371,7 +382,15 @@ export default function LeaderboardPage() {
                     <Input
                       placeholder="Search by name or code (e.g., Stanford University or 001305)"
                       value={schoolSearchQuery}
-                      onChange={(e) => setSchoolSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        const newQuery = e.target.value;
+                        skipSearchRef.current = false; // Re-enable search when user types
+                        setSchoolSearchQuery(newQuery);
+                        // Clear selected school if user is typing a new search
+                        if (selectedSchool && newQuery !== selectedSchool.name) {
+                          setSelectedSchool(null);
+                        }
+                      }}
                       onFocus={() => {
                         if (schoolResults.length > 0) {
                           setShowSchoolResults(true);
@@ -444,7 +463,7 @@ export default function LeaderboardPage() {
                 <h3 className="font-semibold text-destructive mb-1">Failed to Load Leaderboard</h3>
                 <p className="text-sm text-muted-foreground">{error}</p>
               </div>
-              <Button onClick={fetchUserAndLeaderboard} variant="outline" size="sm">
+              <Button onClick={() => fetchUserAndLeaderboard()} variant="outline" size="sm">
                 Retry
               </Button>
             </CardContent>

@@ -7,9 +7,6 @@ import {
   Mic,
   MicOff,
   Phone,
-  Monitor,
-  MonitorOff,
-  Circle,
   MessageSquare,
   Code,
   Palette,
@@ -83,6 +80,7 @@ export function PublicVideoCall({
     partnerName,
     iceConnectionState,
     signalingState,
+    remoteWhiteboardOpen,
     timerEndMs,
     timerReminderMinutes,
     timerRemainingMs,
@@ -119,6 +117,19 @@ export function PublicVideoCall({
     isPublicHost,
   });
 
+  // Update context connection status when remoteStream changes
+  useEffect(() => {
+    if (activeSession && isPublicHost) {
+      const isNowConnected = !!remoteStream;
+      if (activeSession.isConnected !== isNowConnected) {
+        setActiveSession({
+          ...activeSession,
+          isConnected: isNowConnected,
+        });
+      }
+    }
+  }, [remoteStream, activeSession, isPublicHost, setActiveSession]);
+
   useEffect(() => {
     if (initialTimer) {
       applyTimerConfig(initialTimer.endTimeMs, initialTimer.reminderMinutes, false);
@@ -126,9 +137,6 @@ export function PublicVideoCall({
   }, [initialTimer, applyTimerConfig]);
 
   const handleLeave = () => {
-    if (isRecording) {
-      stopRecording();
-    }
     if (confirm("Are you sure you want to leave the interview?")) {
       cleanup(true);
       onLeave();
@@ -252,26 +260,24 @@ export function PublicVideoCall({
   }
 
   return (
-    <div className="h-[calc(100vh-6rem)] flex flex-col bg-gradient-to-br from-zinc-950 via-zinc-900 to-black">
+    <div className="h-full flex flex-col bg-gradient-to-br from-black via-zinc-950 to-zinc-900">
       <SessionNavbar
         sessionId={sessionId}
         isHost={isHost}
-        isRecording={isRecording}
-        onStartRecording={startRecording}
-        onStopRecording={stopRecording}
         onLeave={handleLeave}
+        isPublic={true}
       />
 
-      <div className="flex-1 flex gap-4 mt-4 overflow-hidden">
+      <div className="flex-1 flex gap-4 p-4 overflow-hidden min-h-0">
         <div className={cn("relative", showCodeEditor || showChat ? "w-1/2" : "w-full")}>
-          <Card className="h-full border-2 border-border/20 bg-zinc-900 relative overflow-hidden">
+          <Card className="h-full border border-white/10 bg-gradient-to-br from-zinc-900/60 via-zinc-800/50 to-zinc-900/60 backdrop-blur-xl relative overflow-hidden shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]">
             {timerEndMs && (
               <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-                <div className="px-3 py-2 rounded-lg bg-black/70 border border-white/10 text-white text-sm font-medium">
+                <div className="px-3 py-2 rounded-lg bg-zinc-900/80 backdrop-blur-md border border-white/20 text-white text-sm font-medium shadow-lg">
                   Timer: {formatMs(timerRemainingMs)}
                 </div>
                 {timerReminderMinutes && (
-                  <div className="px-3 py-1.5 rounded-lg bg-black/60 border border-white/10 text-white/80 text-xs">
+                  <div className="px-3 py-1.5 rounded-lg bg-zinc-900/70 backdrop-blur-sm border border-white/10 text-white/80 text-xs shadow-md">
                     Reminders every {timerReminderMinutes} min
                   </div>
                 )}
@@ -319,13 +325,13 @@ export function PublicVideoCall({
               )}
 
               {remoteStream && (
-                <div className="absolute bottom-6 left-6 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-lg">
+                <div className="absolute bottom-6 left-6 bg-zinc-900/70 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl shadow-lg">
                   <p className="text-white font-medium">{partnerName || "Interview Partner"}</p>
                 </div>
               )}
             </div>
 
-            <div className="absolute top-6 right-6 w-64 aspect-video rounded-lg overflow-hidden border-2 border-white/20 shadow-2xl bg-zinc-800">
+            <div className="absolute top-6 right-6 w-64 aspect-video rounded-xl overflow-hidden border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] bg-gradient-to-br from-zinc-900/80 to-zinc-800/80 backdrop-blur-sm">
               {videoEnabled && localStream ? (
                 <video
                   ref={localVideoRef}
@@ -336,17 +342,17 @@ export function PublicVideoCall({
                   style={{ transform: "scaleX(-1)" }}
                 />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-zinc-800">
+                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-900/90 to-zinc-800/90">
                   <VideoOff className="w-8 h-8 text-zinc-400" />
                 </div>
               )}
 
-              <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-xs text-white">
+              <div className="absolute bottom-2 left-2 bg-zinc-900/80 backdrop-blur-md border border-white/10 px-2 py-1 rounded-lg text-xs text-white shadow-md">
                 You
               </div>
             </div>
 
-            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
+            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/50 to-transparent backdrop-blur-sm">
               <div className="flex items-center justify-center gap-3">
                 <Button
                   variant={videoEnabled ? "secondary" : "destructive"}
@@ -366,16 +372,6 @@ export function PublicVideoCall({
                   title={audioEnabled ? "Mute microphone" : "Unmute microphone"}
                 >
                   {audioEnabled ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
-                </Button>
-
-                <Button
-                  variant={screenSharing ? "default" : "secondary"}
-                  size="lg"
-                  onClick={toggleScreenShare}
-                  className="rounded-full w-14 h-14 p-0"
-                  title={screenSharing ? "Stop sharing" : "Share screen"}
-                >
-                  {screenSharing ? <MonitorOff className="w-6 h-6" /> : <Monitor className="w-6 h-6" />}
                 </Button>
 
                 <Button
@@ -420,15 +416,8 @@ export function PublicVideoCall({
               </div>
             </div>
 
-            {isRecording && (
-              <div className="absolute top-6 left-6 flex items-center gap-2 bg-red-500/90 backdrop-blur-sm px-4 py-2 rounded-full">
-                <Circle className="w-3 h-3 fill-white animate-pulse" />
-                <span className="text-white text-sm font-medium">Recording</span>
-              </div>
-            )}
-
             {connectionStatus === "connecting" && (
-              <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-yellow-500/90 backdrop-blur-sm px-4 py-2 rounded-full">
+              <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-yellow-500/90 backdrop-blur-md border border-yellow-400/30 px-4 py-2 rounded-full shadow-lg">
                 <span className="text-white text-sm font-medium">Connecting...</span>
               </div>
             )}
@@ -497,9 +486,9 @@ export function PublicVideoCall({
         </div>
 
         {(showCodeEditor || showChat) && (
-          <div className="w-1/2 flex flex-col gap-4">
+          <div className="w-1/2 flex flex-col gap-4 min-h-0">
             {showCodeEditor && (
-              <Card className={cn("border-2 border-border/20 overflow-hidden", showChat ? "h-[70%]" : "h-full")}>
+              <Card className={cn("border-2 border-border/20 overflow-hidden", showChat ? "flex-[7] min-h-0" : "flex-1 min-h-0")}>
                 <CollaborativeCodeEditor
                   ref={codeEditorRef}
                   onCodeChange={handleCodeChange}
@@ -512,7 +501,7 @@ export function PublicVideoCall({
             )}
 
             {showChat && (
-              <div className={cn(showCodeEditor ? "h-[30%]" : "h-full")}>
+              <div className={cn("min-h-0", showCodeEditor ? "flex-[3]" : "flex-1")}>
                 <ChatBox sessionId={sessionId} user={user} onClose={() => setShowChat(false)} />
               </div>
             )}
@@ -526,6 +515,7 @@ export function PublicVideoCall({
           sendDataMessage={sendDataMessage}
           initialPosition={{ x: 150, y: 150 }}
           initialSize={{ width: 600, height: 400 }}
+          remoteWhiteboardOpen={remoteWhiteboardOpen}
         />
       )}
     </div>

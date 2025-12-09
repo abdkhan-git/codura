@@ -25,6 +25,7 @@ export interface UseVideoCallConfig {
   isPublicHost?: boolean;
   onLeave: () => void;
   initialTimerConfig?: TimerBootstrapConfig;
+  disableInterviewAPIs?: boolean;
 }
 
 export function useVideoCall({
@@ -35,6 +36,7 @@ export function useVideoCall({
   isPublicHost = false,
   onLeave,
   initialTimerConfig,
+  disableInterviewAPIs = false,
 }: UseVideoCallConfig) {
   // refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -472,6 +474,7 @@ export function useVideoCall({
   );
 
   const fetchPendingRequests = useCallback(async () => {
+    if (disableInterviewAPIs) return;
     if (!isHost || isPublicHost) return;
 
     try {
@@ -492,9 +495,10 @@ export function useVideoCall({
     } catch (error) {
       console.error("Error fetching admission requests:", error);
     }
-  }, [isHost, isPublicHost, sessionId]);
+  }, [disableInterviewAPIs, isHost, isPublicHost, sessionId]);
 
   useEffect(() => {
+    if (disableInterviewAPIs) return;
     if (!isHost || isPublicHost) return;
 
     fetchPendingRequests();
@@ -506,7 +510,7 @@ export function useVideoCall({
         admissionPollRef.current = null;
       }
     };
-  }, [isHost, isPublicHost, fetchPendingRequests]);
+  }, [disableInterviewAPIs, isHost, isPublicHost, fetchPendingRequests]);
 
   const handlePendingApprove = useCallback((userId: string) => {
     setPendingUsers((prev) => prev.filter((user) => user.user_id !== userId));
@@ -742,7 +746,7 @@ export function useVideoCall({
 
       await setupPeerConnection(stream);
 
-      const signaling = new SimpleSignaling(sessionId, user.user_id);
+      const signaling = new SimpleSignaling(sessionId, user.user_id, sessionId.startsWith('study-pod-') ? 'study-pod-session' : 'mock-interview');
       signalingRef.current = signaling;
       signaling.onMessage(handleSignalingMessage);
 
@@ -764,7 +768,7 @@ export function useVideoCall({
         }
       }
 
-      if (!isHost && publicSessionId) {
+      if (!disableInterviewAPIs && !isHost && publicSessionId) {
         try {
           await fetch('/api/mock-interview/public-sessions', {
             method: 'PATCH',
@@ -780,26 +784,28 @@ export function useVideoCall({
         }
       }
 
-      try {
-        if (isHost) {
-          if (!isPublicHost) {
-            await fetch('/api/mock-interview/sessions', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sessionId, action: 'host_ready' }),
-            });
+      if (!disableInterviewAPIs) {
+        try {
+          if (isHost) {
+            if (!isPublicHost) {
+              await fetch('/api/mock-interview/sessions', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId, action: 'host_ready' }),
+              });
+            }
+          } else {
+            if (!publicSessionId) {
+              await fetch('/api/mock-interview/sessions/attend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId }),
+              });
+            }
           }
-        } else {
-          if (!publicSessionId) {
-            await fetch('/api/mock-interview/sessions/attend', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sessionId }),
-            });
-          }
+        } catch (e) {
+          console.error('[WebRTC] Failed to mark readiness/attendance:', e);
         }
-      } catch (e) {
-        console.error('[WebRTC] Failed to mark readiness/attendance:', e);
       }
 
       toast.success("Camera and microphone connected");
@@ -917,7 +923,7 @@ export function useVideoCall({
           partnerIdRef.current = null;
           partnerNameRef.current = null;
           updatePartnerName(null);
-          if (publicSessionId) {
+          if (!disableInterviewAPIs && publicSessionId) {
             fetch('/api/mock-interview/public-sessions', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
@@ -929,7 +935,7 @@ export function useVideoCall({
           }
         } else {
           toast.error("You were disconnected.");
-          if (isHost) {
+          if (!disableInterviewAPIs && isHost) {
             fetch('/api/mock-interview/sessions', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
@@ -1079,7 +1085,7 @@ export function useVideoCall({
       signalingRef.current = null;
     }
 
-    if (!isHost && publicSessionId) {
+    if (!disableInterviewAPIs && !isHost && publicSessionId) {
       fetch('/api/mock-interview/public-sessions', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

@@ -17,6 +17,7 @@ export async function GET(request: Request) {
     // Calculate date range based on timeframe
     const now = new Date();
     let startDate = new Date();
+    let endDate = new Date(now);
     let groupBy: 'day' | 'week' | 'month' = 'day';
 
     switch (timeframe) {
@@ -28,21 +29,29 @@ export async function GET(request: Request) {
       case '1W':
         // Last 7 days
         startDate.setDate(now.getDate() - 7);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
         groupBy = 'day';
         break;
       case '1M':
         // Last 30 days
         startDate.setDate(now.getDate() - 30);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
         groupBy = 'day';
         break;
       case '3M':
         // Last 90 days, group by week
         startDate.setDate(now.getDate() - 90);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
         groupBy = 'week';
         break;
       case 'YTD':
         // Year to date
         startDate = new Date(now.getFullYear(), 0, 1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
         groupBy = 'month';
         break;
       case 'ALL':
@@ -61,6 +70,8 @@ export async function GET(request: Request) {
           // If no submissions, use account creation date
           startDate = new Date(user.created_at);
         }
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
         groupBy = 'month';
         break;
     }
@@ -72,6 +83,7 @@ export async function GET(request: Request) {
       .eq('user_id', user.id)
       .eq('status', 'Accepted')
       .gte('submitted_at', startDate.toISOString())
+      .lte('submitted_at', endDate.toISOString())
       .order('submitted_at', { ascending: true });
 
     if (error) {
@@ -80,7 +92,7 @@ export async function GET(request: Request) {
     }
 
     // Group submissions by time period
-    const chartData = processSubmissions(submissions || [], timeframe, groupBy, startDate, now);
+    const chartData = processSubmissions(submissions || [], timeframe, groupBy, startDate, endDate);
 
     return NextResponse.json({ data: chartData, timeframe });
   } catch (error) {
@@ -121,6 +133,11 @@ function processSubmissions(
   // Generate data points for the entire range
   const chartData: { date: string; problems: number; label: string }[] = [];
   const current = new Date(startDate);
+  
+  // Ensure we start at the beginning of the day for consistent grouping
+  if (groupBy === 'day') {
+    current.setHours(0, 0, 0, 0);
+  }
 
   while (current <= endDate) {
     let key: string;

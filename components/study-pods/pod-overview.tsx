@@ -20,6 +20,7 @@ import { formatDistanceToNow, format, isPast, isFuture } from "date-fns";
 import { PodSection } from "./pod-sidebar";
 import { DefaultAvatar } from "@/components/ui/default-avatar";
 import { Badge } from "@/components/ui/badge";
+import { PodReputationCard } from "./pod-reputation-card";
 import {
   AreaChart,
   Area,
@@ -75,6 +76,20 @@ export function PodOverview({
   const [recentDiscussions, setRecentDiscussions] = useState<any[]>([]);
   const [bookmarks, setBookmarks] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [problemsSolvedData, setProblemsSolvedData] = useState([
+    { name: 'Mon', solved: 0 },
+    { name: 'Tue', solved: 0 },
+    { name: 'Wed', solved: 0 },
+    { name: 'Thu', solved: 0 },
+    { name: 'Fri', solved: 0 },
+    { name: 'Sat', solved: 0 },
+    { name: 'Sun', solved: 0 },
+  ]);
+  const [difficultyData, setDifficultyData] = useState([
+    { name: 'Easy', value: 0, color: '#10b981' },
+    { name: 'Medium', value: 0, color: '#f59e0b' },
+    { name: 'Hard', value: 0, color: '#ef4444' },
+  ]);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = pod?.user_role === "owner" || pod?.user_role === "moderator";
@@ -95,9 +110,10 @@ export function PodOverview({
   const fetchOverviewData = async () => {
     setLoadingData(true);
     try {
-      const [discussionsRes, bookmarksRes] = await Promise.all([
+      const [discussionsRes, bookmarksRes, statisticsRes] = await Promise.all([
         fetch(`/api/study-pods/${pod.id}/recent-discussions`),
         fetch(`/api/study-pods/${pod.id}/bookmarks`),
+        fetch(`/api/study-pods/${pod.id}/statistics`),
       ]);
 
       if (discussionsRes.ok) {
@@ -108,6 +124,16 @@ export function PodOverview({
       if (bookmarksRes.ok) {
         const data = await bookmarksRes.json();
         setBookmarks(data.bookmarks || []);
+      }
+
+      if (statisticsRes.ok) {
+        const stats = await statisticsRes.json();
+        if (stats.problemsSolvedThisWeek) {
+          setProblemsSolvedData(stats.problemsSolvedThisWeek);
+        }
+        if (stats.difficultyBreakdown) {
+          setDifficultyData(stats.difficultyBreakdown);
+        }
       }
     } catch (error) {
       console.error('Error fetching overview data:', error);
@@ -147,22 +173,7 @@ export function PodOverview({
   // Calculate pod health/activity score
   const activityScore = Math.min(100, (pod?.members?.length || 0) * 15 + (sessions.length * 10) + (challenges.length * 20));
 
-  // Mock data for charts (in real app, calculate from actual data)
-  const problemsSolvedData = [
-    { name: 'Mon', solved: 4 },
-    { name: 'Tue', solved: 3 },
-    { name: 'Wed', solved: 7 },
-    { name: 'Thu', solved: 5 },
-    { name: 'Fri', solved: 8 },
-    { name: 'Sat', solved: 12 },
-    { name: 'Sun', solved: 6 },
-  ];
-
-  const difficultyData = [
-    { name: 'Easy', value: pod?.easy_solved || 35, color: '#10b981' },
-    { name: 'Medium', value: pod?.medium_solved || 45, color: '#f59e0b' },
-    { name: 'Hard', value: pod?.hard_solved || 20, color: '#ef4444' },
-  ];
+  // Chart data is now fetched from API and stored in state
 
   const getCommentTypeIcon = (type: string) => {
     switch (type) {
@@ -237,11 +248,11 @@ export function PodOverview({
           <button
             onClick={onStartSession}
             className={cn(
-              "group relative overflow-hidden shine-effect",
+              "group relative overflow-hidden shine-effect backdrop-blur-md shadow-lg hover:shadow-xl",
               "flex items-center gap-4 p-4 rounded-lg text-left transition-all duration-300",
               theme === "light"
-                ? "bg-gradient-to-r from-emerald-50 to-cyan-50 hover:from-emerald-100 hover:to-cyan-100 border border-emerald-200/50"
-                : "bg-gradient-to-r from-emerald-500/5 to-cyan-500/5 hover:from-emerald-500/10 hover:to-cyan-500/10 border border-emerald-500/20"
+                ? "bg-gradient-to-r from-emerald-50/80 to-cyan-50/80 hover:from-emerald-100/90 hover:to-cyan-100/90 border border-emerald-200/50"
+                : "bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 hover:from-emerald-500/20 hover:to-cyan-500/20 border border-emerald-500/30"
             )}
           >
             <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
@@ -270,11 +281,11 @@ export function PodOverview({
           <button
             onClick={onCreateChallenge}
             className={cn(
-              "group relative overflow-hidden shine-effect",
+              "group relative overflow-hidden shine-effect backdrop-blur-md shadow-lg hover:shadow-xl",
               "flex items-center gap-4 p-4 rounded-lg text-left transition-all duration-300",
               theme === "light"
-                ? "bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border border-amber-200/50"
-                : "bg-gradient-to-r from-amber-500/5 to-orange-500/5 hover:from-amber-500/10 hover:to-orange-500/10 border border-amber-500/20"
+                ? "bg-gradient-to-r from-amber-50/80 to-orange-50/80 hover:from-amber-100/90 hover:to-orange-100/90 border border-amber-200/50"
+                : "bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 border border-amber-500/30"
             )}
           >
             <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-105 group-hover:rotate-90 transition-all">
@@ -370,14 +381,14 @@ export function PodOverview({
                   key={session.id}
                   onClick={() => onNavigate("live-sessions")}
                   className={cn(
-                    "group relative flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-all duration-200",
+                    "group relative flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-all duration-200 backdrop-blur-md border shadow-md hover:shadow-lg",
                     session.status === "in_progress"
                       ? theme === "light"
-                        ? "bg-emerald-50 hover:bg-emerald-100"
-                        : "bg-emerald-500/10 hover:bg-emerald-500/15"
+                        ? "bg-emerald-50/70 hover:bg-emerald-100/80 border-emerald-200/50"
+                        : "bg-emerald-500/15 hover:bg-emerald-500/20 border-emerald-500/30"
                       : theme === "light"
-                        ? "bg-gray-50 hover:bg-gray-100"
-                        : "bg-white/5 hover:bg-white/10"
+                        ? "bg-white/60 hover:bg-white/80 border-gray-200/50"
+                        : "bg-white/5 hover:bg-white/10 border-white/10"
                   )}
                   style={{ animationDelay: `${i * 100}ms` }}
                 >
@@ -672,43 +683,87 @@ export function PodOverview({
               Difficulty Breakdown
             </h3>
           </div>
-          <div className="p-4 h-48 flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={difficultyData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={40}
-                  outerRadius={60}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {difficultyData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: theme === "light" ? '#fff' : '#18181b',
-                    border: theme === "light" ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="p-4 h-48 flex items-center justify-center relative">
+            {/* Ensure we always have 3 difficulties */}
+            {difficultyData.length >= 3 ? (
+              <>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={
+                        difficultyData.reduce((sum, d) => sum + d.value, 0) > 0
+                          ? difficultyData
+                          : [{ name: "No data", value: 1, color: theme === "light" ? "#d1d5db" : "#4b5563" }]
+                      }
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={60}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {(
+                        difficultyData.reduce((sum, d) => sum + d.value, 0) > 0
+                          ? difficultyData
+                          : [{ name: "No data", value: 1, color: theme === "light" ? "#d1d5db" : "#4b5563" }]
+                      ).map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.color}
+                          opacity={entry.name === "No data" ? 0.25 : 1}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      wrapperStyle={{
+                        display: difficultyData.reduce((sum, d) => sum + d.value, 0) === 0 ? 'none' : 'block',
+                      }}
+                      contentStyle={{
+                        backgroundColor: theme === "light" ? '#fff' : '#18181b',
+                        border: theme === "light" ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {difficultyData.reduce((sum, d) => sum + d.value, 0) === 0 && (
+                  <div className={cn(
+                    "absolute text-xs",
+                    theme === "light" ? "text-gray-500" : "text-white/50"
+                  )}>
+                    No solved problems yet
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className={cn(
+                "text-center",
+                theme === "light" ? "text-gray-400" : "text-white/30"
+              )}>
+                <p className="text-sm">Loading...</p>
+              </div>
+            )}
           </div>
-          {/* Legend */}
-          <div className="px-4 pb-4 flex justify-center gap-4">
-            {difficultyData.map((item) => (
+          {/* Legend - Always show all difficulties */}
+          <div className="px-4 pb-4 flex justify-center gap-4 flex-wrap">
+            {/* Always show all 3 difficulties */}
+            {[
+              { name: 'Easy', value: difficultyData.find(d => d.name === 'Easy')?.value || 0, color: '#10b981' },
+              { name: 'Medium', value: difficultyData.find(d => d.name === 'Medium')?.value || 0, color: '#f59e0b' },
+              { name: 'Hard', value: difficultyData.find(d => d.name === 'Hard')?.value || 0, color: '#ef4444' },
+            ].map((item) => (
               <div key={item.name} className="flex items-center gap-1.5">
                 <div
-                  className="w-2.5 h-2.5 rounded-full"
+                  className={cn(
+                    "w-2.5 h-2.5 rounded-full",
+                    item.value === 0 && "opacity-50"
+                  )}
                   style={{ backgroundColor: item.color }}
                 />
                 <span className={cn(
                   "text-xs",
+                  item.value === 0 && "opacity-60",
                   theme === "light" ? "text-gray-600" : "text-white/60"
                 )}>
                   {item.name}: {item.value}
@@ -717,6 +772,16 @@ export function PodOverview({
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Reputation Card Row */}
+      <div
+        className={cn(
+          "transition-all duration-700 delay-300",
+          isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        )}
+      >
+        <PodReputationCard podId={pod?.id} />
       </div>
 
       {/* Recent Discussions & Bookmarks Row */}

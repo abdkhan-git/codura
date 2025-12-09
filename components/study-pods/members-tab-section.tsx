@@ -40,8 +40,8 @@ export function MembersTabSection({
       <div className="flex items-center justify-between gap-4 flex-wrap">
         {/* Tabs */}
         <div className={cn(
-          "inline-flex p-1 rounded-lg",
-          theme === "light" ? "bg-gray-100" : "bg-white/5"
+          "inline-flex p-1 rounded-lg backdrop-blur-md border shadow-md",
+          theme === "light" ? "bg-white/60 border-gray-200/50" : "bg-white/5 border-white/10"
         )}>
           <button
             onClick={() => setActiveTab("members")}

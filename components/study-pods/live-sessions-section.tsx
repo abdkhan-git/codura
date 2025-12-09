@@ -98,9 +98,36 @@ export function LiveSessionsSection({
   // Get live sessions count - only count actually live sessions
   const liveSessionsCount = localSessions.filter(s => isActuallyLive(s)).length;
 
-  const handleJoinSession = async (sessionId: string, isLiveSession: boolean) => {
+  const handleJoinSession = async (sessionId: string, isLiveSession: boolean, hasAlreadyAttended: boolean = false) => {
     try {
-      // If it's a live session or user wants to join, mark attendance first
+      // Check if session is expired before attempting to join
+      const session = localSessions.find(s => s.id === sessionId);
+      if (session) {
+        const now = new Date();
+        const scheduledDate = new Date(session.scheduled_at);
+        const hasEnded = session.ended_at ? new Date(session.ended_at) < now : false;
+        const durationMs = session.duration_minutes ? session.duration_minutes * 60 * 1000 : 0;
+        const expectedEndTime = scheduledDate.getTime() + durationMs;
+        const isExpired = hasEnded || 
+          (session.status !== 'in_progress' && 
+           session.status !== 'scheduled' && 
+           expectedEndTime > 0 && 
+           expectedEndTime < now.getTime());
+        
+        if (isExpired || session.status === 'completed' || session.status === 'cancelled') {
+          toast.error('This session has expired or ended');
+          return;
+        }
+      }
+
+      // If user has already marked attendance, just navigate directly
+      if (hasAlreadyAttended) {
+        window.location.href = `/study-pods/${podId}/session/${sessionId}`;
+        return;
+      }
+
+      // If it's a live session, mark attendance automatically
+      // Otherwise, ask for confirmation
       if (isLiveSession || confirm('Would you like to mark your attendance for this session?')) {
         const response = await fetch(`/api/study-pods/sessions/${sessionId}/join`, {
           method: 'POST',
@@ -126,6 +153,9 @@ export function LiveSessionsSection({
           // Refresh sessions to get server data
           setTimeout(() => onRefresh(), 500);
         }
+      } else {
+        // User declined to mark attendance, don't navigate
+        return;
       }
 
       // Navigate to the collaborative session page
@@ -141,11 +171,11 @@ export function LiveSessionsSection({
       {/* Hero Section - Live Now */}
       {liveSessionsCount > 0 && (
         <Card className={cn(
-          "border-2 overflow-hidden",
-          "bg-gradient-to-br from-green-500/10 via-emerald-500/5 to-cyan-500/10",
+          "border overflow-hidden backdrop-blur-xl shadow-xl transition-all hover:shadow-2xl",
+          "bg-gradient-to-br from-green-500/20 via-emerald-500/10 to-cyan-500/15",
           theme === "light"
-            ? "border-green-200"
-            : "border-green-500/30"
+            ? "border-green-200/50 bg-white/70"
+            : "border-green-500/30 bg-zinc-900/40"
         )}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -231,10 +261,10 @@ export function LiveSessionsSection({
       {/* Quick Start Section for Admins */}
       {isAdmin && (
         <Card className={cn(
-          "border-2 border-dashed",
+          "border border-dashed backdrop-blur-lg shadow-lg transition-all hover:shadow-xl hover:scale-[1.01]",
           theme === "light"
-            ? "bg-gray-50/50 border-gray-300"
-            : "bg-white/5 border-white/20"
+            ? "bg-white/60 border-emerald-300/50"
+            : "bg-white/5 border-emerald-500/30"
         )}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -298,15 +328,15 @@ export function LiveSessionsSection({
                 setShowDetailModal(true);
               }}
               onJoin={async () => {
-                await handleJoinSession(session.id, isActuallyLive(session));
+                await handleJoinSession(session.id, isActuallyLive(session), session.user_attending);
               }}
             />
           ))}
         </div>
       ) : (
         <Card className={cn(
-          "border-2",
-          theme === "light" ? "bg-white border-gray-200" : "bg-zinc-900/50 border-white/5"
+          "border backdrop-blur-lg shadow-lg",
+          theme === "light" ? "bg-white/70 border-gray-200/50" : "bg-zinc-900/40 border-white/10"
         )}>
           <CardContent className="py-12 text-center">
             <Calendar className={cn(
@@ -349,8 +379,8 @@ export function LiveSessionsSection({
       {/* Feature Highlight Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className={cn(
-          "border-2",
-          theme === "light" ? "bg-white border-gray-200" : "bg-zinc-900/50 border-white/5"
+          "border backdrop-blur-md shadow-md transition-all hover:shadow-lg hover:scale-105",
+          theme === "light" ? "bg-white/60 border-blue-200/50" : "bg-zinc-900/30 border-blue-500/20"
         )}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -379,8 +409,8 @@ export function LiveSessionsSection({
         </Card>
 
         <Card className={cn(
-          "border-2",
-          theme === "light" ? "bg-white border-gray-200" : "bg-zinc-900/50 border-white/5"
+          "border backdrop-blur-md shadow-md transition-all hover:shadow-lg hover:scale-105",
+          theme === "light" ? "bg-white/60 border-purple-200/50" : "bg-zinc-900/30 border-purple-500/20"
         )}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -409,8 +439,8 @@ export function LiveSessionsSection({
         </Card>
 
         <Card className={cn(
-          "border-2",
-          theme === "light" ? "bg-white border-gray-200" : "bg-zinc-900/50 border-white/5"
+          "border backdrop-blur-md shadow-md transition-all hover:shadow-lg hover:scale-105",
+          theme === "light" ? "bg-white/60 border-amber-200/50" : "bg-zinc-900/30 border-amber-500/20"
         )}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">

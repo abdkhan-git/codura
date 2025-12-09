@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
-import { analyzeComplexity } from './complexity-analyzer';
+// import { analyzeComplexity } from './complexity-analyzer';
 
 // Import or define ComplexityResult interface
 interface ComplexityResult {

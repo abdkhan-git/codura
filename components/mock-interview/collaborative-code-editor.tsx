@@ -15,6 +15,7 @@ interface CollaborativeCodeEditorProps {
   initialCode?: string
   initialLanguage?: string
   readOnly?: boolean
+  executeEndpoint?: string // Custom endpoint for code execution
 }
 
 export interface CollaborativeCodeEditorHandle {
@@ -29,6 +30,7 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
   initialCode = '',
   initialLanguage = 'python',
   readOnly = false,
+  executeEndpoint = '/api/code/execute',
 }, ref) => {
   const monaco = useMonaco()
   const editorRef = useRef<any>(null)
@@ -164,7 +166,7 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
     console.log('[Code Execution] Starting execution for language:', language.value)
 
     try {
-      const response = await fetch('/api/code/execute', {
+      const response = await fetch(executeEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
