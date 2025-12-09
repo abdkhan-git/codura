@@ -7,12 +7,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import { Send, Radio, MessageSquare } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useStreamChat, type ChatMessage } from "@/hooks/use-stream-chat";
 
 interface StreamChatProps {
   streamId: string;
   userId: string;
   userName: string;
+  streamerId?: string; // User ID of the live streamer
   messages?: Array<{
     id: string;
     userId: string;
@@ -38,6 +40,7 @@ export function StreamChat({
   streamId, 
   userId, 
   userName,
+  streamerId,
   messages: externalMessages,
   onMessagesChange,
   sendMessage: externalSendMessage,
@@ -140,15 +143,27 @@ export function StreamChat({
             </p>
           </div>
         ) : (
-          messages.map((message: ChatMessage) => (
+          messages.map((message: ChatMessage) => {
+            const isStreamer = streamerId && message.userId === streamerId;
+            return (
             <div key={message.id} className="space-y-1">
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <span
                   className="text-xs font-medium"
                   style={{ color: message.userColor || '#a855f7' }}
                 >
                   {message.userName}
                 </span>
+                {isStreamer && (
+                  <Badge 
+                    className={cn(
+                      "text-[10px] px-1.5 py-0.5 font-semibold",
+                      "bg-gradient-to-r from-purple-500 to-violet-500 text-white border-0"
+                    )}
+                  >
+                    Live Streamer
+                  </Badge>
+                )}
                 <span className={cn(
                   "text-xs",
                   theme === 'light' ? "text-gray-400" : "text-muted-foreground"
@@ -166,7 +181,8 @@ export function StreamChat({
                 {message.text}
               </p>
             </div>
-          ))
+          );
+          })
         )}
         <div ref={finalMessagesEndRef} />
       </div>

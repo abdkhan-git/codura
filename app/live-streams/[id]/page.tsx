@@ -24,6 +24,7 @@ interface StreamData {
     topic_tags: Array<{ name: string; slug: string }>;
   } | null;
   streamer: {
+    id?: string;
     full_name?: string;
     username?: string;
     avatar_url?: string;
@@ -199,6 +200,7 @@ export default function LiveStreamChatroomPage() {
                 streamId={streamId}
                 userId={session?.user?.id || 'anonymous'}
                 userName={user?.name || 'Anonymous'}
+                streamerId={stream.streamer?.id}
               />
             </div>
           </div>

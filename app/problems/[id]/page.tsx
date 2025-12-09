@@ -2052,6 +2052,7 @@ return (
                 streamId={streamId}
                 userId={session?.user?.id || 'anonymous'}
                 userName={session?.user?.email?.split('@')[0] || 'Anonymous'}
+                streamerId={isStreaming ? (session?.user?.id || undefined) : undefined}
                 messages={streamChatMessages}
                 onMessagesChange={setStreamChatMessages}
                 sendMessage={sendStreamChatMessage}
