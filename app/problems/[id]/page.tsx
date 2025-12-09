@@ -1620,7 +1620,7 @@ return (
                     // Error is already handled in the hook
                   }
                 }}
-                className="bg-gradient-to-r from-brand to-orange-300 hover:from-brand/90 hover:to-orange-300/90 text-brand-foreground shadow-lg shadow-brand/30 transition-all"
+                className="bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 shadow-lg shadow-purple-500/25 text-white transition-all"
               >
                 <Video className="w-4 h-4 mr-2" />
                 Start Streaming
