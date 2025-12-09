@@ -26,6 +26,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { FilePen } from 'lucide-react'
 
 interface CommunitySolutionsProps {
     problemId: string
@@ -632,9 +633,9 @@ export default function CommunitySolutions({ problemId }: CommunitySolutionsProp
                 {!isCreating && (
                     <Button
                         onClick={() => setIsCreating(true)}
-                        className="cursor-pointer bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                        className="cursor-pointer bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                     >
-                        <Edit2 className="w-4 h-4 mr-2" />
+                        <FilePen className="w-4 h-4 mr-1" />
                         Share Your Solution
                     </Button>
                 )}
