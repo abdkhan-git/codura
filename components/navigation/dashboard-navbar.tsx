@@ -444,8 +444,8 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:scale-110",
                     currentTheme === 'light'
-                      ? "bg-gradient-to-br from-red-500 to-orange-500 shadow-lg shadow-red-500/25"
-                      : "bg-gradient-to-br from-red-600 to-orange-600 shadow-lg shadow-red-500/25"
+                      ? "bg-gradient-to-br from-purple-500 to-violet-500 shadow-lg shadow-purple-500/25"
+                      : "bg-gradient-to-br from-purple-600 to-violet-600 shadow-lg shadow-purple-500/25"
                   )}>
                     <Video className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
