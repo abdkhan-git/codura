@@ -266,6 +266,9 @@ export function PublicVideoCall({
         isHost={isHost}
         onLeave={handleLeave}
         isPublic={true}
+        timerEndMs={timerEndMs}
+        timerRemainingMs={timerRemainingMs}
+        formatMs={formatMs}
       />
 
       <div className="flex-1 flex gap-4 p-4 overflow-hidden min-h-0">

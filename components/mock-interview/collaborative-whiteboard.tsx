@@ -760,17 +760,25 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
         )}
         onMouseDown={handleDragStart}
       >
-        <div className="flex items-center gap-2">
-          <div className={cn(
-            "w-2 h-2 rounded-full",
-            remoteWhiteboardOpen ? "bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" : "bg-gray-400"
-          )} />
+        <div className="flex items-center gap-3">
           <span className="text-sm font-medium">Whiteboard</span>
           {remoteUserDrawing && (
             <span className="text-xs text-muted-foreground">(Partner drawing...)</span>
           )}
         </div>
-        <span className="text-xs text-muted-foreground">Drag to move</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5" title="Your whiteboard status">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+            <span className="text-xs text-muted-foreground">You</span>
+          </div>
+          <div className="flex items-center gap-1.5" title={remoteWhiteboardOpen ? "Partner's whiteboard is open" : "Partner's whiteboard is closed"}>
+            <div className={cn(
+              "w-2 h-2 rounded-full transition-all",
+              remoteWhiteboardOpen ? "bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" : "bg-gray-400"
+            )} />
+            <span className="text-xs text-muted-foreground">Partner</span>
+          </div>
+        </div>
       </div>
 
       {/* Toolbar */}

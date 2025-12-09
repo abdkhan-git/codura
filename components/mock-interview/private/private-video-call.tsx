@@ -98,6 +98,10 @@ export function PrivateVideoCall({ sessionId, user, isHost, onLeave }: PrivateVi
         sessionId={sessionId}
         isHost={isHost}
         onLeave={handleLeave}
+        timerEndMs={timerEndMs}
+        timerRemainingMs={timerRemainingMs}
+        formatMs={formatMs}
+        pendingUsers={pendingUsers}
       />
 
       <div className="flex-1 flex gap-4 mt-4 overflow-hidden">
