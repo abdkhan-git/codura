@@ -41,6 +41,8 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['recharts', 'lucide-react'],
   },
+  // Tell Next.js to not bundle these packages
+  serverComponentsExternalPackages: ['livekit-server-sdk'],
   // Explicitly opt into Turbopack to avoid mixed webpack/turbo warnings on Next 16
   turbopack: {},
 };

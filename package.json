@@ -52,6 +52,7 @@
     "i": "^0.3.7",
     "lib0": "^0.2.114",
     "livekit-client": "^2.9.1",
+    "livekit-server-sdk": "^2.14.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.15",
     "next": "^16.0.0",
