@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,13 @@ const EMOJI_LIST = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 export default function FloatingMessageWidget() {
   const { theme } = useTheme();
+  const pathname = usePathname();
   const supabase = createClient();
+  
+  // Hide widget on problems and live streams pages to avoid blocking stream chat send button
+  const isProblemsPage = pathname?.startsWith('/problems/');
+  const isLiveStreamsPage = pathname?.startsWith('/live-streams/');
+  const shouldHideWidget = isProblemsPage || isLiveStreamsPage;
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -333,6 +340,11 @@ export default function FloatingMessageWidget() {
     (c) => c.id === selectedConversationId
   );
 
+  // Don't render on problems or live streams pages
+  if (shouldHideWidget) {
+    return null;
+  }
+
   if (!isOpen) {
     return (
       <div className="fixed bottom-6 left-6 z-30">
@@ -358,6 +370,11 @@ export default function FloatingMessageWidget() {
         </Button>
       </div>
     );
+  }
+
+  // Don't render on problems page
+  if (isProblemsPage) {
+    return null;
   }
 
   return (

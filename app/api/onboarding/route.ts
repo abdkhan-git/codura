@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       updateData.federal_school_code = code;
       updateData.major = major;
     } else if (kind === "no_school") {
-      updateData.federal_school_code = "no_school";
+      updateData.federal_school_code = null;
       if (major) {
         updateData.major = major;
       }

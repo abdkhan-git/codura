@@ -438,6 +438,26 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                   </div>
                 </Link>
               </DropdownMenuItem>
+
+              <DropdownMenuItem asChild className="relative z-10">
+                <Link href="/live-streams" className="flex items-center gap-3 px-3 py-2 cursor-pointer rounded-lg group">
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:scale-110",
+                    currentTheme === 'light'
+                      ? "bg-gradient-to-br from-purple-500 to-violet-500 shadow-lg shadow-purple-500/25"
+                      : "bg-gradient-to-br from-purple-600 to-violet-600 shadow-lg shadow-purple-500/25"
+                  )}>
+                    <Video className="w-4 h-4 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Live Stream</p>
+                    <p className={cn("text-xs", currentTheme === 'light' ? "text-zinc-500" : "text-zinc-400")}>
+                      Create or watch live streams
+                    </p>
+                  </div>
+                </Link>
+              </DropdownMenuItem>
+              
             </DropdownMenuContent>
           </DropdownMenu>
         </nav>
