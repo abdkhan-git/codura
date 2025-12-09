@@ -128,12 +128,40 @@ export async function GET(
 
     // Check join eligibility if user is authenticated
     let joinStatus = null;
+    let pendingRequest = null;
     if (userId && !membership) {
-      const { data: canJoin } = await supabase.rpc('can_user_join_pod', {
-        user_uuid: userId,
-        pod_uuid: podId,
-      });
-      joinStatus = canJoin;
+      // Check for pending join request
+      const { data: existingRequest } = await supabase
+        .from('study_pod_join_requests')
+        .select('id, status, created_at')
+        .eq('pod_id', podId)
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (existingRequest) {
+        pendingRequest = existingRequest;
+        joinStatus = { has_pending_request: true };
+      } else {
+        const { data: canJoin } = await supabase.rpc('can_user_join_pod', {
+          user_uuid: userId,
+          pod_uuid: podId,
+        });
+        joinStatus = canJoin;
+      }
+    }
+
+    // Get pending join requests if user is admin
+    let pendingRequests = null;
+    if (membership && ['owner', 'moderator'].includes(membership.role)) {
+      const { data: requests } = await supabase
+        .from('study_pod_join_requests')
+        .select('*')
+        .eq('pod_id', podId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      pendingRequests = requests || [];
     }
 
     // Get pod statistics
@@ -147,6 +175,8 @@ export async function GET(
       user_role: membership?.role || null,
       user_membership: membership || null,
       join_status: joinStatus,
+      pending_request: pendingRequest,
+      pending_requests: pendingRequests,
       current_member_count: members?.length || 0,
     };
 

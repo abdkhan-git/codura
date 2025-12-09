@@ -155,12 +155,69 @@ export async function POST(
         }
       }
     } else {
-      // Create join request for approval
-      await supabase.from('study_pod_join_requests').insert({
-        pod_id: podId,
-        user_id: user.id,
-        status: 'pending',
-      });
+      // Check if a pending join request already exists
+      const { data: existingRequest } = await supabase
+        .from('study_pod_join_requests')
+        .select('id, status')
+        .eq('pod_id', podId)
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (!existingRequest) {
+        // Create join request for approval
+        const { error: requestError } = await supabase
+          .from('study_pod_join_requests')
+          .insert({
+            pod_id: podId,
+            user_id: user.id,
+            status: 'pending',
+          });
+
+        if (requestError) {
+          console.error('Error creating join request:', requestError);
+          return NextResponse.json(
+            { error: 'Failed to create join request', details: requestError.message },
+            { status: 500 }
+          );
+        }
+
+        // Get pod admins and moderators to notify
+        const { data: admins } = await supabase
+          .from('study_pod_members')
+          .select('user_id')
+          .eq('pod_id', podId)
+          .in('role', ['owner', 'moderator'])
+          .eq('status', 'active');
+
+        // Create notifications for all admins/moderators
+        if (admins && admins.length > 0) {
+          const notifications = admins.map((admin) => ({
+            user_id: admin.user_id,
+            actor_id: user.id,
+            type: 'connection_request',
+            notification_type: 'connection_request',
+            title: 'New Join Request',
+            message: `Someone wants to join ${pod.name}`,
+            link: `/study-pods/${podId}?tab=members`,
+            priority: 'normal',
+            metadata: {
+              pod_id: podId,
+              pod_name: pod.name,
+              requester_id: user.id,
+            },
+          }));
+
+          const { error: notifError } = await supabase
+            .from('notifications')
+            .insert(notifications);
+
+          if (notifError) {
+            console.error('Error creating notifications:', notifError);
+            // Don't fail the join request if notification creation fails
+          }
+        }
+      }
     }
 
     return NextResponse.json({

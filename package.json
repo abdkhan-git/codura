@@ -96,5 +96,10 @@
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.8",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@radix-ui/react-use-escape-keydown": "1.1.0",
+    "@fortawesome/fontawesome-common-types": "7.0.1",
+    "ignore-by-default": "2.1.0"
   }
 }
