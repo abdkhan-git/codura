@@ -20,7 +20,7 @@ import {
   markConversationAsRead,
   togglePinConversation,
   toggleMuteConversation,
-  getOrCreateConversation,
+  getOrCreateDirectConversation,
 } from '@/lib/messaging-api';
 import {
   ConnectedUser,
@@ -146,9 +146,9 @@ export function useMessaging(): UseMessagingReturn {
   const startDirectMessage = useCallback(
     async (userId: string) => {
       try {
-        const conv = await getOrCreateConversation(userId);
+        const conversationId = await getOrCreateDirectConversation(userId);
         await fetchConversations();
-        await selectConversation(conv.id);
+        await selectConversation(conversationId);
       } catch (error) {
         console.error('Failed to start conversation:', error);
       }
