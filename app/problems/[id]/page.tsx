@@ -1854,8 +1854,11 @@ return (
                   <Button
                     onClick={() => setShowStreamChat(!showStreamChat)}
                     size="sm"
-                    variant={showStreamChat ? "secondary" : "outline"}
-                    className="cursor-pointer hover:scale-105 transition-all duration-300"
+                    variant={showStreamChat ? "secondary" : "default"}
+                    className={cn(
+                      "cursor-pointer hover:scale-105 transition-all duration-300",
+                      !showStreamChat && "bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 shadow-lg shadow-purple-500/25 text-white"
+                    )}
                   >
                     <MessageSquare className="w-4 h-4 mr-2" />
                     Chat {showStreamChat ? '(Hide)' : ''}
@@ -1940,8 +1943,11 @@ return (
                   <Button
                     onClick={() => setShowStreamChat(!showStreamChat)}
                     size="sm"
-                    variant={showStreamChat ? "secondary" : "outline"}
-                    className="cursor-pointer hover:scale-105 transition-all duration-300"
+                    variant={showStreamChat ? "secondary" : "default"}
+                    className={cn(
+                      "cursor-pointer hover:scale-105 transition-all duration-300",
+                      !showStreamChat && "bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 shadow-lg shadow-purple-500/25 text-white"
+                    )}
                   >
                     <MessageSquare className="w-4 h-4 mr-2" />
                     Chat {showStreamChat ? '(Hide)' : ''}
@@ -2019,8 +2025,16 @@ return (
 
           <ResizableHandle withHandle />
 
-          {/* RIGHT: AI Chatbot OR Collaboration Sidebar */}
-          {collaborationEnabled && showCollabSidebar ? (
+          {/* RIGHT: Stream Chat OR AI Chatbot OR Collaboration Sidebar */}
+          {isStreaming && streamId && showStreamChat ? (
+            <ResizablePanel defaultSize={25} minSize={20} maxSize={35}>
+              <StreamChat
+                streamId={streamId}
+                userId={session?.user?.id || 'anonymous'}
+                userName={session?.user?.email?.split('@')[0] || 'Anonymous'}
+              />
+            </ResizablePanel>
+          ) : collaborationEnabled && showCollabSidebar ? (
             <ResizablePanel defaultSize={25} minSize={20} maxSize={35}>
               <CollaborationSidebar
                 roomId={roomId}
@@ -2096,26 +2110,6 @@ return (
         </div>
       )}
 
-      {/* Stream Chat - Floating panel for streamer */}
-      {isStreaming && streamId && showStreamChat && (
-        <div className="fixed bottom-4 right-4 w-96 h-[500px] z-50 shadow-2xl rounded-lg overflow-hidden border-2 border-purple-500/50 bg-background">
-          <div className="absolute top-2 right-2 z-10">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowStreamChat(false)}
-              className="h-6 w-6 p-0"
-            >
-              <X className="w-3 h-3" />
-            </Button>
-          </div>
-          <StreamChat
-            streamId={streamId}
-            userId={session?.user?.id || 'anonymous'}
-            userName={session?.user?.email?.split('@')[0] || 'Anonymous'}
-          />
-        </div>
-      )}
     </div>
   )
 }

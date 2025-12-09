@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
-import { Send, Radio } from "lucide-react";
+import { Send, Radio, MessageSquare } from "lucide-react";
 import { useStreamChat, type ChatMessage } from "@/hooks/use-stream-chat";
 
 interface StreamChatProps {
@@ -41,24 +41,24 @@ export function StreamChat({ streamId, userId, userName }: StreamChatProps) {
     <div className={cn(
       "h-full flex flex-col",
       theme === 'light'
-        ? "bg-white/90 border-l border-gray-200"
-        : "bg-zinc-950/90 border-l border-white/10"
+        ? "bg-white/90 backdrop-blur-xl border-l border-gray-200"
+        : "bg-zinc-950/30 backdrop-blur-xl border-l border-white/5"
     )}>
       {/* Chat Header */}
       <div className={cn(
-        "p-4 border-b flex items-center justify-between",
-        theme === 'light' ? "border-gray-200" : "border-white/10"
+        "px-4 py-3 border-b flex items-center justify-between bg-zinc-900/20 backdrop-blur-sm",
+        theme === 'light' ? "border-gray-200" : "border-white/5"
       )}>
         <div className="flex items-center gap-2">
           <div className={cn(
             "w-2 h-2 rounded-full",
-            isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"
+            isConnected ? "bg-green-500 animate-pulse shadow-lg shadow-green-500/50" : "bg-red-500"
           )} />
           <h3 className={cn(
             "text-sm font-semibold",
             theme === 'light' ? "text-gray-900" : "text-foreground"
           )}>
-            Chat
+            Stream Chat
           </h3>
         </div>
         <span className={cn(
@@ -72,12 +72,21 @@ export function StreamChat({ streamId, userId, userName }: StreamChatProps) {
       {/* Messages Container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 ? (
-          <div className="text-center py-8">
+          <div className="text-center py-12">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-4 border-2 border-purple-500/30 shadow-lg shadow-purple-500/20">
+              <MessageSquare className="w-6 h-6 text-purple-400" />
+            </div>
             <p className={cn(
-              "text-sm",
+              "text-sm font-medium mb-2",
+              theme === 'light' ? "text-gray-900" : "text-foreground"
+            )}>
+              No messages yet
+            </p>
+            <p className={cn(
+              "text-xs",
               theme === 'light' ? "text-gray-500" : "text-muted-foreground"
             )}>
-              No messages yet. Be the first to chat!
+              Be the first to chat!
             </p>
           </div>
         ) : (
@@ -114,8 +123,8 @@ export function StreamChat({ streamId, userId, userName }: StreamChatProps) {
 
       {/* Message Input */}
       <div className={cn(
-        "p-4 border-t",
-        theme === 'light' ? "border-gray-200 bg-gray-50" : "border-white/10 bg-zinc-900/50"
+        "p-4 border-t bg-zinc-900/20 backdrop-blur-sm",
+        theme === 'light' ? "border-gray-200 bg-gray-50" : "border-white/5"
       )}>
         <div className="flex gap-2">
           <Input
@@ -128,14 +137,14 @@ export function StreamChat({ streamId, userId, userName }: StreamChatProps) {
               "flex-1",
               theme === 'light'
                 ? "bg-white border-gray-200"
-                : "bg-zinc-900 border-white/10"
+                : "bg-muted/50 border-border/30 focus:border-purple-500/50"
             )}
           />
           <Button
             onClick={handleSendMessage}
             disabled={!isConnected || !messageInput.trim()}
             size="sm"
-            className="bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600"
+            className="bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 shadow-lg shadow-purple-500/25 text-white"
           >
             <Send className="w-4 h-4" />
           </Button>
