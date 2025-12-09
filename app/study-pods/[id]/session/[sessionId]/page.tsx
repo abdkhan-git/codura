@@ -2232,9 +2232,12 @@ export default function LiveSessionPage() {
         .single();
 
       if (sessionData) {
+        const initialLanguage = sessionData.current_language || 'python';
+        const initialCode = sessionData.current_code || DEFAULT_CODE[initialLanguage] || DEFAULT_CODE['python'];
+
         setSession(sessionData);
-        setCode(sessionData.current_code || DEFAULT_CODE['python']);
-        setLanguage(sessionData.current_language || 'python');
+        setLanguage(initialLanguage);
+        setCode(initialCode);
         console.log('[Init] Session loaded:', sessionData.title);
       }
 

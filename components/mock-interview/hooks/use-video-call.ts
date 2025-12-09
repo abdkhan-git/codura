@@ -524,17 +524,30 @@ export function useVideoCall({
   const setupDataChannel = (channel: RTCDataChannel) => {
     dataChannelRef.current = channel;
 
+    channel.onopen = () => {
+      console.log("[Data Channel] Channel opened. Ready state:", channel.readyState);
+    };
+
+    channel.onclose = () => {
+      console.log("[Data Channel] Channel closed");
+    };
+
+    channel.onerror = (error) => {
+      console.error("[Data Channel] Error:", error);
+    };
+
     channel.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
         handleDataChannelMessage(message);
       } catch (error) {
-        console.error("Error parsing data channel message:", error);
+        console.error("[Data Channel] Error parsing message:", error);
       }
     };
   };
 
   const handleDataChannelMessage = (message: any) => {
+    console.log("[Data Channel] Received message type:", message.type);
     switch (message.type) {
       case "code-change":
         setCurrentCode(message.code);
@@ -585,14 +598,36 @@ export function useVideoCall({
   };
 
   const sendDataMessage = useCallback((message: any) => {
-    if (dataChannelRef.current && dataChannelRef.current.readyState === "open") {
+    const channel = dataChannelRef.current;
+    if (!channel) {
+      console.warn("[Data Channel] Cannot send - channel is null. Message type:", message.type);
+      return;
+    }
+
+    if (channel.readyState === "open") {
       try {
-        dataChannelRef.current.send(JSON.stringify(message));
+        channel.send(JSON.stringify(message));
+        console.log("[Data Channel] Sent message type:", message.type);
       } catch (error) {
-        console.error("[Data Channel] Error sending message:", error);
+        console.error("[Data Channel] Error sending message:", error, "Message type:", message.type);
       }
     } else {
-      console.warn("[Data Channel] Cannot send - channel not open. State:", dataChannelRef.current?.readyState || "null");
+      console.warn("[Data Channel] Cannot send - channel not open. State:", channel.readyState, "Message type:", message.type);
+
+      // If connecting, wait a bit and retry
+      if (channel.readyState === "connecting") {
+        console.log("[Data Channel] Channel is connecting, will retry in 500ms...");
+        setTimeout(() => {
+          if (channel.readyState === "open") {
+            try {
+              channel.send(JSON.stringify(message));
+              console.log("[Data Channel] Retry successful. Sent message type:", message.type);
+            } catch (error) {
+              console.error("[Data Channel] Retry failed:", error);
+            }
+          }
+        }, 500);
+      }
     }
   }, []);
 
