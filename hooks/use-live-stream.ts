@@ -355,6 +355,7 @@ export function useLiveStream(roomId: string, userId: string, userName: string, 
     isStreaming,
     viewers,
     localStream,
+    streamId: streamIdRef.current,
     startStream,
     stopStream,
   }

@@ -20,6 +20,7 @@ import CollaborativeWhiteboard from '@/components/mock-interview/collaborative-w
 // Import live streaming hooks
 import { useLiveStream } from '@/hooks/use-live-stream'
 import { useLiveStreamViewer } from '@/hooks/use-live-stream-viewer'
+import { StreamChat } from '@/components/live-streams/stream-chat'
 
 // Custom styles for tab scrolling and cursor animations
 const tabScrollStyles = `
@@ -914,6 +915,8 @@ export default function ProblemPage() {
   // Live streaming state
   const [showStreamPrompt, setShowStreamPrompt] = useState(false)
   const [hasCheckedForStream, setHasCheckedForStream] = useState(false)
+  const [showStreamChat, setShowStreamChat] = useState(false)
+  const [streamId, setStreamId] = useState<string | null>(null)
 
   // Language & code
   const [userLang, setUserLang] = useState({
@@ -975,6 +978,7 @@ export default function ProblemPage() {
   const {
     isStreaming,
     viewers,
+    streamId: currentStreamId,
     startStream,
     stopStream,
   } = useLiveStream(
@@ -983,6 +987,16 @@ export default function ProblemPage() {
     session?.user?.email?.split('@')[0] || 'Anonymous',
     Number(params.id)
   )
+
+  // Update streamId when it changes
+  useEffect(() => {
+    if (currentStreamId) {
+      setStreamId(currentStreamId)
+    } else {
+      setStreamId(null)
+      setShowStreamChat(false) // Close chat when stream ends
+    }
+  }, [currentStreamId])
 
   const {
     remoteStream,
@@ -1007,6 +1021,28 @@ export default function ProblemPage() {
       return () => clearTimeout(timer)
     }
   }, [roomId, hasCheckedForStream, isStreaming, isViewingStream, joinStream])
+
+  // Fetch streamId for viewers (when viewing a stream)
+  useEffect(() => {
+    if (isViewingStream && roomId && !streamId) {
+      // Fetch stream by roomId to get streamId
+      const fetchStreamId = async () => {
+        try {
+          const response = await fetch(`/api/live-streams`)
+          if (response.ok) {
+            const data = await response.json()
+            const activeStream = data.streams?.find((s: any) => s.room_id === roomId && s.is_active)
+            if (activeStream) {
+              setStreamId(activeStream.id)
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching streamId:', error)
+        }
+      }
+      fetchStreamId()
+    }
+  }, [isViewingStream, roomId, streamId])
 
   // Sync collaboration code with local code
   useEffect(() => {
@@ -1790,27 +1826,42 @@ return (
 
             {/* Live Streaming Button - Dynamic */}
             {!isViewingStream && (
-              <Button
-                onClick={isStreaming ? stopStream : () => setShowStreamPrompt(true)}
-                size="sm"
-                variant={isStreaming ? "destructive" : "default"}
-                className={cn(
-                  "cursor-pointer hover:scale-105 transition-all duration-300",
-                  !isStreaming && "bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 shadow-lg shadow-purple-500/25 text-white"
+              <>
+                <Button
+                  onClick={isStreaming ? stopStream : () => setShowStreamPrompt(true)}
+                  size="sm"
+                  variant={isStreaming ? "destructive" : "default"}
+                  className={cn(
+                    "cursor-pointer hover:scale-105 transition-all duration-300",
+                    !isStreaming && "bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 shadow-lg shadow-purple-500/25 text-white"
+                  )}
+                >
+                  {isStreaming ? (
+                    <>
+                      <VideoOff className="w-4 h-4 mr-2" />
+                      End Stream {viewers.length > 0 && `(${viewers.length})`}
+                    </>
+                  ) : (
+                    <>
+                      <Video className="w-4 h-4 mr-2" />
+                      Start Live Stream
+                    </>
+                  )}
+                </Button>
+
+                {/* Stream Chat Button - Only show when streaming */}
+                {isStreaming && streamId && (
+                  <Button
+                    onClick={() => setShowStreamChat(!showStreamChat)}
+                    size="sm"
+                    variant={showStreamChat ? "secondary" : "outline"}
+                    className="cursor-pointer hover:scale-105 transition-all duration-300"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Chat {showStreamChat ? '(Hide)' : ''}
+                  </Button>
                 )}
-              >
-                {isStreaming ? (
-                  <>
-                    <VideoOff className="w-4 h-4 mr-2" />
-                    End Stream {viewers.length > 0 && `(${viewers.length})`}
-                  </>
-                ) : (
-                  <>
-                    <Video className="w-4 h-4 mr-2" />
-                    Start Live Stream
-                  </>
-                )}
-              </Button>
+              </>
             )}
 
             {isViewingStream && (
@@ -1861,27 +1912,42 @@ return (
 
             {/* Live Streaming Button - Always visible */}
             {!isViewingStream && (
-              <Button
-                onClick={isStreaming ? stopStream : () => setShowStreamPrompt(true)}
-                size="sm"
-                variant={isStreaming ? "destructive" : "default"}
-                className={cn(
-                  "cursor-pointer hover:scale-105 transition-all duration-300",
-                  !isStreaming && "bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 shadow-lg shadow-purple-500/25 text-white"
+              <>
+                <Button
+                  onClick={isStreaming ? stopStream : () => setShowStreamPrompt(true)}
+                  size="sm"
+                  variant={isStreaming ? "destructive" : "default"}
+                  className={cn(
+                    "cursor-pointer hover:scale-105 transition-all duration-300",
+                    !isStreaming && "bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 shadow-lg shadow-purple-500/25 text-white"
+                  )}
+                >
+                  {isStreaming ? (
+                    <>
+                      <VideoOff className="w-4 h-4 mr-2" />
+                      End Stream {viewers.length > 0 && `(${viewers.length})`}
+                    </>
+                  ) : (
+                    <>
+                      <Video className="w-4 h-4 mr-2" />
+                      Start Live Stream
+                    </>
+                  )}
+                </Button>
+
+                {/* Stream Chat Button - Only show when streaming */}
+                {isStreaming && streamId && (
+                  <Button
+                    onClick={() => setShowStreamChat(!showStreamChat)}
+                    size="sm"
+                    variant={showStreamChat ? "secondary" : "outline"}
+                    className="cursor-pointer hover:scale-105 transition-all duration-300"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Chat {showStreamChat ? '(Hide)' : ''}
+                  </Button>
                 )}
-              >
-                {isStreaming ? (
-                  <>
-                    <VideoOff className="w-4 h-4 mr-2" />
-                    End Stream {viewers.length > 0 && `(${viewers.length})`}
-                  </>
-                ) : (
-                  <>
-                    <Video className="w-4 h-4 mr-2" />
-                    Start Live Stream
-                  </>
-                )}
-              </Button>
+              </>
             )}
 
             {isViewingStream && (
@@ -2026,6 +2092,27 @@ return (
                 console.error('Error playing video on metadata load:', err)
               })
             }}
+          />
+        </div>
+      )}
+
+      {/* Stream Chat - Floating panel for streamer */}
+      {isStreaming && streamId && showStreamChat && (
+        <div className="fixed bottom-4 right-4 w-96 h-[500px] z-50 shadow-2xl rounded-lg overflow-hidden border-2 border-purple-500/50 bg-background">
+          <div className="absolute top-2 right-2 z-10">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowStreamChat(false)}
+              className="h-6 w-6 p-0"
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
+          <StreamChat
+            streamId={streamId}
+            userId={session?.user?.id || 'anonymous'}
+            userName={session?.user?.email?.split('@')[0] || 'Anonymous'}
           />
         </div>
       )}
