@@ -166,6 +166,8 @@ export async function GET() {
       createdAt: profile?.created_at || null,
       questionnaireCompleted: profile?.questionnaire_completed || false,
       federalSchoolCode: profile?.federal_school_code || null,
+      age: profile?.age || null,
+      academicYear: profile?.academic_year || null,
     };
 
     // Return everything in ONE response
