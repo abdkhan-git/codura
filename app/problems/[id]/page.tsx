@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { useMonaco } from '@monaco-editor/react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { editor } from 'monaco-editor'
+import { cn } from '@/lib/utils'
 
 // Import separated components
 import AIChatbot from '@/components/problems/AIChatbot'
@@ -1787,28 +1788,28 @@ return (
               <Brush className="w-4 h-4" />
             </Button>
 
-            {/* Live Streaming Buttons */}
-            {!isStreaming && !isViewingStream && (
+            {/* Live Streaming Button - Dynamic */}
+            {!isViewingStream && (
               <Button
-                onClick={() => setShowStreamPrompt(true)}
+                onClick={isStreaming ? stopStream : () => setShowStreamPrompt(true)}
                 size="sm"
-                variant="outline"
-                className="cursor-pointer hover:scale-105 transition-all duration-300"
+                variant={isStreaming ? "destructive" : "default"}
+                className={cn(
+                  "cursor-pointer hover:scale-105 transition-all duration-300",
+                  !isStreaming && "bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 shadow-lg shadow-purple-500/25 text-white"
+                )}
               >
-                <Video className="w-4 h-4 mr-2" />
-                Start Live Stream
-              </Button>
-            )}
-
-            {isStreaming && (
-              <Button
-                onClick={stopStream}
-                size="sm"
-                variant="destructive"
-                className="cursor-pointer hover:scale-105 transition-all duration-300"
-              >
-                <VideoOff className="w-4 h-4 mr-2" />
-                Stop Stream {viewers.length > 0 && `(${viewers.length})`}
+                {isStreaming ? (
+                  <>
+                    <VideoOff className="w-4 h-4 mr-2" />
+                    End Stream {viewers.length > 0 && `(${viewers.length})`}
+                  </>
+                ) : (
+                  <>
+                    <Video className="w-4 h-4 mr-2" />
+                    Start Live Stream
+                  </>
+                )}
               </Button>
             )}
 
@@ -1859,15 +1860,27 @@ return (
             </Button>
 
             {/* Live Streaming Button - Always visible */}
-            {!isStreaming && !isViewingStream && (
+            {!isViewingStream && (
               <Button
-                onClick={() => setShowStreamPrompt(true)}
+                onClick={isStreaming ? stopStream : () => setShowStreamPrompt(true)}
                 size="sm"
-                variant="outline"
-                className="cursor-pointer hover:scale-105 transition-all duration-300"
+                variant={isStreaming ? "destructive" : "default"}
+                className={cn(
+                  "cursor-pointer hover:scale-105 transition-all duration-300",
+                  !isStreaming && "bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 shadow-lg shadow-purple-500/25 text-white"
+                )}
               >
-                <Video className="w-4 h-4 mr-2" />
-                Start Live Stream
+                {isStreaming ? (
+                  <>
+                    <VideoOff className="w-4 h-4 mr-2" />
+                    End Stream {viewers.length > 0 && `(${viewers.length})`}
+                  </>
+                ) : (
+                  <>
+                    <Video className="w-4 h-4 mr-2" />
+                    Start Live Stream
+                  </>
+                )}
               </Button>
             )}
 
