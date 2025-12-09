@@ -116,70 +116,111 @@ export function useLiveStream(roomId: string, userId: string, userName: string, 
 
       // Handle WebRTC signaling - viewer sends offer
       channel.on('broadcast', { event: 'viewer-offer' }, async ({ payload }) => {
-        if (payload.streamerId !== userId) return
-        
+        console.log('📥 Received viewer-offer from:', payload.viewerId, payload.viewerName)
+        if (payload.streamerId !== userId) {
+          console.log('⚠️ Offer not for me (streamerId mismatch)')
+          return
+        }
+
         const viewerId = payload.viewerId
         let pc = peerConnectionsRef.current.get(viewerId)
-        
-        if (!pc) {
-          pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
-          
-          // Add stream tracks
-          if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => {
-              pc!.addTrack(track, streamRef.current!)
+
+        // Skip if peer connection already exists for this viewer
+        if (pc) {
+          console.log('⚠️ Peer connection already exists for viewer, ignoring duplicate offer:', viewerId)
+          return
+        }
+
+        console.log('📝 Creating new peer connection for viewer:', viewerId)
+        pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+
+        // Add stream tracks
+        if (streamRef.current) {
+          const tracks = streamRef.current.getTracks()
+          console.log('📹 Adding', tracks.length, 'tracks to peer connection:', tracks.map(t => t.kind))
+          tracks.forEach(track => {
+            pc!.addTrack(track, streamRef.current!)
+          })
+        } else {
+          console.error('❌ No stream to add tracks from!')
+        }
+
+        // Handle ICE candidates
+        pc.onicecandidate = (event) => {
+          if (event.candidate && channelRef.current) {
+            console.log('📤 Sending ICE candidate to viewer:', viewerId)
+            channelRef.current.send({
+              type: 'broadcast',
+              event: 'streamer-ice',
+              payload: {
+                streamerId: userId,
+                viewerId,
+                candidate: event.candidate,
+              },
             })
+          } else if (!event.candidate) {
+            console.log('✅ All ICE candidates sent to viewer:', viewerId)
           }
+        }
 
-          // Handle ICE candidates
-          pc.onicecandidate = (event) => {
-            if (event.candidate && channelRef.current) {
-              channelRef.current.send({
-                type: 'broadcast',
-                event: 'streamer-ice',
-                payload: {
-                  streamerId: userId,
-                  viewerId,
-                  candidate: event.candidate,
-                },
-              })
-            }
-          }
+        pc.oniceconnectionstatechange = () => {
+          console.log('🧊 Streamer ICE connection state for viewer', viewerId, ':', pc!.iceConnectionState)
+        }
 
-          // Handle connection state
-          pc.onconnectionstatechange = () => {
-            if (pc!.connectionState === 'failed' || pc!.connectionState === 'disconnected') {
-              pc!.close()
-              peerConnectionsRef.current.delete(viewerId)
-              setViewers(prev => {
-                const newViewers = prev.filter(v => v.id !== viewerId)
-                // Update viewer count in API
-                updateViewerCount(newViewers.length)
-                return newViewers
-              })
-            }
-          }
+        pc.onicegatheringstatechange = () => {
+          console.log('🧊 Streamer ICE gathering state for viewer', viewerId, ':', pc!.iceGatheringState)
+        }
 
-          peerConnectionsRef.current.set(viewerId, pc)
-          setViewers(prev => {
-            const exists = prev.find(v => v.id === viewerId)
-            if (!exists) {
-              const newViewers = [...prev, { id: viewerId, name: payload.viewerName || 'Anonymous', peerConnection: pc! }]
+        // Handle connection state
+        pc.onconnectionstatechange = () => {
+          console.log('🔄 Streamer connection state for viewer', viewerId, ':', pc!.connectionState)
+          if (pc!.connectionState === 'failed' || pc!.connectionState === 'disconnected') {
+            console.log('❌ Streamer connection failed/disconnected for viewer:', viewerId)
+            pc!.close()
+            peerConnectionsRef.current.delete(viewerId)
+            setViewers(prev => {
+              const newViewers = prev.filter(v => v.id !== viewerId)
               // Update viewer count in API
               updateViewerCount(newViewers.length)
               return newViewers
-            }
-            return prev
-          })
+            })
+          } else if (pc!.connectionState === 'connected') {
+            console.log('✅ Streamer successfully connected to viewer:', viewerId)
+          }
         }
+
+        peerConnectionsRef.current.set(viewerId, pc)
+        setViewers(prev => {
+          const exists = prev.find(v => v.id === viewerId)
+          if (!exists) {
+            const newViewers = [...prev, { id: viewerId, name: payload.viewerName || 'Anonymous', peerConnection: pc! }]
+            // Update viewer count in API
+            updateViewerCount(newViewers.length)
+            return newViewers
+          }
+          return prev
+        })
 
         // Handle the offer
         if (payload.offer) {
+          console.log('🔍 Peer connection state before offer:', {
+            iceGatheringState: pc.iceGatheringState,
+            iceConnectionState: pc.iceConnectionState,
+            connectionState: pc.connectionState,
+            signalingState: pc.signalingState
+          })
+
+          console.log('📝 Setting remote description (viewer offer)')
           await pc.setRemoteDescription(new RTCSessionDescription(payload.offer))
+          console.log('📝 Creating answer')
           const answer = await pc.createAnswer()
+          console.log('📝 Setting local description (answer)')
           await pc.setLocalDescription(answer)
-          
+
+          console.log('✅ Local description set, ICE gathering state:', pc.iceGatheringState)
+
           if (channelRef.current) {
+            console.log('📤 Sending answer to viewer:', viewerId)
             channelRef.current.send({
               type: 'broadcast',
               event: 'streamer-answer',
@@ -189,17 +230,37 @@ export function useLiveStream(roomId: string, userId: string, userName: string, 
                 answer,
               },
             })
+          } else {
+            console.error('❌ No channel to send answer')
           }
+        } else {
+          console.error('❌ No offer in payload')
         }
       })
 
       // Handle ICE candidates from viewers
       channel.on('broadcast', { event: 'viewer-ice' }, async ({ payload }) => {
-        if (payload.streamerId !== userId) return
-        
+        console.log('📥 Received ICE candidate from viewer:', payload.viewerId)
+        if (payload.streamerId !== userId) {
+          console.log('⚠️ ICE candidate not for me (streamerId mismatch)')
+          return
+        }
+
         const pc = peerConnectionsRef.current.get(payload.viewerId)
         if (pc && payload.candidate) {
-          await pc.addIceCandidate(new RTCIceCandidate(payload.candidate))
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(payload.candidate))
+            console.log('✅ Added ICE candidate from viewer:', payload.viewerId)
+          } catch (error) {
+            console.error('❌ Error adding ICE candidate from viewer:', error)
+          }
+        } else {
+          if (!pc) {
+            console.error('❌ No peer connection for viewer:', payload.viewerId)
+          }
+          if (!payload.candidate) {
+            console.error('❌ No candidate in payload')
+          }
         }
       })
 
