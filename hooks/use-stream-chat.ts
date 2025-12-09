@@ -11,13 +11,43 @@ export interface ChatMessage {
   timestamp: Date
 }
 
-export function useStreamChat(streamId: string, userId: string, userName: string) {
+export function useStreamChat(
+  streamId: string, 
+  userId: string, 
+  userName: string,
+  externalMessages?: ChatMessage[],
+  onMessagesChange?: (messages: ChatMessage[]) => void
+) {
   const supabase = createClient()
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(externalMessages || [])
   const [isConnected, setIsConnected] = useState(false)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const userColor = useRef(`hsl(${Math.random() * 360}, 70%, 60%)`)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const isUsingExternalState = !!onMessagesChange
+
+  // Sync with external messages if provided
+  useEffect(() => {
+    if (externalMessages && isUsingExternalState) {
+      setMessages(externalMessages)
+    }
+  }, [externalMessages, isUsingExternalState])
+
+  // Helper to update messages (either local state or external)
+  const updateMessages = useCallback((updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
+    if (isUsingExternalState && onMessagesChange) {
+      // Use external state management
+      if (typeof updater === 'function') {
+        const current = externalMessages || messages
+        onMessagesChange(updater(current))
+      } else {
+        onMessagesChange(updater)
+      }
+    } else {
+      // Use local state
+      setMessages(updater)
+    }
+  }, [externalMessages, messages, onMessagesChange, isUsingExternalState])
 
   useEffect(() => {
     if (!streamId || !userId) return
@@ -31,8 +61,15 @@ export function useStreamChat(streamId: string, userId: string, userName: string
 
     // Listen for chat messages
     channel.on('broadcast', { event: 'chat-message' }, ({ payload }) => {
-      if (payload.userId !== userId) {
-        setMessages((prev) => [...prev, payload.message])
+      if (payload.userId !== userId && payload.message) {
+        // Ensure timestamp is a Date object
+        const message: ChatMessage = {
+          ...payload.message,
+          timestamp: payload.message.timestamp instanceof Date 
+            ? payload.message.timestamp 
+            : new Date(payload.message.timestamp)
+        }
+        updateMessages((prev) => [...prev, message])
       }
     })
 
@@ -55,12 +92,13 @@ export function useStreamChat(streamId: string, userId: string, userName: string
       channelRef.current = null
       setIsConnected(false)
     }
-  }, [streamId, userId, userName, supabase])
+  }, [streamId, userId, userName, supabase, updateMessages])
 
   // Auto-scroll to bottom when new messages arrive
+  const displayMessages = isUsingExternalState && externalMessages ? externalMessages : messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [displayMessages])
 
   const sendMessage = useCallback(
     (text: string) => {
@@ -75,8 +113,8 @@ export function useStreamChat(streamId: string, userId: string, userName: string
         timestamp: new Date(),
       }
 
-      // Add message locally immediately
-      setMessages((prev) => [...prev, message])
+      // Add message immediately (using external state if provided)
+      updateMessages((prev) => [...prev, message])
 
       // Broadcast to others
       channelRef.current.send({
@@ -88,11 +126,12 @@ export function useStreamChat(streamId: string, userId: string, userName: string
         },
       })
     },
-    [userId, userName]
+    [userId, userName, updateMessages]
   )
 
+
   return {
-    messages,
+    messages: displayMessages,
     isConnected,
     sendMessage,
     messagesEndRef,

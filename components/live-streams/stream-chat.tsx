@@ -13,16 +13,66 @@ interface StreamChatProps {
   streamId: string;
   userId: string;
   userName: string;
+  messages?: Array<{
+    id: string;
+    userId: string;
+    userName: string;
+    userColor?: string;
+    text: string;
+    timestamp: Date;
+  }>;
+  onMessagesChange?: (messages: Array<{
+    id: string;
+    userId: string;
+    userName: string;
+    userColor?: string;
+    text: string;
+    timestamp: Date;
+  }>) => void;
+  sendMessage?: (text: string) => void;
+  isConnected?: boolean;
+  messagesEndRef?: React.RefObject<HTMLDivElement>;
 }
 
-export function StreamChat({ streamId, userId, userName }: StreamChatProps) {
+export function StreamChat({ 
+  streamId, 
+  userId, 
+  userName,
+  messages: externalMessages,
+  onMessagesChange,
+  sendMessage: externalSendMessage,
+  isConnected: externalIsConnected,
+  messagesEndRef: externalMessagesEndRef
+}: StreamChatProps) {
   const { theme } = useTheme();
   const [messageInput, setMessageInput] = useState("");
-  const { messages, isConnected, sendMessage, messagesEndRef } = useStreamChat(
-    streamId,
+  const localMessagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = externalMessagesEndRef || localMessagesEndRef;
+  
+  // Use hook only if external functions not provided (for viewers on dedicated page)
+  const { 
+    messages: hookMessages, 
+    isConnected: hookIsConnected, 
+    sendMessage: hookSendMessage,
+    messagesEndRef: hookMessagesEndRef
+  } = useStreamChat(
+    externalSendMessage ? '' : streamId, // Don't connect if external functions provided
     userId,
-    userName
+    userName,
+    externalMessages,
+    onMessagesChange
   );
+  
+  // Use external messages/functions if provided, otherwise use hook
+  const messages = externalMessages || hookMessages;
+  const isConnected = externalIsConnected !== undefined ? externalIsConnected : hookIsConnected;
+  const sendMessage = externalSendMessage || hookSendMessage;
+  const finalMessagesEndRef = externalMessagesEndRef || hookMessagesEndRef || localMessagesEndRef;
+  
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    finalMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, finalMessagesEndRef])
 
   const handleSendMessage = () => {
     if (!messageInput.trim()) return;
@@ -118,7 +168,7 @@ export function StreamChat({ streamId, userId, userName }: StreamChatProps) {
             </div>
           ))
         )}
-        <div ref={messagesEndRef} />
+        <div ref={finalMessagesEndRef} />
       </div>
 
       {/* Message Input */}

@@ -21,6 +21,7 @@ import CollaborativeWhiteboard from '@/components/mock-interview/collaborative-w
 import { useLiveStream } from '@/hooks/use-live-stream'
 import { useLiveStreamViewer } from '@/hooks/use-live-stream-viewer'
 import { StreamChat } from '@/components/live-streams/stream-chat'
+import { useStreamChat } from '@/hooks/use-stream-chat'
 
 // Custom styles for tab scrolling and cursor animations
 const tabScrollStyles = `
@@ -917,6 +918,14 @@ export default function ProblemPage() {
   const [hasCheckedForStream, setHasCheckedForStream] = useState(false)
   const [showStreamChat, setShowStreamChat] = useState(false)
   const [streamId, setStreamId] = useState<string | null>(null)
+  const [streamChatMessages, setStreamChatMessages] = useState<Array<{
+    id: string
+    userId: string
+    userName: string
+    userColor?: string
+    text: string
+    timestamp: Date
+  }>>([])
 
   // Language & code
   const [userLang, setUserLang] = useState({
@@ -995,8 +1004,19 @@ export default function ProblemPage() {
     } else {
       setStreamId(null)
       setShowStreamChat(false) // Close chat when stream ends
+      setStreamChatMessages([]) // Clear messages when stream ends
     }
   }, [currentStreamId])
+
+  // Keep chat connection alive even when chat is hidden (for streamer)
+  // This ensures messages persist and connection stays active
+  const { isConnected: isChatConnected, sendMessage: sendStreamChatMessage, messagesEndRef: chatMessagesEndRef } = useStreamChat(
+    isStreaming && streamId ? streamId : '', // Only connect when streaming
+    session?.user?.id || 'anonymous',
+    session?.user?.email?.split('@')[0] || 'Anonymous',
+    streamChatMessages,
+    setStreamChatMessages
+  )
 
   const {
     remoteStream,
@@ -2032,6 +2052,11 @@ return (
                 streamId={streamId}
                 userId={session?.user?.id || 'anonymous'}
                 userName={session?.user?.email?.split('@')[0] || 'Anonymous'}
+                messages={streamChatMessages}
+                onMessagesChange={setStreamChatMessages}
+                sendMessage={sendStreamChatMessage}
+                isConnected={isChatConnected}
+                messagesEndRef={chatMessagesEndRef as React.RefObject<HTMLDivElement>}
               />
             </ResizablePanel>
           ) : collaborationEnabled && showCollabSidebar ? (
