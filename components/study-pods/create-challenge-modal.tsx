@@ -327,7 +327,7 @@ export function CreateChallengeModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={cn(
-        "sm:max-w-[900px] max-h-[95vh] overflow-hidden p-0 border-2 backdrop-blur-xl",
+        "sm:max-w-[900px] max-h-[90vh] overflow-hidden p-0 border-2 backdrop-blur-xl flex flex-col",
         theme === 'light'
           ? "bg-white/98 border-gray-200/50 shadow-2xl"
           : "bg-zinc-950/98 border-white/10 shadow-2xl shadow-amber-500/10"
@@ -368,7 +368,7 @@ export function CreateChallengeModal({
         </div>
 
         {/* Scrollable Content */}
-        <div className="relative overflow-y-auto max-h-[calc(95vh-140px)] px-6 py-6">
+        <div className="relative overflow-y-auto flex-1 px-6 py-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Challenge Type Selection */}
             <div className="space-y-3">
@@ -976,7 +976,7 @@ export function CreateChallengeModal({
 
         {/* Footer */}
         <div className={cn(
-          "relative px-6 py-4 border-t backdrop-blur-xl",
+          "relative px-6 py-4 border-t backdrop-blur-xl flex-shrink-0",
           theme === 'light' ? "border-gray-200/50 bg-white/80" : "border-white/10 bg-zinc-950/80"
         )}>
           <div className="flex justify-end gap-3">
