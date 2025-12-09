@@ -41,6 +41,32 @@ export async function GET() {
       console.error('Error fetching events:', eventsError);
     }
 
+    // Get recent session attendance (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const { data: attendance, error: attendanceError } = await supabase
+      .from('study_pod_session_attendance')
+      .select(`
+        id,
+        joined_at,
+        study_pod_sessions (
+          id,
+          title,
+          study_pods (
+            name
+          )
+        )
+      `)
+      .eq('user_id', user.id)
+      .gte('joined_at', sevenDaysAgo.toISOString())
+      .order('joined_at', { ascending: false })
+      .limit(10);
+
+    if (attendanceError) {
+      console.error('Error fetching session attendance:', attendanceError);
+    }
+
     // Combine and format activity
     const activity: any[] = [];
 
@@ -70,6 +96,26 @@ export async function GET() {
           title: event.title,
           time: timeAgo,
           timestamp: new Date(`${event.event_date}T${event.start_time || '00:00:00'}`).getTime(),
+        });
+      });
+    }
+
+    // Add session attendance as study activities
+    if (attendance) {
+      attendance.forEach(att => {
+        const session = att.study_pod_sessions as any;
+        const pod = session?.study_pods as any;
+        const sessionTitle = session?.title || 'Study Session';
+        const podName = pod?.name || '';
+        const displayTitle = podName ? `Attended: ${sessionTitle} (${podName})` : `Attended: ${sessionTitle}`;
+        
+        const timeAgo = getTimeAgo(new Date(att.joined_at));
+        activity.push({
+          id: `attendance-${att.id}`,
+          type: 'study',
+          title: displayTitle,
+          time: timeAgo,
+          timestamp: new Date(att.joined_at).getTime(),
         });
       });
     }

@@ -224,13 +224,39 @@ export default function StudyPodsPage() {
             </div>
 
             <Select value={selectedSubject || "all"} onValueChange={(value) => setSelectedSubject(value === "all" ? "" : value)}>
-              <SelectTrigger>
+              <SelectTrigger className={cn(
+                "relative group transition-all duration-300",
+                "border-2 backdrop-blur-xl",
+                "hover:scale-[1.02] hover:shadow-lg",
+                theme === 'light'
+                  ? "bg-white/90 border-gray-200 hover:border-emerald-300 hover:bg-white hover:shadow-emerald-200/50"
+                  : "bg-zinc-950/80 border-white/10 hover:border-emerald-500/50 hover:bg-zinc-950/90 hover:shadow-emerald-500/20",
+                "before:absolute before:inset-0 before:rounded-md before:p-[2px] before:bg-gradient-to-r before:from-emerald-500/0 before:via-emerald-500/0 before:to-emerald-500/0",
+                "hover:before:from-emerald-500/20 hover:before:via-cyan-500/20 hover:before:to-emerald-500/20",
+                "before:-z-10 before:transition-all before:duration-300"
+              )}>
                 <SelectValue placeholder="All Subjects" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Subjects</SelectItem>
+              <SelectContent className={cn(
+                "backdrop-blur-2xl border-2 shadow-2xl",
+                theme === 'light'
+                  ? "bg-white/95 border-gray-200"
+                  : "bg-zinc-950/95 border-white/10",
+                "animate-in fade-in-0 zoom-in-95"
+              )}>
+                <SelectItem value="all" className={cn(
+                  "cursor-pointer transition-colors duration-200",
+                  theme === 'light'
+                    ? "hover:bg-emerald-50 focus:bg-emerald-50"
+                    : "hover:bg-emerald-500/10 focus:bg-emerald-500/10"
+                )}>All Subjects</SelectItem>
                 {STUDY_SUBJECTS.map((subject) => (
-                  <SelectItem key={subject} value={subject}>
+                  <SelectItem key={subject} value={subject} className={cn(
+                    "cursor-pointer transition-colors duration-200",
+                    theme === 'light'
+                      ? "hover:bg-emerald-50 focus:bg-emerald-50"
+                      : "hover:bg-emerald-500/10 focus:bg-emerald-500/10"
+                  )}>
                     {subject}
                   </SelectItem>
                 ))}
@@ -238,15 +264,56 @@ export default function StudyPodsPage() {
             </Select>
 
             <Select value={selectedSkillLevel || "all"} onValueChange={(value) => setSelectedSkillLevel(value === "all" ? "" : value)}>
-              <SelectTrigger>
+              <SelectTrigger className={cn(
+                "relative group transition-all duration-300",
+                "border-2 backdrop-blur-xl",
+                "hover:scale-[1.02] hover:shadow-lg",
+                theme === 'light'
+                  ? "bg-white/90 border-gray-200 hover:border-cyan-300 hover:bg-white hover:shadow-cyan-200/50"
+                  : "bg-zinc-950/80 border-white/10 hover:border-cyan-500/50 hover:bg-zinc-950/90 hover:shadow-cyan-500/20",
+                "before:absolute before:inset-0 before:rounded-md before:p-[2px] before:bg-gradient-to-r before:from-cyan-500/0 before:via-cyan-500/0 before:to-cyan-500/0",
+                "hover:before:from-cyan-500/20 hover:before:via-emerald-500/20 hover:before:to-cyan-500/20",
+                "before:-z-10 before:transition-all before:duration-300"
+              )}>
                 <SelectValue placeholder="All Levels" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Levels</SelectItem>
-                <SelectItem value="Beginner">Beginner</SelectItem>
-                <SelectItem value="Intermediate">Intermediate</SelectItem>
-                <SelectItem value="Advanced">Advanced</SelectItem>
-                <SelectItem value="Mixed">Mixed</SelectItem>
+              <SelectContent className={cn(
+                "backdrop-blur-2xl border-2 shadow-2xl",
+                theme === 'light'
+                  ? "bg-white/95 border-gray-200"
+                  : "bg-zinc-950/95 border-white/10",
+                "animate-in fade-in-0 zoom-in-95"
+              )}>
+                <SelectItem value="all" className={cn(
+                  "cursor-pointer transition-colors duration-200",
+                  theme === 'light'
+                    ? "hover:bg-cyan-50 focus:bg-cyan-50"
+                    : "hover:bg-cyan-500/10 focus:bg-cyan-500/10"
+                )}>All Levels</SelectItem>
+                <SelectItem value="Beginner" className={cn(
+                  "cursor-pointer transition-colors duration-200",
+                  theme === 'light'
+                    ? "hover:bg-cyan-50 focus:bg-cyan-50"
+                    : "hover:bg-cyan-500/10 focus:bg-cyan-500/10"
+                )}>Beginner</SelectItem>
+                <SelectItem value="Intermediate" className={cn(
+                  "cursor-pointer transition-colors duration-200",
+                  theme === 'light'
+                    ? "hover:bg-cyan-50 focus:bg-cyan-50"
+                    : "hover:bg-cyan-500/10 focus:bg-cyan-500/10"
+                )}>Intermediate</SelectItem>
+                <SelectItem value="Advanced" className={cn(
+                  "cursor-pointer transition-colors duration-200",
+                  theme === 'light'
+                    ? "hover:bg-cyan-50 focus:bg-cyan-50"
+                    : "hover:bg-cyan-500/10 focus:bg-cyan-500/10"
+                )}>Advanced</SelectItem>
+                <SelectItem value="Mixed" className={cn(
+                  "cursor-pointer transition-colors duration-200",
+                  theme === 'light'
+                    ? "hover:bg-cyan-50 focus:bg-cyan-50"
+                    : "hover:bg-cyan-500/10 focus:bg-cyan-500/10"
+                )}>Mixed</SelectItem>
               </SelectContent>
             </Select>
           </div>

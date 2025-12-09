@@ -161,10 +161,10 @@ export function ChallengeCard({
   return (
     <Card
       className={cn(
-        "overflow-hidden transition-all hover:scale-[1.02] cursor-pointer border-2",
+        "overflow-hidden transition-all hover:scale-[1.02] cursor-pointer border backdrop-blur-lg shadow-lg hover:shadow-2xl",
         theme === 'light'
-          ? "bg-white border-gray-200 hover:border-emerald-300"
-          : "bg-zinc-900/50 border-white/10 hover:border-emerald-500/50",
+          ? "bg-white/70 border-gray-200/50 hover:border-emerald-300/60"
+          : "bg-zinc-900/40 border-white/10 hover:border-emerald-500/40",
         isActive && "ring-2 ring-emerald-500/30",
         className
       )}

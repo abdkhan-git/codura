@@ -115,40 +115,82 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify user is attending the session
-    const { data: attendance } = await supabase
-      .from('study_pod_session_attendance')
-      .select('id')
-      .eq('session_id', sessionId)
-      .eq('user_id', user.id)
+    // Verify user is attending the session OR is a pod member
+    const { data: session } = await supabase
+      .from('study_pod_sessions')
+      .select('pod_id')
+      .eq('id', sessionId)
       .single();
 
-    if (!attendance) {
+    if (!session) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    // Check if user is a pod member
+    const { data: membership } = await supabase
+      .from('study_pod_members')
+      .select('id')
+      .eq('pod_id', session.pod_id)
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .single();
+
+    if (!membership) {
       return NextResponse.json(
-        { error: 'Must be attending session' },
+        { error: 'Must be a pod member to join session' },
         { status: 403 }
       );
     }
 
-    // Upsert participant record
-    const { data, error } = await supabase
+    const generatedColor = cursorColor || '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+
+    // Check if participant already exists
+    const { data: existing } = await supabase
       .from('session_active_participants')
-      .upsert(
-        {
-          session_id: sessionId,
-          user_id: user.id,
-          cursor_color: cursorColor || '#' + Math.floor(Math.random()*16777215).toString(16),
+      .select('id')
+      .eq('session_id', sessionId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    let data;
+    let error;
+
+    if (existing) {
+      // Update existing record
+      const result = await supabase
+        .from('session_active_participants')
+        .update({
+          cursor_color: generatedColor,
           is_active: true,
           last_seen_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'session_id,user_id',
-        }
-      )
-      .select()
-      .single();
+        })
+        .eq('id', existing.id)
+        .select()
+        .single();
+      
+      data = result.data;
+      error = result.error;
+    } else {
+      // Insert new record
+      const result = await supabase
+        .from('session_active_participants')
+        .insert({
+          session_id: sessionId,
+          user_id: user.id,
+          cursor_color: generatedColor,
+          is_active: true,
+          joined_at: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      
+      data = result.data;
+      error = result.error;
+    }
 
     if (error) {
+      console.error('Error joining as participant:', error);
       throw error;
     }
 

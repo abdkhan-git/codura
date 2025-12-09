@@ -1,0 +1,35 @@
+{
+  "name": "grind_75",
+  "display_name": "Grind 75",
+  "description": "Updated version of Blind 75 by the original creator. Distilled into 50-75 essential questions spread across a strategic 5-week schedule for optimal learning.",
+  "source_url": "https://www.techinterviewhandbook.org/grind75/",
+  "total_problems": 0,
+  "categories": [
+    {
+      "category": "Week 1: Foundation",
+      "order": 1,
+      "problems": []
+    },
+    {
+      "category": "Week 2: Core Patterns",
+      "order": 2,
+      "problems": []
+    },
+    {
+      "category": "Week 3: Trees & Graphs",
+      "order": 3,
+      "problems": []
+    },
+    {
+      "category": "Week 4: Dynamic Programming",
+      "order": 4,
+      "problems": []
+    },
+    {
+      "category": "Week 5: Advanced Topics",
+      "order": 5,
+      "problems": []
+    }
+  ],
+  "all_problems": []
+}

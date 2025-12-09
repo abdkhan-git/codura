@@ -5,6 +5,19 @@ interface Params {
   sessionId: string;
 }
 
+// Piston language mappings (free, open-source code execution)
+// Full list: https://emkc.org/api/v2/piston/runtimes
+const PISTON_LANGUAGES: Record<string, { language: string; version: string }> = {
+  python: { language: 'python', version: '3.10.0' },
+  javascript: { language: 'javascript', version: '18.15.0' },
+  typescript: { language: 'typescript', version: '5.0.3' },
+  java: { language: 'java', version: '15.0.2' },
+  cpp: { language: 'c++', version: '10.2.0' },
+  c: { language: 'c', version: '10.2.0' },
+  go: { language: 'go', version: '1.16.2' },
+  rust: { language: 'rust', version: '1.68.2' },
+};
+
 // POST - Execute code and save result
 export async function POST(
   request: NextRequest,
@@ -41,61 +54,67 @@ export async function POST(
       );
     }
 
-    // Execute code using Judge0 (similar to existing code execution)
-    const languageIds: Record<string, number> = {
-      javascript: 63,
-      python: 71,
-      java: 62,
-      cpp: 54,
-      c: 50,
-      typescript: 74,
-      go: 60,
-      rust: 73,
-    };
+    // Get Piston language config
+    const pistonLang = PISTON_LANGUAGES[language] || PISTON_LANGUAGES.python;
 
-    const languageId = languageIds[language] || 63; // Default to JavaScript
+    // Execute code using Piston API (FREE, no API key required!)
+    // Piston is open-source: https://github.com/engineer-man/piston
+    const pistonResponse = await fetch('https://emkc.org/api/v2/piston/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        language: pistonLang.language,
+        version: pistonLang.version,
+        files: [
+          {
+            name: `main.${getFileExtension(language)}`,
+            content: code,
+          },
+        ],
+        stdin: input || '',
+        run_timeout: 10000, // 10 second timeout
+      }),
+    });
 
-    const judge0Response = await fetch(
-      `${process.env.JUDGE0_API_URL || 'https://judge0-ce.p.rapidapi.com'}/submissions?base64_encoded=false&wait=true`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-RapidAPI-Key': process.env.JUDGE0_API_KEY || '',
-          'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
-        },
-        body: JSON.stringify({
-          source_code: code,
-          language_id: languageId,
-          stdin: input || '',
-        }),
-      }
-    );
-
-    if (!judge0Response.ok) {
-      throw new Error('Code execution failed');
+    if (!pistonResponse.ok) {
+      const errorText = await pistonResponse.text();
+      console.error('Piston API error:', pistonResponse.status, errorText);
+      throw new Error(`Code execution failed: ${pistonResponse.status}`);
     }
 
-    const result = await judge0Response.json();
+    const result = await pistonResponse.json();
 
-    // Determine status
+    // Piston response format:
+    // { run: { stdout, stderr, code, signal, output }, compile?: { stdout, stderr, code, signal, output } }
+    
+    // Determine status based on Piston response
     let status = 'success';
-    let output = result.stdout || '';
-    let error = result.stderr || result.compile_output || '';
+    let output = '';
+    let error = '';
 
-    if (result.status?.id === 6) {
-      // Compilation error
+    // Check for compile errors first (for compiled languages)
+    if (result.compile && result.compile.code !== 0) {
       status = 'error';
-      error = result.compile_output || 'Compilation failed';
-    } else if (result.status?.id === 13) {
-      // Internal error
+      error = result.compile.stderr || result.compile.output || 'Compilation failed';
+    } else if (result.run) {
+      // Check runtime result
+      output = result.run.stdout || result.run.output || '';
+      error = result.run.stderr || '';
+      
+      if (result.run.code !== 0 || result.run.signal) {
+        status = 'error';
+        if (result.run.signal === 'SIGKILL') {
+          status = 'timeout';
+          error = 'Time limit exceeded';
+        } else if (!error) {
+          error = `Process exited with code ${result.run.code}`;
+        }
+      }
+    } else {
       status = 'error';
-      error = result.stderr || 'Internal error';
-    } else if (result.status?.id === 5) {
-      // Time limit exceeded
-      status = 'timeout';
-    } else if (result.stderr) {
-      status = 'error';
+      error = 'No execution result returned';
     }
 
     // Save execution result to database
@@ -127,8 +146,10 @@ export async function POST(
         output,
         error,
         status,
-        executionTime: result.time ? parseFloat(result.time) * 1000 : null,
-        memoryUsed: result.memory ? parseInt(result.memory) : null,
+        executionTime: null, // Piston doesn't provide execution time
+        memoryUsed: null, // Piston doesn't provide memory usage
+        language: result.language,
+        version: result.version,
       },
     });
   } catch (error) {
@@ -138,6 +159,21 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+// Helper function to get file extension
+function getFileExtension(language: string): string {
+  const extensions: Record<string, string> = {
+    python: 'py',
+    javascript: 'js',
+    typescript: 'ts',
+    java: 'java',
+    cpp: 'cpp',
+    c: 'c',
+    go: 'go',
+    rust: 'rs',
+  };
+  return extensions[language] || 'txt';
 }
 
 // GET - Get recent execution results

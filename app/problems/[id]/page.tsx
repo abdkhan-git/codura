@@ -348,6 +348,18 @@ const useCollaboration = (
     [userId, enabled] // NEW: Add enabled to dependency
   )
 
+  const broadcastWhiteboard = useCallback(
+    (message: any) => {
+      if (!channelRef.current) return
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'whiteboard-update',
+        payload: { userId, message },
+      })
+    },
+    [userId]
+  )
+
   const sendChatMessage = useCallback(
     (text: string) => {
       if (!enabled) return // NEW: Guard clause
@@ -475,6 +487,7 @@ const useCollaboration = (
     annotations,
     broadcastCode,
     broadcastCursor,
+    broadcastWhiteboard,
     sendChatMessage,
     addAnnotation,
     addAnnotationComment,
@@ -969,6 +982,7 @@ export default function ProblemPage() {
     annotations,
     broadcastCode,
     broadcastCursor,
+    broadcastWhiteboard,
     sendChatMessage,
     addAnnotation,
     addAnnotationComment,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { io, Socket } from 'socket.io-client';
 import DashboardNavbar from "@/components/navigation/dashboard-navbar";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import {
   Plus,
   Settings,
   Trophy,
+  Menu,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -26,6 +28,7 @@ import { PodOverview } from "@/components/study-pods/pod-overview";
 import { LiveSessionsSection } from "@/components/study-pods/live-sessions-section";
 import { InviteMembersModal } from "@/components/study-pods/invite-members-modal";
 import { EditPodModal } from "@/components/study-pods/edit-pod-modal";
+import { ManagePodModal } from "@/components/study-pods/manage-pod-modal";
 import { PodProblemsList } from "@/components/study-pods/pod-problems-list";
 import { AssignProblemsModal } from "@/components/study-pods/assign-problems-modal";
 import { CreateChallengeModal } from "@/components/study-pods/create-challenge-modal";
@@ -33,10 +36,13 @@ import { ChallengeCard } from "@/components/study-pods/challenge-card";
 import { ChallengeDetailModal } from "@/components/study-pods/challenge-detail-modal";
 import { MembersTabSection } from "@/components/study-pods/members-tab-section";
 import { ProblemDiscussionThread } from "@/components/study-pods/problem-discussion-thread";
+import { PodSettingsForm } from "@/components/study-pods/pod-settings-form";
+import { PodAnalyticsDashboard } from "@/components/study-pods/pod-analytics-dashboard";
 
 export default function StudyPodDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { theme } = useTheme();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Core state
   const [loading, setLoading] = useState(true);
@@ -49,6 +55,7 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
   // Modal states
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showManagePodModal, setShowManagePodModal] = useState(false);
   const [showAssignProblemsModal, setShowAssignProblemsModal] = useState(false);
   const [showCreateChallengeModal, setShowCreateChallengeModal] = useState(false);
   const [showChallengeDetailModal, setShowChallengeDetailModal] = useState(false);
@@ -67,6 +74,7 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
 
   // Pending requests count for badge
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Socket.io ref for real-time updates
   const socketRef = useRef<Socket | null>(null);
@@ -82,6 +90,46 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
     };
     initializeParams();
   }, [params]);
+
+  // Handle URL parameters for tab navigation and actions
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const action = searchParams.get('action');
+
+    // Handle tab parameter
+    if (tab && ['overview', 'live-sessions', 'practice', 'challenges', 'study-plan', 'analytics', 'members', 'settings'].includes(tab)) {
+      setActiveSection(tab as PodSection);
+
+      // Clear URL params after handling to prevent stuck state
+      if (action) {
+        setTimeout(() => {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('action');
+          window.history.replaceState({}, '', url.toString());
+        }, 100);
+      }
+    }
+
+    // Handle action parameter
+    if (action) {
+      switch (action) {
+        case 'invite':
+          setShowInviteModal(true);
+          break;
+        case 'assign':
+          setShowAssignProblemsModal(true);
+          break;
+        case 'create':
+          // Check which tab we're on to determine which modal to open
+          if (tab === 'challenges') {
+            setShowCreateChallengeModal(true);
+          } else if (tab === 'sessions' || tab === 'live-sessions') {
+            toast.info('Session creation coming soon!');
+          }
+          break;
+      }
+    }
+  }, [searchParams]);
 
   const fetchUser = async () => {
     try {
@@ -336,62 +384,94 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
 
       {/* Main Layout */}
       <div className="relative z-10 pt-16 min-h-screen flex flex-col">
-        {/* Header Bar - Compact */}
+        {/* Header Bar - Full Width */}
         <header className={cn(
-          "border-b px-6 py-3 sticky top-16 z-20",
+          "border-b px-4 sm:px-6 lg:px-8 py-3 sticky top-16 z-20 w-full",
           theme === "light" ? "border-gray-200 bg-white/95" : "border-white/5 bg-zinc-950/95",
           "backdrop-blur-xl"
         )}>
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link
-                  href="/study-pods"
-                  className={cn(
-                    "p-2 rounded-lg transition-colors",
-                    theme === "light"
-                      ? "hover:bg-gray-100 text-gray-600"
-                      : "hover:bg-white/5 text-white/60"
-                  )}
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </Link>
-                <div>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+              {/* Mobile Menu Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className={cn(
+                  "lg:hidden p-2",
+                  theme === "light" ? "hover:bg-gray-100" : "hover:bg-white/5"
+                )}
+              >
+                {sidebarOpen ? (
+                  <X className="w-5 h-5" />
+                ) : (
+                  <Menu className="w-5 h-5" />
+                )}
+              </Button>
+
+              <Link
+                href="/study-pods"
+                className={cn(
+                  "p-2 rounded-lg transition-colors flex-shrink-0",
+                  theme === "light"
+                    ? "hover:bg-gray-100 text-gray-600"
+                    : "hover:bg-white/5 text-white/60"
+                )}
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </Link>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
                   <h1 className={cn(
-                    "text-xl font-bold",
+                    "text-lg sm:text-xl font-bold truncate",
                     theme === "light" ? "text-gray-900" : "text-white"
                   )}>
                     {pod.name}
                   </h1>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs">
-                      {pod.subject}
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      {pod.skill_level}
-                    </Badge>
-                    <span className={cn(
-                      "text-xs",
-                      theme === "light" ? "text-gray-500" : "text-white/50"
-                    )}>
-                      {pod.members?.length || 0}/{pod.max_members} members
-                    </span>
-                  </div>
+                  <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-xs flex-shrink-0">
+                    {pod.subject}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs flex-shrink-0">
+                    {pod.skill_level}
+                  </Badge>
+                  <span className={cn(
+                    "text-xs whitespace-nowrap",
+                    theme === "light" ? "text-gray-500" : "text-white/50"
+                  )}>
+                    {pod.members?.length || 0}/{pod.max_members} members
+                  </span>
                 </div>
               </div>
+            </div>
 
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
                 {pod.is_member ? (
                   <>
                     {isAdmin && (
-                      <Button
-                        onClick={() => setShowInviteModal(true)}
-                        size="sm"
-                        className="bg-gradient-to-r from-green-500 to-emerald-500"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Invite
-                      </Button>
+                      <>
+                        <Button
+                          onClick={() => setShowManagePodModal(true)}
+                          size="sm"
+                          variant="outline"
+                          className={cn(
+                            "border-emerald-500/30",
+                            theme === "light"
+                              ? "hover:bg-emerald-50"
+                              : "hover:bg-emerald-500/10"
+                          )}
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          Manage Pod
+                        </Button>
+                        <Button
+                          onClick={() => setShowInviteModal(true)}
+                          size="sm"
+                          className="bg-gradient-to-r from-green-500 to-emerald-500"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Invite
+                        </Button>
+                      </>
                     )}
                     <Badge
                       variant="outline"
@@ -417,26 +497,48 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 )}
               </div>
             </div>
-          </div>
         </header>
 
         {/* Content Area with Sidebar */}
-        <div className="flex-1 flex min-h-0">
-          {/* Sidebar - Seamless connection */}
-          <PodSidebar
-            activeSection={activeSection}
-            onSectionChange={setActiveSection}
-            userRole={pod.user_role}
-            requiresApproval={pod.requires_approval}
-            pendingRequests={pendingRequestsCount}
-            groupChatId={pod.group_chat_id}
-            onGroupChat={handleGroupChat}
-            activeSessions={liveSessionsCount}
-          />
+        <div className="flex-1 flex min-h-0 relative">
+          {/* Sidebar - Slide out animation */}
+          <aside className={cn(
+            "fixed lg:sticky top-[calc(4rem+3rem)] left-0 h-[calc(100vh-7rem)] z-30 transition-transform duration-300 ease-in-out",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+            "w-56 flex-shrink-0 border-r",
+            theme === "light"
+              ? "border-gray-200 bg-gray-50/95 backdrop-blur-xl"
+              : "border-white/5 bg-zinc-950/95 backdrop-blur-xl"
+          )}>
+            <PodSidebar
+              activeSection={activeSection}
+              onSectionChange={(section) => {
+                setActiveSection(section);
+                // Close sidebar on mobile after selection
+                if (window.innerWidth < 1024) {
+                  setSidebarOpen(false);
+                }
+              }}
+              userRole={pod.user_role}
+              requiresApproval={pod.requires_approval}
+              pendingRequests={pendingRequestsCount}
+              groupChatId={pod.group_chat_id}
+              onGroupChat={handleGroupChat}
+              activeSessions={liveSessionsCount}
+            />
+          </aside>
+
+          {/* Overlay for mobile */}
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
 
           {/* Main Content */}
-          <main className="flex-1 p-6 overflow-y-auto">
-            <div className="max-w-5xl mx-auto">
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto w-full">
+            <div className="w-full max-w-none">
               {/* Overview Section */}
               {activeSection === "overview" && (
                 <PodOverview
@@ -593,6 +695,11 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               )}
 
+              {/* Analytics Section */}
+              {activeSection === "analytics" && (
+                <PodAnalyticsDashboard podId={podId} />
+              )}
+
               {/* Members Section */}
               {activeSection === "members" && (
                 <MembersTabSection
@@ -612,43 +719,23 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                 <div className="space-y-6">
                   <div>
                     <h2 className={cn(
-                      "text-xl font-bold",
-                      theme === "light" ? "text-gray-900" : "text-white"
+                      "text-2xl font-bold bg-gradient-to-r from-foreground via-emerald-400 to-cyan-400 bg-clip-text text-transparent",
                     )}>
                       Pod Settings
                     </h2>
                     <p className={cn(
-                      "text-sm",
-                      theme === "light" ? "text-gray-600" : "text-white/60"
+                      "text-sm mt-1",
+                      theme === "light" ? "text-gray-600" : "text-muted-foreground"
                     )}>
                       Manage your study pod settings and preferences
                     </p>
                   </div>
 
-                  <div className={cn(
-                    "p-6 rounded-xl border-2",
-                    theme === "light" ? "bg-white border-gray-200" : "bg-zinc-900/50 border-white/5"
-                  )}>
-                    <h3 className={cn(
-                      "font-semibold mb-4",
-                      theme === "light" ? "text-gray-900" : "text-white"
-                    )}>
-                      General Settings
-                    </h3>
-                    <p className={cn(
-                      "text-sm mb-4",
-                      theme === "light" ? "text-gray-600" : "text-white/60"
-                    )}>
-                      {pod.description}
-                    </p>
-                    <Button
-                      onClick={() => setShowEditModal(true)}
-                      variant="outline"
-                    >
-                      <Settings className="w-4 h-4 mr-2" />
-                      Edit Pod Details
-                    </Button>
-                  </div>
+                  <PodSettingsForm
+                    pod={pod}
+                    userRole={pod?.user_role}
+                    onSuccess={fetchPodDetails}
+                  />
                 </div>
               )}
             </div>
@@ -670,6 +757,13 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
         pod={pod}
         userRole={pod?.user_role}
         onSuccess={fetchPodDetails}
+      />
+
+      <ManagePodModal
+        isOpen={showManagePodModal}
+        onClose={() => setShowManagePodModal(false)}
+        podId={podId}
+        onRefresh={fetchPodDetails}
       />
 
       <AssignProblemsModal

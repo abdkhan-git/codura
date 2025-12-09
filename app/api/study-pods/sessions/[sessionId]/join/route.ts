@@ -25,7 +25,7 @@ export async function POST(
     // Get session details
     const { data: session, error: sessionError } = await supabase
       .from('study_pod_sessions')
-      .select('pod_id, status, scheduled_at, title')
+      .select('pod_id, status, scheduled_at, title, ended_at, duration_minutes')
       .eq('id', sessionId)
       .single();
 
@@ -34,6 +34,41 @@ export async function POST(
         { error: 'Session not found' },
         { status: 404 }
       );
+    }
+
+    // Check if session has expired or ended
+    const now = new Date();
+    const scheduledDate = new Date(session.scheduled_at);
+    
+    // Check if session has explicitly ended
+    if (session.ended_at) {
+      const endedDate = new Date(session.ended_at);
+      if (endedDate < now) {
+        return NextResponse.json(
+          { error: 'This session has already ended' },
+          { status: 400 }
+        );
+      }
+    }
+    
+    // Check if session status indicates it's completed or cancelled
+    if (session.status === 'completed' || session.status === 'cancelled') {
+      return NextResponse.json(
+        { error: `This session has been ${session.status}` },
+        { status: 400 }
+      );
+    }
+    
+    // Check if session has expired based on scheduled time + duration
+    if (session.duration_minutes && session.status !== 'in_progress') {
+      const durationMs = session.duration_minutes * 60 * 1000;
+      const expectedEndTime = scheduledDate.getTime() + durationMs;
+      if (expectedEndTime < now.getTime()) {
+        return NextResponse.json(
+          { error: 'This session has expired' },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if user is a pod member
@@ -52,19 +87,26 @@ export async function POST(
       );
     }
 
-    // Check if already joined
-    const { data: existingAttendance } = await supabase
+    // Check if already joined (use maybeSingle to avoid error if not found)
+    const { data: existingAttendance, error: checkError } = await supabase
       .from('study_pod_session_attendance')
-      .select('id, left_at')
+      .select('id, left_at, joined_at')
       .eq('session_id', sessionId)
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
+    if (checkError) {
+      console.error('Error checking existing attendance:', checkError);
+    }
+
+    // If attendance already exists and user hasn't left, they're already marked
     if (existingAttendance && !existingAttendance.left_at) {
-      return NextResponse.json(
-        { error: 'You have already joined this session' },
-        { status: 400 }
-      );
+      return NextResponse.json({
+        success: true,
+        attendance: existingAttendance,
+        message: 'Attendance already marked',
+        alreadyMarked: true,
+      });
     }
 
     // If they left and are rejoining, update the existing record
@@ -82,7 +124,7 @@ export async function POST(
       if (updateError) {
         console.error('Error rejoining session:', updateError);
         return NextResponse.json(
-          { error: 'Failed to rejoin session' },
+          { error: 'Failed to rejoin session', details: updateError.message },
           { status: 500 }
         );
       }
@@ -94,7 +136,7 @@ export async function POST(
       });
     }
 
-    // Create attendance record
+    // Create new attendance record
     const { data: attendance, error: attendanceError } = await supabase
       .from('study_pod_session_attendance')
       .insert({
@@ -106,9 +148,42 @@ export async function POST(
       .single();
 
     if (attendanceError) {
-      console.error('Error creating attendance:', attendanceError);
+      console.error('Error creating attendance:', {
+        error: attendanceError,
+        code: attendanceError.code,
+        message: attendanceError.message,
+        details: attendanceError.details,
+        hint: attendanceError.hint,
+        sessionId,
+        userId: user.id,
+        podId: session.pod_id,
+      });
+
+      // If it's a unique constraint violation, check if record exists and return success
+      if (attendanceError.code === '23505') {
+        const { data: existingRecord } = await supabase
+          .from('study_pod_session_attendance')
+          .select('*')
+          .eq('session_id', sessionId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (existingRecord) {
+          return NextResponse.json({
+            success: true,
+            attendance: existingRecord,
+            message: 'Attendance already marked',
+            alreadyMarked: true,
+          });
+        }
+      }
+
       return NextResponse.json(
-        { error: 'Failed to mark attendance' },
+        { 
+          error: 'Failed to mark attendance',
+          details: attendanceError.message,
+          code: attendanceError.code,
+        },
         { status: 500 }
       );
     }
