@@ -47,13 +47,23 @@ export function PublicInterviewAdmission({ sessionId, onApprove }: PublicIntervi
       );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch join requests');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to fetch join requests:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData.error || 'Unknown error',
+          sessionId,
+        });
+        // Don't throw, just log and continue with empty requests
+        setRequests([]);
+        return;
       }
 
       const data = await response.json();
-      setRequests(data.requests);
+      setRequests(data.requests || []);
     } catch (error) {
       console.error('Error fetching join requests:', error);
+      setRequests([]);
     } finally {
       setIsLoading(false);
     }

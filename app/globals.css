@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "../styles/utils.css";
-/* TODO: Fix react-day-picker installation and re-enable this import */
-/* @import "react-day-picker/style.css"; */
+@import "react-day-picker/style.css";
 
 @import "tw-animate-css";
 

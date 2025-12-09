@@ -36,7 +36,11 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
   const editorRef = useRef<any>(null)
   const [code, setCode] = useState(initialCode)
   const [language, setLanguage] = useState(() => {
-    return LANGUAGES.find((lang) => lang.value === initialLanguage) || LANGUAGES[0]
+    // Find the language, defaulting to Python if not found
+    const lang = LANGUAGES.find((lang) => lang.value === initialLanguage)
+    if (lang) return lang
+    // If not found, default to Python
+    return LANGUAGES.find((lang) => lang.value === 'python') || LANGUAGES[0]
   })
   const [copied, setCopied] = useState(false)
   const isRemoteChangeRef = useRef(false)
@@ -44,6 +48,19 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
   const [isRunning, setIsRunning] = useState(false)
   const [showOutput, setShowOutput] = useState(false)
   const executionInProgressRef = useRef(false)
+
+  // Sync with initial props when they change (e.g., when loading a new problem)
+  useEffect(() => {
+    setCode(initialCode)
+  }, [initialCode])
+
+  useEffect(() => {
+    // Find the language, defaulting to Python if not found
+    const lang = LANGUAGES.find((l) => l.value === initialLanguage)
+      || LANGUAGES.find((l) => l.value === 'python')
+      || LANGUAGES[0]
+    setLanguage(lang)
+  }, [initialLanguage])
 
   // Monaco theme setup
   useEffect(() => {
