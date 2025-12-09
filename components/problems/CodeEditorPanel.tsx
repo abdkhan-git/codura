@@ -477,12 +477,12 @@ const handleCodeSubmission = async () => {
             {/* Left: language + actions */}
             <div className="p-2 flex items-center gap-3">
               <Select value={userLang.value} onValueChange={handleLanguageChange}>
-                <SelectTrigger className="w-[180px] bg-muted/50 border-border/30 hover:border-brand/50 transition-colors backdrop-blur-sm">
+                <SelectTrigger className="cursor-pointer w-[180px] bg-muted/50 border-border/30 hover:border-brand/50 transition-colors backdrop-blur-sm">
                   <SelectValue placeholder="Select Language" />
                 </SelectTrigger>
                 <SelectContent>
                   {LANGUAGES.map((lang) => (
-                    <SelectItem key={lang.id} value={lang.value}>
+                    <SelectItem key={lang.id} value={lang.value} className='cursor-pointer'>
                       {lang.name}
                     </SelectItem>
                   ))}
@@ -627,6 +627,7 @@ const handleCodeSubmission = async () => {
             testcaseResults={testcaseResults}
             activeBottomTab={activeBottomTab}
             setActiveBottomTab={setActiveBottomTab}
+            isLoading={isRunning || isSubmitting}  // ADD THIS LINE
           />
         </ResizablePanel>
       </ResizablePanelGroup>

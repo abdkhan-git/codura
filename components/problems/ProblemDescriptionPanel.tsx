@@ -40,7 +40,7 @@ export default function ProblemDescriptionPanel({
     return (
         <div className="h-full flex flex-col">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-                <div className="border-b border-zinc-800/50 overflow-x-scroll shrink-0">
+                <div className="border-b border-zinc-800/50 overflow-x-auto shrink-0">
                     <TabsList className="inline-flex w-auto min-w-full justify-start h-auto px-6 bg-transparent gap-6">
                         {['Description', 'Solutions', 'Submissions'].map(tab => (
                             <TabsTrigger
@@ -60,7 +60,7 @@ export default function ProblemDescriptionPanel({
                             <div>
                                 <button
                                     onClick={() => window.location.href = '/problems'}
-                                    className="mb-4 text-sm text-green-400 hover:text-green-300 flex items-center gap-2 transition-colors"
+                                    className="cursor-pointer mb-4 text-sm text-green-400 hover:text-green-300 flex items-center gap-2 transition-colors"
                                 >
                                     ← Back to Problems
                                 </button>
@@ -129,7 +129,7 @@ export default function ProblemDescriptionPanel({
                             </div>
 
                             {/* Constraints */}
-                            {problem.constraints && problem.constraints.length > 0 && (
+                            {/* {problem.constraints && problem.constraints.length > 0 && (
                                 <div className="space-y-2">
                                     <h3 className="font-semibold">Constraints:</h3>
                                     <div className="bg-card/50 border-2 border-border/20 rounded-xl p-4 backdrop-blur-sm shadow-md hover:border-brand/30 transition-all duration-300">
@@ -140,7 +140,7 @@ export default function ProblemDescriptionPanel({
                                         </ul>
                                     </div>
                                 </div>
-                            )}
+                            )} */}
                         </div>
                     </ScrollArea>
                 </TabsContent>

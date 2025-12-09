@@ -1490,7 +1490,7 @@ export default function ProblemPage() {
         'editorIndentGuide.activeBackground': '#505050',
       },
     })
-    monaco.editor.setTheme('caffeine-dark')
+    monaco.editor.setTheme('vs-dark')
   }, [monaco])
 
   // Fetch user's submissions
@@ -1759,7 +1759,7 @@ return (
       
       {/* Collaboration Header Bar - Only show when collaboration is enabled */}
       {collaborationEnabled && (
-        <div className="relative z-10 h-12 bg-gradient-to-r from-card/80 via-card/50 to-transparent backdrop-blur-xl border-b border-border/20 flex items-center justify-between px-4 shadow-lg">
+        <div className="relative z-10 h-12 from-card/80 via-card/50 to-transparent backdrop-blur-xl border-b border-border/20 flex items-center justify-between px-4 shadow-lg">
           <div className="flex items-center gap-4">
             <h2 className="font-semibold text-sm">Live Collaboration</h2>
             <div className="flex items-center gap-2">
@@ -1915,10 +1915,10 @@ return (
 
       {/* Enable Collaboration Button - Only show when collaboration is disabled */}
       {!collaborationEnabled && (
-        <div className="relative z-10 h-12 bg-gradient-to-r from-card/80 via-card/50 to-transparent backdrop-blur-xl border-b border-border/20 flex items-center justify-between px-4 shadow-lg">
+        <div className="relative z-10 h-12  from-card/80 via-card/50 to-transparent backdrop-blur-xl border-b border-border/20 flex items-center justify-between px-4 shadow-lg">
           <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-muted-foreground" />
-            <h2 className="font-semibold text-sm text-muted-foreground">Collaboration Disabled</h2>
+            <Users className="w-4 h-4 text-muted-foreground" />
+            <h2 className="text-xs text-muted-foreground">Collaboration Disabled</h2>
           </div>
 
           <div className="flex items-center gap-3">
