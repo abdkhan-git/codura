@@ -299,12 +299,13 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
       }
 
       if (data.requires_approval) {
-        toast.success(data.message || "Join request sent for approval");
+        toast.success(data.message || "Join request sent! Waiting for admin approval.");
       } else {
         toast.success(data.message || "Successfully joined the study pod!");
       }
 
-      fetchPodDetails();
+      // Refresh pod details to show updated status
+      await fetchPodDetails();
     } catch (error) {
       console.error("Error joining pod:", error);
       toast.error("Failed to join pod");
@@ -481,6 +482,17 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                       Joined
                     </Badge>
                   </>
+                ) : pod.pending_request ? (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "border-amber-500/30 text-amber-500 px-3 py-1.5",
+                      theme === "light" ? "bg-amber-50" : "bg-amber-500/10"
+                    )}
+                  >
+                    <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                    Request Pending
+                  </Badge>
                 ) : (
                   <Button
                     onClick={handleJoin}
@@ -492,7 +504,7 @@ export default function StudyPodDetailPage({ params }: { params: Promise<{ id: s
                     ) : (
                       <Plus className="w-4 h-4 mr-2" />
                     )}
-                    {pod.join_status?.requires_approval ? "Request to Join" : "Join Pod"}
+                    {pod.requires_approval ? "Request to Join" : "Join Pod"}
                   </Button>
                 )}
               </div>
