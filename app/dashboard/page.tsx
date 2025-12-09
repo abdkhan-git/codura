@@ -368,7 +368,6 @@ export default function DashboardPage() {
   
   // Onboarding and Questionnaire modal state
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
-  const [hasSchoolCode, setHasSchoolCode] = useState(true);
   const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false);
   const [questionnaireData, setQuestionnaireData] = useState<any>(null);
   const [questionnaireCompleted, setQuestionnaireCompleted] = useState(true);
@@ -409,13 +408,14 @@ export default function DashboardPage() {
           const code = data.user.federalSchoolCode;
           const codeStr = code === null || code === undefined ? "" : String(code).trim();
           const hasCode = codeStr.length > 0 && codeStr !== "no_school";
-          
-          setHasSchoolCode(hasCode || codeStr === "no_school");
-          
-          // Priority 1: Show onboarding if no school code at all
-          if (!hasCode && codeStr !== "no_school") {
+
+          // Check if user has completed onboarding (has age and academic_year)
+          const hasCompletedOnboarding = data.user.age && data.user.academicYear;
+
+          // Priority 1: Show onboarding if no school code at all AND hasn't completed onboarding
+          if (!hasCode && codeStr !== "no_school" && !hasCompletedOnboarding) {
             setShowOnboardingModal(true);
-          } 
+          }
           // Priority 2: Show questionnaire if has code but not completed
           else if (data.user.questionnaireCompleted === false) {
             setQuestionnaireCompleted(false);
@@ -465,7 +465,6 @@ export default function DashboardPage() {
   // Handle onboarding completion - show questionnaire next
   const handleOnboardingComplete = () => {
     setShowOnboardingModal(false);
-    setHasSchoolCode(true);
     // Now show questionnaire modal
     fetchQuestionnaireData();
   };
@@ -1193,8 +1192,8 @@ export default function DashboardPage() {
               />
             )}
 
-            {/* Onboarding Modal - Shows for users without school code */}
-            {showOnboardingModal && !hasSchoolCode && (
+            {/* Onboarding Modal - Shows for users who haven't completed onboarding */}
+            {showOnboardingModal && (
               <OnboardingModal onComplete={handleOnboardingComplete} />
             )}
 

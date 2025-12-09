@@ -45,17 +45,17 @@ export function PublicInterviewWindow({ user, onClose }: PublicInterviewWindowPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
       <Card
         className={cn(
-          "flex flex-col border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl shadow-2xl transition-all duration-300 overflow-hidden",
+          "flex flex-col border border-white/10 bg-gradient-to-br from-zinc-900/80 via-zinc-800/70 to-zinc-900/80 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] transition-all duration-300 overflow-hidden",
           isMaximized
             ? "w-full h-full max-w-full max-h-full rounded-none"
-            : "w-full h-full max-w-[95vw] max-h-[90vh] rounded-xl"
+            : "w-full h-full max-w-[95vw] max-h-[90vh] rounded-2xl"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/50 flex-shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-zinc-900/50 backdrop-blur-xl flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className={cn(
               "w-3 h-3 rounded-full",
@@ -79,15 +79,17 @@ export function PublicInterviewWindow({ user, onClose }: PublicInterviewWindowPr
                 <Maximize2 className="w-4 h-4" />
               )}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsWindowOpen(false)}
-              className="h-8 w-8 p-0"
-              title="Minimize window"
-            >
-              <Minus className="w-4 h-4" />
-            </Button>
+            {activeSession.role === "host" && !activeSession.isConnected && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsWindowOpen(false)}
+                className="h-8 w-8 p-0"
+                title="Minimize window (only available when not connected)"
+              >
+                <Minus className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
 

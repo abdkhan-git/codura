@@ -14,12 +14,21 @@ interface PublicInterviewSession {
   endTime?: string;
 }
 
+interface PublicJoinRequest {
+  id: string;
+  requesterName?: string;
+  requesterUsername?: string;
+  status: string;
+  createdAt: string;
+}
+
 interface PublicInterviewContextType {
   activeSession: PublicInterviewSession | null;
   setActiveSession: (session: PublicInterviewSession | null) => void;
   isWindowOpen: boolean;
   setIsWindowOpen: (open: boolean) => void;
   toggleWindow: () => void;
+  pendingRequests: PublicJoinRequest[];
 }
 
 const PublicInterviewContext = createContext<PublicInterviewContextType | undefined>(undefined);
@@ -40,6 +49,7 @@ export function PublicInterviewProvider({ children }: { children: React.ReactNod
             role: parsed.role,
             isConnected: parsed.isConnected ?? false,
             hasPendingRequests: parsed.hasPendingRequests ?? false,
+            endTime: parsed.endTime,
           } as PublicInterviewSession;
         }
       } catch (e) {
@@ -51,6 +61,7 @@ export function PublicInterviewProvider({ children }: { children: React.ReactNod
   });
 
   const [isWindowOpen, setIsWindowOpen] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<PublicJoinRequest[]>([]);
 
   // Persist to localStorage whenever activeSession changes
   useEffect(() => {
@@ -67,7 +78,10 @@ export function PublicInterviewProvider({ children }: { children: React.ReactNod
 
   // Poll for pending requests when host has active session
   useEffect(() => {
-    if (!activeSession || activeSession.role !== "host") return;
+    if (!activeSession || activeSession.role !== "host") {
+      setPendingRequests([]);
+      return;
+    }
 
     const checkPendingRequests = async () => {
       try {
@@ -76,15 +90,26 @@ export function PublicInterviewProvider({ children }: { children: React.ReactNod
         );
         if (response.ok) {
           const data = await response.json();
-          const hasPending = data.requests.some((r: any) => r.status === 'pending');
+          const pending = (data.requests || []).filter((r: any) => r.status === 'pending');
+          setPendingRequests(pending);
+
+          const hasPending = pending.length > 0;
 
           // Update if pending status changed
-          if (hasPending !== activeSession.hasPendingRequests) {
-            setActiveSession({
-              ...activeSession,
+          setActiveSession((current) => {
+            if (!current) return null;
+            if (
+              current.hasPendingRequests === hasPending &&
+              current.publicSessionId === activeSession.publicSessionId
+            ) {
+              return current;
+            }
+
+            return {
+              ...current,
               hasPendingRequests: hasPending,
-            });
-          }
+            };
+          });
         }
       } catch (error) {
         console.error('Error checking pending requests:', error);
@@ -107,6 +132,7 @@ export function PublicInterviewProvider({ children }: { children: React.ReactNod
         isWindowOpen,
         setIsWindowOpen,
         toggleWindow,
+        pendingRequests,
       }}
     >
       {children}
