@@ -17,6 +17,12 @@ import {
   Calendar,
   Search,
   MessageSquare,
+  UserPlus,
+  Mail,
+  Activity,
+  Sparkles,
+  Radio,
+  Mic,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -204,7 +210,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                       ? "bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg shadow-green-500/25"
                       : "bg-gradient-to-br from-green-600 to-emerald-600 shadow-lg shadow-green-500/25"
                   )}>
-                    <Users className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    <UserPlus className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">My Connections</p>
@@ -226,7 +232,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                       ? "bg-gradient-to-br from-blue-500 to-purple-500 shadow-lg shadow-blue-500/25"
                       : "bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg shadow-blue-500/25"
                   )}>
-                    <MessageSquare className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    <Mail className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1 text-left">
                     <p className="text-sm font-medium">Messages</p>
@@ -245,7 +251,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                       ? "bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/25"
                       : "bg-gradient-to-br from-blue-600 to-cyan-600 shadow-lg shadow-blue-500/25"
                   )}>
-                    <MessageSquare className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    <Activity className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">Social Feed</p>
@@ -264,7 +270,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                       ? "bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/25"
                       : "bg-gradient-to-br from-purple-600 to-pink-600 shadow-lg shadow-purple-500/25"
                   )}>
-                    <User className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    <Sparkles className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">Suggestions</p>
@@ -333,25 +339,6 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                     <p className="text-sm font-medium">Leaderboards</p>
                     <p className={cn("text-xs", currentTheme === 'light' ? "text-zinc-500" : "text-zinc-400")}>
                       Top performers
-                    </p>
-                  </div>
-                </Link>
-              </DropdownMenuItem>
-
-              <DropdownMenuItem asChild className="relative z-10">
-                <Link href="/mock-interview" className="flex items-center gap-3 px-3 py-2 cursor-pointer rounded-lg group">
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:scale-110",
-                    currentTheme === 'light'
-                      ? "bg-gradient-to-br from-red-500 to-rose-500 shadow-lg shadow-red-500/25"
-                      : "bg-gradient-to-br from-red-600 to-rose-600 shadow-lg shadow-red-500/25"
-                  )}>
-                    <Video className="w-4 h-4 text-white" strokeWidth={2.5} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Mock Interview</p>
-                    <p className={cn("text-xs", currentTheme === 'light' ? "text-zinc-500" : "text-zinc-400")}>
-                      Practice sessions
                     </p>
                   </div>
                 </Link>
@@ -428,7 +415,7 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                       ? "bg-gradient-to-br from-purple-500 to-violet-500 shadow-lg shadow-purple-500/25"
                       : "bg-gradient-to-br from-purple-600 to-violet-600 shadow-lg shadow-purple-500/25"
                   )}>
-                    <Video className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    <Radio className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">Live Stream</p>
@@ -438,7 +425,26 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
                   </div>
                 </Link>
               </DropdownMenuItem>
-              
+
+              <DropdownMenuItem asChild className="relative z-10">
+                <Link href="/mock-interview" className="flex items-center gap-3 px-3 py-2 cursor-pointer rounded-lg group">
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:scale-110",
+                    currentTheme === 'light'
+                      ? "bg-gradient-to-br from-red-500 to-rose-500 shadow-lg shadow-red-500/25"
+                      : "bg-gradient-to-br from-red-600 to-rose-600 shadow-lg shadow-red-500/25"
+                  )}>
+                    <Mic className="w-4 h-4 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Mock Interview</p>
+                    <p className={cn("text-xs", currentTheme === 'light' ? "text-zinc-500" : "text-zinc-400")}>
+                      Practice sessions
+                    </p>
+                  </div>
+                </Link>
+              </DropdownMenuItem>
+
             </DropdownMenuContent>
           </DropdownMenu>
         </nav>

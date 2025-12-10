@@ -21,31 +21,83 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
 
-    // Get comments using the database function
-    const { data: comments, error } = await supabase.rpc('get_post_comments', {
-      p_post_id: post_id,
-      p_user_id: user.id,
-      p_limit: limit,
-      p_offset: offset
-    });
+    // Get comments directly from the table
+    const { data: rawComments, error, count } = await supabase
+      .from('post_comments')
+      .select('*', { count: 'exact' })
+      .eq('post_id', post_id)
+      .is('parent_comment_id', null) // Only top-level comments
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       console.error('Error fetching comments:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Get total count
-    const { count, error: countError } = await supabase
-      .from('post_comments')
-      .select('*', { count: 'exact', head: true })
-      .eq('post_id', post_id);
+    // Fetch user data and nested replies for each comment
+    const commentsWithUsers = await Promise.all(
+      (rawComments || []).map(async (comment) => {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('user_id, full_name, username, avatar_url')
+          .eq('user_id', comment.user_id)
+          .single();
 
-    if (countError) {
-      console.error('Error getting comment count:', countError);
-    }
+        // Check if current user liked this comment
+        const { data: likeData } = await supabase
+          .from('comment_likes')
+          .select('id')
+          .eq('comment_id', comment.id)
+          .eq('user_id', user.id)
+          .single();
+
+        // Fetch nested replies
+        const { data: replies } = await supabase
+          .from('post_comments')
+          .select('*')
+          .eq('parent_comment_id', comment.id)
+          .order('created_at', { ascending: true });
+
+        // Fetch user data for each reply
+        const repliesWithUsers = await Promise.all(
+          (replies || []).map(async (reply) => {
+            const { data: replyUserData } = await supabase
+              .from('users')
+              .select('user_id, full_name, username, avatar_url')
+              .eq('user_id', reply.user_id)
+              .single();
+
+            const { data: replyLikeData } = await supabase
+              .from('comment_likes')
+              .select('id')
+              .eq('comment_id', reply.id)
+              .eq('user_id', user.id)
+              .single();
+
+            return {
+              ...reply,
+              user_name: replyUserData?.full_name || 'Unknown User',
+              user_username: replyUserData?.username || 'unknown',
+              user_avatar_url: replyUserData?.avatar_url || null,
+              user_liked: !!replyLikeData
+            };
+          })
+        );
+
+        return {
+          ...comment,
+          user_name: userData?.full_name || 'Unknown User',
+          user_username: userData?.username || 'unknown',
+          user_avatar_url: userData?.avatar_url || null,
+          user_liked: !!likeData,
+          replies: repliesWithUsers
+        };
+      })
+    );
 
     return NextResponse.json({
-      comments: comments || [],
+      comments: commentsWithUsers,
       pagination: {
         limit,
         offset,
@@ -89,25 +141,31 @@ export async function POST(request: Request) {
         content: content.trim(),
         parent_comment_id: parent_comment_id || null
       })
-      .select(`
-        id,
-        content,
-        created_at,
-        updated_at,
-        parent_comment_id,
-        user:users!post_comments_user_id_fkey (
-          user_id,
-          full_name,
-          username,
-          avatar_url
-        )
-      `)
+      .select()
       .single();
 
     if (error) {
       console.error('Error adding comment:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Fetch user data separately from the users table
+    const { data: userData } = await supabase
+      .from('users')
+      .select('user_id, full_name, username, avatar_url')
+      .eq('user_id', user.id)
+      .single();
+
+    // Combine comment with user data
+    const commentWithUser = {
+      ...comment,
+      user: userData || {
+        user_id: user.id,
+        full_name: user.email?.split('@')[0] || 'Unknown',
+        username: user.email?.split('@')[0] || 'unknown',
+        avatar_url: null
+      }
+    };
 
     // Update post and comment counters
     await supabase.rpc('update_post_counters', { p_post_id: post_id });
@@ -142,9 +200,9 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      comment 
+    return NextResponse.json({
+      success: true,
+      comment: commentWithUser
     });
 
   } catch (error) {
@@ -183,20 +241,7 @@ export async function PUT(request: Request) {
       })
       .eq('id', comment_id)
       .eq('user_id', user.id)
-      .select(`
-        id,
-        content,
-        created_at,
-        updated_at,
-        parent_comment_id,
-        is_edited,
-        user:users!post_comments_user_id_fkey (
-          user_id,
-          full_name,
-          username,
-          avatar_url
-        )
-      `)
+      .select()
       .single();
 
     if (error) {
@@ -204,9 +249,27 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      comment 
+    // Fetch user data separately from the users table
+    const { data: userData } = await supabase
+      .from('users')
+      .select('user_id, full_name, username, avatar_url')
+      .eq('user_id', user.id)
+      .single();
+
+    // Combine comment with user data
+    const commentWithUser = {
+      ...comment,
+      user: userData || {
+        user_id: user.id,
+        full_name: user.email?.split('@')[0] || 'Unknown',
+        username: user.email?.split('@')[0] || 'unknown',
+        avatar_url: null
+      }
+    };
+
+    return NextResponse.json({
+      success: true,
+      comment: commentWithUser
     });
 
   } catch (error) {
