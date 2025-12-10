@@ -17,9 +17,92 @@ export async function GET(request: Request) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const postTypes = searchParams.get('types')?.split(',') || null;
     const connectionsOnly = searchParams.get('connections_only') === 'true';
+    const bookmarkedOnly = searchParams.get('bookmarked_only') === 'true';
 
     console.log('Fetching posts for user:', user.id);
-    console.log('Parameters:', { limit, offset, postTypes, connectionsOnly });
+    console.log('Parameters:', { limit, offset, postTypes, connectionsOnly, bookmarkedOnly });
+
+    // Handle bookmarked posts separately
+    if (bookmarkedOnly) {
+      console.log('Fetching bookmarked posts');
+
+      const { data: savedPosts, error: savedError } = await supabase
+        .from('saved_posts')
+        .select('post_id, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (savedError) {
+        console.error('Error fetching saved posts:', savedError);
+        return NextResponse.json({ error: savedError.message }, { status: 500 });
+      }
+
+      if (!savedPosts || savedPosts.length === 0) {
+        return NextResponse.json({
+          posts: [],
+          pagination: { limit, offset, total: 0, hasMore: false }
+        });
+      }
+
+      const postIds = savedPosts.map(sp => sp.post_id);
+
+      // Fetch the actual posts
+      const { data: posts, error: postsError } = await supabase
+        .from('social_posts')
+        .select('*')
+        .in('id', postIds);
+
+      if (postsError) {
+        console.error('Error fetching posts:', postsError);
+        return NextResponse.json({ error: postsError.message }, { status: 500 });
+      }
+
+      // Fetch user data for each post
+      const postsWithUsers = await Promise.all(
+        (posts || []).map(async (post) => {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('username, full_name, avatar_url')
+            .eq('user_id', post.user_id)
+            .single();
+
+          const { data: likeData } = await supabase
+            .from('post_likes')
+            .select('id')
+            .eq('post_id', post.id)
+            .eq('user_id', user.id)
+            .single();
+
+          const { data: repostData } = await supabase
+            .from('post_reposts')
+            .select('id')
+            .eq('post_id', post.id)
+            .eq('user_id', user.id)
+            .single();
+
+          return {
+            ...post,
+            user_name: userData?.full_name || 'Unknown User',
+            user_username: userData?.username || 'unknown',
+            user_avatar_url: userData?.avatar_url || null,
+            user_liked: !!likeData,
+            user_reposted: !!repostData,
+            user_saved: true // All posts in this query are saved
+          };
+        })
+      );
+
+      return NextResponse.json({
+        posts: postsWithUsers,
+        pagination: {
+          limit,
+          offset,
+          total: postsWithUsers.length,
+          hasMore: postsWithUsers.length >= limit
+        }
+      });
+    }
 
     // Fetch posts with proper joins
     console.log('Fetching posts with joins');
@@ -69,7 +152,7 @@ export async function GET(request: Request) {
             .eq('user_id', post.user_id)
             .single();
 
-          // Check if user liked/reposted
+          // Check if user liked/reposted/saved
           const { data: likeData } = await supabase
             .from('post_likes')
             .select('id')
@@ -84,13 +167,21 @@ export async function GET(request: Request) {
             .eq('user_id', user.id)
             .single();
 
+          const { data: savedData } = await supabase
+            .from('saved_posts')
+            .select('id')
+            .eq('post_id', post.id)
+            .eq('user_id', user.id)
+            .single();
+
           return {
             ...post,
             user_name: userData?.full_name || 'Unknown User',
             user_username: userData?.username || 'unknown',
             user_avatar_url: userData?.avatar_url || null,
             user_liked: !!likeData,
-            user_reposted: !!repostData
+            user_reposted: !!repostData,
+            user_saved: !!savedData
           };
         })
       );
@@ -108,17 +199,34 @@ export async function GET(request: Request) {
       });
     }
 
-    // Transform the data from RPC function
-    const transformedPosts = (posts || []).map((post: any) => ({
-      ...post,
-      // Ensure all fields are present
-      media_urls: post.media_urls || [],
-      metadata: post.metadata || {},
-      repost_count: post.repost_count || 0,
-      like_count: post.like_count || 0,
-      comment_count: post.comment_count || 0,
-      view_count: post.view_count || 0,
-    }));
+    // Transform the data from RPC function and check if posts are saved
+    const transformedPosts = await Promise.all(
+      (posts || []).map(async (post: any) => {
+        // Check if user saved this post (if not already included in RPC result)
+        let userSaved = post.user_saved;
+        if (userSaved === undefined) {
+          const { data: savedData } = await supabase
+            .from('saved_posts')
+            .select('id')
+            .eq('post_id', post.id)
+            .eq('user_id', user.id)
+            .single();
+          userSaved = !!savedData;
+        }
+
+        return {
+          ...post,
+          // Ensure all fields are present
+          media_urls: post.media_urls || [],
+          metadata: post.metadata || {},
+          repost_count: post.repost_count || 0,
+          like_count: post.like_count || 0,
+          comment_count: post.comment_count || 0,
+          view_count: post.view_count || 0,
+          user_saved: userSaved
+        };
+      })
+    );
 
     console.log('Posts from RPC:', transformedPosts.length);
 

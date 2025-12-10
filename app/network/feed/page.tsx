@@ -50,12 +50,12 @@ import {
   Clock,
   RefreshCw,
   MessageSquare,
+  MessageCircle,
   Settings,
   Eye,
   Reply,
   Repeat,
   Bookmark,
-  Flag,
   Edit,
   Trash2,
   Pin,
@@ -131,6 +131,9 @@ export default function SocialFeedPage() {
   const [newComment, setNewComment] = useState<{ [key: string]: string }>({});
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState<string | null>(null);
+  const [replyToComment, setReplyToComment] = useState<{ [key: string]: string | null }>({});
+  const [showEngagement, setShowEngagement] = useState<{ [key: string]: 'likes' | 'reposts' | 'bookmarks' | null }>({});
+  const [engagementUsers, setEngagementUsers] = useState<{ [key: string]: any[] }>({});
 
   const postsPerPage = 10;
 
@@ -140,6 +143,7 @@ export default function SocialFeedPage() {
     { value: 'all', label: 'All Posts', icon: Grid3X3, category: 'general' },
     { value: 'my_posts', label: 'My Posts', icon: User, category: 'general' },
     { value: 'connections', label: 'Connections', icon: Users, category: 'general' },
+    { value: 'bookmarked', label: 'Bookmarked', icon: Bookmark, category: 'general' },
 
     // Content Type Filters (matching Create Post types)
     { value: 'celebrate', label: 'Celebrations', icon: PartyPopper, category: 'content', color: 'from-purple-500 to-pink-500' },
@@ -195,7 +199,7 @@ export default function SocialFeedPage() {
         offset: offset.toString()
       });
 
-      if (activeTab !== 'all' && activeTab !== 'connections' && activeTab !== 'my_posts') {
+      if (activeTab !== 'all' && activeTab !== 'connections' && activeTab !== 'my_posts' && activeTab !== 'bookmarked') {
         params.set('types', activeTab);
       }
 
@@ -205,6 +209,10 @@ export default function SocialFeedPage() {
 
       if (activeTab === 'my_posts') {
         params.set('user_id', user?.email || '');
+      }
+
+      if (activeTab === 'bookmarked') {
+        params.set('bookmarked_only', 'true');
       }
 
       const response = await fetch(`/api/feed/posts?${params}`);
@@ -353,6 +361,107 @@ export default function SocialFeedPage() {
     }
   };
 
+  // Fetch comments for a post
+  const fetchComments = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/feed/comments?post_id=${postId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setComments(prev => ({ ...prev, [postId]: data.comments || [] }));
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    }
+  };
+
+  // Fetch engagement users for a post
+  const fetchEngagementUsers = async (postId: string, type: 'likes' | 'reposts' | 'bookmarks') => {
+    try {
+      let endpoint = '';
+      if (type === 'likes') {
+        endpoint = `/api/feed/posts/${postId}/engagement?type=likes`;
+      } else if (type === 'reposts') {
+        endpoint = `/api/feed/posts/${postId}/engagement?type=reposts`;
+      } else if (type === 'bookmarks') {
+        endpoint = `/api/feed/posts/${postId}/engagement?type=bookmarks`;
+      }
+
+      const response = await fetch(endpoint);
+      if (response.ok) {
+        const data = await response.json();
+        setEngagementUsers(prev => ({ ...prev, [postId]: data.users || [] }));
+      }
+    } catch (error) {
+      console.error('Error fetching engagement users:', error);
+    }
+  };
+
+  // Handle comment like
+  const handleCommentLike = async (commentId: string, postId: string) => {
+    try {
+      const response = await fetch('/api/feed/comment-likes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment_id: commentId })
+      });
+
+      if (response.ok) {
+        // Refresh comments to get updated like count
+        await fetchComments(postId);
+        toast.success('Comment liked!');
+      } else {
+        const data = await response.json();
+        if (data.error?.includes('Already liked')) {
+          // Unlike
+          const unlikeResponse = await fetch(`/api/feed/comment-likes?comment_id=${commentId}`, {
+            method: 'DELETE'
+          });
+          if (unlikeResponse.ok) {
+            await fetchComments(postId);
+            toast.success('Comment unliked');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error liking comment:', error);
+      toast.error('Failed to like comment');
+    }
+  };
+
+  // Handle comment reply
+  const handleCommentReply = async (postId: string, parentCommentId: string) => {
+    const content = newComment[`reply-${parentCommentId}`];
+    if (!content?.trim()) return;
+
+    try {
+      setActionLoading(parentCommentId);
+      const response = await fetch('/api/feed/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          post_id: postId,
+          content: content.trim(),
+          parent_comment_id: parentCommentId
+        })
+      });
+
+      if (response.ok) {
+        setNewComment(prev => ({ ...prev, [`reply-${parentCommentId}`]: '' }));
+        setReplyToComment(prev => ({ ...prev, [postId]: null }));
+        await fetchComments(postId);
+        toast.success('Reply added!');
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to add reply');
+      }
+    } catch (error) {
+      console.error('Error adding reply:', error);
+      toast.error('Failed to add reply');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleComment = async (postId: string) => {
     const content = newComment[postId];
     if (!content?.trim()) return;
@@ -370,11 +479,13 @@ export default function SocialFeedPage() {
 
       if (response.ok) {
         setNewComment(prev => ({ ...prev, [postId]: '' }));
-        setPosts(prev => prev.map(post => 
-          post.id === postId 
+        setPosts(prev => prev.map(post =>
+          post.id === postId
             ? { ...post, comment_count: post.comment_count + 1 }
             : post
         ));
+        // Fetch updated comments
+        await fetchComments(postId);
         toast.success('Comment added!');
       } else {
         const data = await response.json();
@@ -464,6 +575,60 @@ export default function SocialFeedPage() {
       }
     } catch (error) {
       console.error('Error setting preference:', error);
+      toast.error('An error occurred');
+    }
+  };
+
+  // Handle hide this post
+  const handleHidePost = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/feed/posts/${postId}/preference`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preference_type: 'hide_post',
+          reason: 'User chose to hide this post'
+        })
+      });
+
+      if (response.ok) {
+        // Remove post from feed
+        setPosts(posts.filter(p => p.id !== postId));
+        setTotalPosts(totalPosts - 1);
+        toast.success('Post hidden');
+      } else {
+        toast.error('Failed to hide post');
+      }
+    } catch (error) {
+      console.error('Error hiding post:', error);
+      toast.error('An error occurred');
+    }
+  };
+
+  // Handle hide posts from author
+  const handleHideAuthor = async (postId: string, username: string) => {
+    try {
+      const response = await fetch(`/api/feed/posts/${postId}/preference`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preference_type: 'hide_author',
+          reason: `User chose to hide posts from @${username}`
+        })
+      });
+
+      if (response.ok) {
+        // Remove all posts from this author
+        const post = posts.find(p => p.id === postId);
+        if (post) {
+          setPosts(posts.filter(p => p.user_id !== post.user_id));
+          toast.success(`Posts from @${username} will be hidden`);
+        }
+      } else {
+        toast.error('Failed to hide posts from this user');
+      }
+    } catch (error) {
+      console.error('Error hiding author:', error);
       toast.error('An error occurred');
     }
   };
@@ -666,20 +831,6 @@ export default function SocialFeedPage() {
                     <p>Advanced filter options</p>
                   </TooltipContent>
                 </Tooltip>
-                {process.env.NODE_ENV === 'development' && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="gap-2 text-xs"
-                    onClick={() => {
-                      // Force show pagination for testing
-                      setTotalPages(3);
-                      setTotalPosts(25);
-                    }}
-                  >
-                    Test Pagination
-                  </Button>
-                )}
               </div>
             </div>
           </Card>
@@ -771,6 +922,8 @@ export default function SocialFeedPage() {
                     onLike={handleLike}
                     onRepost={handleRepost}
                     onComment={handleComment}
+                    onCommentLike={handleCommentLike}
+                    onCommentReply={handleCommentReply}
                     onDelete={(postId) => {
                       setPostToDelete(postId);
                       setDeleteDialogOpen(true);
@@ -778,12 +931,21 @@ export default function SocialFeedPage() {
                     onSave={handleSave}
                     onCopyLink={handleCopyLink}
                     onNotInterested={handleNotInterested}
+                    onHidePost={handleHidePost}
+                    onHideAuthor={handleHideAuthor}
                     actionLoading={actionLoading}
                     showComments={showComments}
                     setShowComments={setShowComments}
+                    fetchComments={fetchComments}
                     comments={comments}
                     newComment={newComment}
                     setNewComment={setNewComment}
+                    replyToComment={replyToComment}
+                    setReplyToComment={setReplyToComment}
+                    showEngagement={showEngagement}
+                    setShowEngagement={setShowEngagement}
+                    engagementUsers={engagementUsers}
+                    fetchEngagementUsers={fetchEngagementUsers}
                     formatTimeAgo={formatTimeAgo}
                     theme={theme}
                   />
@@ -886,16 +1048,27 @@ function PostCard({
   onLike,
   onRepost,
   onComment,
+  onCommentLike,
+  onCommentReply,
   onDelete,
   onSave,
   onCopyLink,
   onNotInterested,
+  onHidePost,
+  onHideAuthor,
   actionLoading,
   showComments,
   setShowComments,
+  fetchComments,
   comments,
   newComment,
   setNewComment,
+  replyToComment,
+  setReplyToComment,
+  showEngagement,
+  setShowEngagement,
+  engagementUsers,
+  fetchEngagementUsers,
   formatTimeAgo,
   theme
 }: {
@@ -904,16 +1077,27 @@ function PostCard({
   onLike: (postId: string) => void;
   onRepost: (postId: string) => void;
   onComment: (postId: string) => void;
+  onCommentLike: (commentId: string, postId: string) => void;
+  onCommentReply: (postId: string, parentCommentId: string) => void;
   onDelete: (postId: string) => void;
   onSave: (postId: string) => void;
   onCopyLink: (postId: string) => void;
   onNotInterested: (postId: string) => void;
+  onHidePost: (postId: string) => void;
+  onHideAuthor: (postId: string, username: string) => void;
   actionLoading: string | null;
   showComments: { [key: string]: boolean };
   setShowComments: (value: { [key: string]: boolean }) => void;
+  fetchComments: (postId: string) => void;
   comments: { [key: string]: any[] };
   newComment: { [key: string]: string };
   setNewComment: (value: { [key: string]: string }) => void;
+  replyToComment: { [key: string]: string | null };
+  setReplyToComment: (value: { [key: string]: string | null }) => void;
+  showEngagement: { [key: string]: 'likes' | 'reposts' | 'bookmarks' | null };
+  setShowEngagement: (value: { [key: string]: 'likes' | 'reposts' | 'bookmarks' | null }) => void;
+  engagementUsers: { [key: string]: any[] };
+  fetchEngagementUsers: (postId: string, type: 'likes' | 'reposts' | 'bookmarks') => void;
   formatTimeAgo: (date: string) => string;
   theme: string | undefined;
 }) {
@@ -1007,17 +1191,13 @@ function PostCard({
                     <X className="w-4 h-4 mr-2" />
                     Not Interested
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {}}>
+                  <DropdownMenuItem onClick={() => onHidePost(post.id)}>
                     <Eye className="w-4 h-4 mr-2" />
                     Hide This Post
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {}}>
+                  <DropdownMenuItem onClick={() => onHideAuthor(post.id, post.user_username)}>
                     <User className="w-4 h-4 mr-2" />
                     Hide Posts from @{post.user_username}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive focus:text-destructive">
-                    <Flag className="w-4 h-4 mr-2" />
-                    Report Post
                   </DropdownMenuItem>
                 </>
               )}
@@ -1084,17 +1264,93 @@ function PostCard({
             borderColor: theme === 'light' ? '#e4e4e7' : '#27272a'
           }}>
             {post.like_count > 0 && (
-              <span className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  const willShow = showEngagement[post.id] !== 'likes';
+                  setShowEngagement(prev => ({
+                    ...prev,
+                    [post.id]: willShow ? 'likes' : null
+                  }));
+                  if (willShow && !engagementUsers[post.id]) {
+                    fetchEngagementUsers(post.id, 'likes');
+                  }
+                }}
+                className="flex items-center gap-1 hover:underline cursor-pointer"
+              >
                 <Heart className="w-4 h-4 fill-red-500 text-red-500" />
                 {post.like_count} {post.like_count === 1 ? 'like' : 'likes'}
-              </span>
+              </button>
             )}
             {post.comment_count > 0 && (
               <span>{post.comment_count} {post.comment_count === 1 ? 'comment' : 'comments'}</span>
             )}
             {post.repost_count > 0 && (
-              <span>{post.repost_count} {post.repost_count === 1 ? 'repost' : 'reposts'}</span>
+              <button
+                onClick={() => {
+                  const willShow = showEngagement[post.id] !== 'reposts';
+                  setShowEngagement(prev => ({
+                    ...prev,
+                    [post.id]: willShow ? 'reposts' : null
+                  }));
+                  if (willShow && !engagementUsers[post.id]) {
+                    fetchEngagementUsers(post.id, 'reposts');
+                  }
+                }}
+                className="hover:underline cursor-pointer"
+              >
+                {post.repost_count} {post.repost_count === 1 ? 'repost' : 'reposts'}
+              </button>
             )}
+          </div>
+        )}
+
+        {/* Engagement Details */}
+        {showEngagement[post.id] && (
+          <div className={cn(
+            "p-4 border-b",
+            theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-zinc-900/50 border-zinc-800'
+          )}>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-sm">
+                {showEngagement[post.id] === 'likes' && 'Liked by'}
+                {showEngagement[post.id] === 'reposts' && 'Reposted by'}
+                {showEngagement[post.id] === 'bookmarks' && 'Bookmarked by'}
+              </h4>
+              <button
+                onClick={() => setShowEngagement(prev => ({ ...prev, [post.id]: null }))}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {engagementUsers[post.id] ? (
+                engagementUsers[post.id].length > 0 ? (
+                  engagementUsers[post.id].map((engUser: any) => (
+                    <div key={engUser.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                      <DefaultAvatar
+                        src={engUser.avatar_url}
+                        name={engUser.full_name}
+                        size="sm"
+                        className="w-10 h-10"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate">{engUser.full_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">@{engUser.username}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No users found
+                  </p>
+                )
+              ) : (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand"></div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1130,20 +1386,32 @@ function PostCard({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  onClick={() => setShowComments(prev => ({
-                    ...prev,
-                    [post.id]: !prev[post.id]
-                  }))}
+                  onClick={() => {
+                    const willShow = !showComments[post.id];
+                    setShowComments(prev => ({
+                      ...prev,
+                      [post.id]: willShow
+                    }));
+                    // Fetch comments when opening
+                    if (willShow && !comments[post.id]) {
+                      fetchComments(post.id);
+                    }
+                  }}
                   variant="ghost"
                   size="sm"
                   className="gap-2"
                 >
                   <MessageSquare className="w-4 h-4" />
                   {post.comment_count}
+                  {showComments[post.id] ? (
+                    <ChevronRight className="w-3 h-3 rotate-90 transition-transform" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3 transition-transform" />
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Comment on this post</p>
+                <p>{showComments[post.id] ? 'Hide' : 'Show'} comments</p>
               </TooltipContent>
             </Tooltip>
 
@@ -1173,7 +1441,12 @@ function PostCard({
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2">
+                <Button
+                  onClick={() => onCopyLink(post.id)}
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2"
+                >
                   <Share2 className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -1186,22 +1459,24 @@ function PostCard({
           <div className="flex items-center gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <Bookmark className="w-4 h-4" />
+                <Button
+                  onClick={() => onSave(post.id)}
+                  disabled={actionLoading === post.id}
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "gap-2",
+                    post.user_saved && "text-brand"
+                  )}
+                >
+                  <Bookmark className={cn(
+                    "w-4 h-4",
+                    post.user_saved && "fill-current"
+                  )} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Save this post</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <Flag className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Report this post</p>
+                <p>{post.user_saved ? 'Unsave' : 'Save'} this post</p>
               </TooltipContent>
             </Tooltip>
           </div>
@@ -1241,11 +1516,136 @@ function PostCard({
             </div>
 
             {/* Comments List */}
-            <div className="space-y-3">
-              {/* Placeholder for comments - would be fetched from API */}
-              <div className="text-sm text-muted-foreground text-center py-4">
-                Comments will be loaded here
-              </div>
+            <div className="space-y-4">
+              {comments[post.id] && comments[post.id].length > 0 ? (
+                comments[post.id].map((comment: any) => (
+                  <div key={comment.id} className="space-y-3">
+                    {/* Main Comment */}
+                    <div className="flex gap-3">
+                      <DefaultAvatar
+                        src={comment.user_avatar_url}
+                        name={comment.user_name}
+                        size="sm"
+                        className="w-8 h-8"
+                      />
+                      <div className="flex-1">
+                        <div className={cn(
+                          "rounded-lg p-3",
+                          theme === 'light' ? 'bg-gray-100' : 'bg-zinc-800/50'
+                        )}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-sm">{comment.user_name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatTimeAgo(comment.created_at)}
+                            </span>
+                          </div>
+                          <p className="text-sm">{comment.content}</p>
+                        </div>
+                        {/* Like and Reply buttons */}
+                        <div className="flex items-center gap-4 mt-2 px-3">
+                          <button
+                            onClick={() => onCommentLike(comment.id, post.id)}
+                            className={cn(
+                              "text-xs hover:text-foreground flex items-center gap-1",
+                              comment.user_liked ? "text-brand font-semibold" : "text-muted-foreground"
+                            )}
+                            disabled={actionLoading === comment.id}
+                          >
+                            <Heart className={cn("w-3 h-3", comment.user_liked && "fill-current")} />
+                            {comment.like_count > 0 && comment.like_count}
+                          </button>
+                          <button
+                            onClick={() => setReplyToComment(prev => ({
+                              ...prev,
+                              [post.id]: prev[post.id] === comment.id ? null : comment.id
+                            }))}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <MessageCircle className="w-3 h-3" />
+                            Reply {comment.reply_count > 0 && `(${comment.reply_count})`}
+                          </button>
+                        </div>
+
+                        {/* Reply Input */}
+                        {replyToComment[post.id] === comment.id && (
+                          <div className="mt-3 flex gap-2">
+                            <Input
+                              placeholder={`Reply to ${comment.user_name}...`}
+                              value={newComment[`reply-${comment.id}`] || ''}
+                              onChange={(e) => setNewComment(prev => ({
+                                ...prev,
+                                [`reply-${comment.id}`]: e.target.value
+                              }))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  onCommentReply(post.id, comment.id);
+                                }
+                              }}
+                              className="flex-1"
+                            />
+                            <Button
+                              onClick={() => onCommentReply(post.id, comment.id)}
+                              disabled={!newComment[`reply-${comment.id}`]?.trim() || actionLoading === comment.id}
+                              size="sm"
+                            >
+                              <Send className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Nested Replies */}
+                    {comment.replies && comment.replies.length > 0 && (
+                      <div className="ml-11 space-y-3 border-l-2 border-muted pl-4">
+                        {comment.replies.map((reply: any) => (
+                          <div key={reply.id} className="flex gap-3">
+                            <DefaultAvatar
+                              src={reply.user_avatar_url}
+                              name={reply.user_name}
+                              size="sm"
+                              className="w-7 h-7"
+                            />
+                            <div className="flex-1">
+                              <div className={cn(
+                                "rounded-lg p-3",
+                                theme === 'light' ? 'bg-gray-100' : 'bg-zinc-800/50'
+                              )}>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-semibold text-sm">{reply.user_name}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatTimeAgo(reply.created_at)}
+                                  </span>
+                                </div>
+                                <p className="text-sm">{reply.content}</p>
+                              </div>
+                              {/* Reply Like button */}
+                              <div className="flex items-center gap-4 mt-2 px-3">
+                                <button
+                                  onClick={() => onCommentLike(reply.id, post.id)}
+                                  className={cn(
+                                    "text-xs hover:text-foreground flex items-center gap-1",
+                                    reply.user_liked ? "text-brand font-semibold" : "text-muted-foreground"
+                                  )}
+                                  disabled={actionLoading === reply.id}
+                                >
+                                  <Heart className={cn("w-3 h-3", reply.user_liked && "fill-current")} />
+                                  {reply.like_count > 0 && reply.like_count}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  No comments yet. Be the first to comment!
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -21,6 +21,7 @@ import {
   Minimize,
   Maximize,
   MessageCircle,
+  EyeOff,
 } from "lucide-react";
 import {
   getUserConversations,
@@ -60,6 +61,7 @@ export default function FloatingMessageWidget() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
@@ -340,8 +342,19 @@ export default function FloatingMessageWidget() {
     (c) => c.id === selectedConversationId
   );
 
-  // Don't render on problems or live streams pages
-  if (shouldHideWidget) {
+  // Listen for toggle event from navbar
+  useEffect(() => {
+    const handleToggle = () => {
+      setIsOpen(prev => !prev);
+      if (isHidden) setIsHidden(false);
+    };
+
+    window.addEventListener('toggle-messenger', handleToggle);
+    return () => window.removeEventListener('toggle-messenger', handleToggle);
+  }, [isHidden]);
+
+  // Don't render on problems or live streams pages, or if hidden by user
+  if (shouldHideWidget || isHidden) {
     return null;
   }
 
@@ -417,29 +430,41 @@ export default function FloatingMessageWidget() {
             )}
           </div>
           <div className="flex items-center gap-1">
-            {selectedConversation && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => handleArchiveConversation(selectedConversation.id)}
-                  >
-                    <Archive className="w-4 h-4 mr-2" />
-                    Archive
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleMuteConversation(selectedConversation.id)}
-                  >
-                    <BellOff className="w-4 h-4 mr-2" />
-                    Mute
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {selectedConversation && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => handleArchiveConversation(selectedConversation.id)}
+                    >
+                      <Archive className="w-4 h-4 mr-2" />
+                      Archive
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleMuteConversation(selectedConversation.id)}
+                    >
+                      <BellOff className="w-4 h-4 mr-2" />
+                      Mute
+                    </DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuItem
+                  onClick={() => {
+                    setIsHidden(true);
+                    setIsOpen(false);
+                    setSelectedConversationId(null);
+                  }}
+                >
+                  <EyeOff className="w-4 h-4 mr-2" />
+                  Hide Widget
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="ghost"
               size="icon"
