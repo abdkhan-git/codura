@@ -318,7 +318,7 @@ export default function RealTimeCollaboration({ className }: { className?: strin
 
       if (step.type === "type") {
         setTypingUser(step.user);
-        setCursorPosition(step.cursorPos);
+        setCursorPosition(step.cursorPos || null);
         setIsTyping(true);
 
         // Update user status
@@ -328,7 +328,7 @@ export default function RealTimeCollaboration({ className }: { className?: strin
             : { ...user, status: "online" }
         ));
 
-        await typeTextProgressively(step.text, 45);
+        await typeTextProgressively(step.text || '', 45);
 
         setIsTyping(false);
         setTypingUser(null);
@@ -340,17 +340,17 @@ export default function RealTimeCollaboration({ className }: { className?: strin
       }
       else if (step.type === "delete") {
         setTypingUser(step.user);
-        setCursorPosition(step.cursorPos);
+        setCursorPosition(step.cursorPos || null);
         setIsTyping(true);
 
         // Update user status
-        setActiveUsers(prev => prev.map(user => 
-          user.id === step.user 
+        setActiveUsers(prev => prev.map(user =>
+          user.id === step.user
             ? { ...user, status: "typing" }
             : { ...user, status: "online" }
         ));
 
-        await deleteTextProgressively(step.deleteText, 18);
+        await deleteTextProgressively(step.deleteText || '', 18);
 
         setIsTyping(false);
         setTypingUser(null);
@@ -364,7 +364,7 @@ export default function RealTimeCollaboration({ className }: { className?: strin
         const newMessage = {
           id: messages.length + Math.random(),
           user: mockUsers.find(u => u.id === step.user)?.name || "Unknown",
-          message: step.message,
+          message: step.message || '',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           type: "message" as const,
           isUserMessage: false
@@ -709,7 +709,7 @@ export default function RealTimeCollaboration({ className }: { className?: strin
                   <div className="absolute inset-0 bg-brand/20 blur-lg animate-pulse" />
                 </div>
                 <span>Team Chat</span>
-                <Badge variant="outline" className="ml-2 bg-brand/10 text-brand border-brand/30 text-xs">
+                <Badge variant="outline" className="ml-2 bg-blue-100 text-blue-700 border-blue-300 text-xs">
                   {messages.length} messages
                 </Badge>
               </CardTitle>

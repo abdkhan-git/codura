@@ -2,6 +2,16 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeWrapper } from "@/components/theme-wrapper";
+import { LoadingProvider } from "@/components/providers/loading-provider";
+import { LoadingBar } from "@/components/loading-bar";
+import { FaviconAnimation } from "@/components/favicon-animation";
+import { Toaster } from "@/components/ui/sonner";
+import { Suspense } from "react";
+import FloatingMessageWidget from "@/components/messaging/floating-message-widget";
+import { PublicInterviewProvider } from "@/contexts/public-interview-context";
+import { InterviewStatusProvider } from "@/contexts/interview-status-context";
+import { PublicInterviewGlobalWindow } from "@/components/mock-interview/public-interview-global-window";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,10 +23,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-
-/**
- * Metadata for the application, including title and description.
- */
 export const metadata: Metadata = {
   title: "Codura - Master Technical Interviews",
   description: "Practice coding problems, conduct mock interviews, and compete with peers from your university. Build the skills that land you the job.",
@@ -35,26 +41,38 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
-      <head>
-         <link rel="preconnect" href="https://rsms.me/" />
-         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
-         <link rel="preconnect" href="https://fonts.bunny.net" />
-         <link rel="stylesheet" href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" />
-      </head>
-      
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-x-hidden`}
-      >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
-      </body>
-    </html>
+    <>
+      <html lang="en" suppressHydrationWarning>
+        <head />
+        <body className={`${geistSans.variable} ${geistMono.variable}`}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem={false}
+            disableTransitionOnChange={true}
+            storageKey="codura-theme"
+            themes={["light", "dark"]}
+            enableColorScheme={true}
+          >
+            <ThemeWrapper>
+              <Suspense fallback={null}>
+                <LoadingProvider>
+                  <PublicInterviewProvider>
+                    <InterviewStatusProvider>
+                      <LoadingBar />
+                      <FaviconAnimation />
+                      {children}
+                      <FloatingMessageWidget />
+                      <PublicInterviewGlobalWindow />
+                      <Toaster position="top-right" richColors />
+                    </InterviewStatusProvider>
+                  </PublicInterviewProvider>
+                </LoadingProvider>
+              </Suspense>
+            </ThemeWrapper>
+          </ThemeProvider>
+        </body>
+      </html>
+    </>
   );
 }

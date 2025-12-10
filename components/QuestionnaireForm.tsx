@@ -3,6 +3,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { useTheme } from "next-themes";
 import { saveQuestionnaireAndComplete } from "@/app/questionnaire/submit/actions";
 
 type Option = { label: string; value: string; position: number };
@@ -16,6 +17,7 @@ type Item = {
 };
 
 export default function QuestionnaireForm({ items }: { items: Item[] }) {
+  const { theme } = useTheme();
   const router = useRouter();
   const [answers, setAnswers] = useState<Record<number, string[]>>(
     Object.fromEntries(items.map((i) => [i.question_id, []]))
@@ -65,7 +67,11 @@ export default function QuestionnaireForm({ items }: { items: Item[] }) {
   const disabled = isPending || status === "saving" || anyEmpty;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] py-12 px-4">
+    <div className={`min-h-screen transition-colors duration-500 py-12 px-4 ${
+      theme === "light" 
+        ? "bg-gradient-to-br from-white via-gray-50 to-blue-50" 
+        : "bg-zinc-950"
+    }`}>
       <div className="max-w-6xl mx-auto">
         <form onSubmit={onSubmit} className="space-y-8">
           {/* Header Section */}

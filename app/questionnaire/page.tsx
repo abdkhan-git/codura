@@ -1,6 +1,6 @@
 // app/questionnaire/page.tsx
 import { createClient } from "@/utils/supabase/server";
-import QuestionnaireForm from "@/components/QuestionnaireForm";
+import  QuestionnaireForm from "@/components/QuestionnaireForm"
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

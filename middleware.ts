@@ -33,7 +33,19 @@ export async function middleware(req: NextRequest) {
 
   // ✅ Never touch API or static
   if (isAssetPath(pathname) || isApiPath(pathname)) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+
+    // Add performance headers for static assets
+    if (isAssetPath(pathname)) {
+      response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+
+    // Add caching headers for API routes
+    if (isApiPath(pathname)) {
+      response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+    }
+
+    return response;
   }
 
   // Keep session fresh for app routes only
@@ -41,9 +53,11 @@ export async function middleware(req: NextRequest) {
 
   const isPublic = PUBLIC_PATHS.has(pathname);
   const isAuthRoute = pathname.startsWith("/auth");
+  const isPublicProfile = pathname.startsWith("/profile/"); // Allow public profile viewing
+  const isProblemsPage = pathname.startsWith("/problems"); // Allow browsing problems
 
-  // Not logged in → only allow public routes
-  if (!user && !isPublic && !isAuthRoute) {
+  // Not logged in → only allow public routes, auth routes, public profiles, and problems browsing
+  if (!user && !isPublic && !isAuthRoute && !isPublicProfile && !isProblemsPage) {
     return NextResponse.redirect(new URL("/login", origin));
   }
 
@@ -56,45 +70,52 @@ export async function middleware(req: NextRequest) {
       .single();
 
     if (!error && profile) {
-      const onQuestionnairePage = pathname === "/questionnaire";
-      const onOnboardingPage   = pathname === "/onboarding";
       const onDashboardPage    = pathname === "/dashboard";
+      const onProblemPage      = pathname === "/problem-page";
+      const onProfilePage      = pathname === "/profile";
       const onSignupPage       = pathname === "/signup"; // ← ADD THIS
       const onLoginPage        = pathname === "/login";  // ← ADD THIS
       const onAuth             = isAuthRoute || pathname === "/logout";
 
-      const code      = profile.federal_school_code;
-      const hasCode   = !!(code && String(code).trim() !== "");
       const completed = profile.questionnaire_completed;
 
-      // ✅ If already logged in, don't allow signup/login pages
+      // ✅ If already logged in, don't allow signup/login pages - always redirect to dashboard
       if (onSignupPage || onLoginPage) {
-        if (completed) {
-          return NextResponse.redirect(new URL("/dashboard", origin));
-        } else if (hasCode) {
-          return NextResponse.redirect(new URL("/questionnaire", origin));
-        } else {
-          return NextResponse.redirect(new URL("/onboarding", origin));
-        }
+        return NextResponse.redirect(new URL("/dashboard", origin));
+      }
+
+      // ✅ Allow problem page for authenticated users
+      if (onProblemPage) {
+        return response;
       }
 
       if (completed) {
-        if (!onDashboardPage && !onAuth) {
+        // Allow access to app pages for completed users
+        const allowedAppPages = [
+          "/dashboard",
+          "/profile",
+          "/settings",
+          "/problems",
+          "/mock-interview",
+          "/study-pods",
+          "/leaderboards",
+          "/discuss",
+          "/discover",
+          "/network",
+          "/messages",
+          "/live-streams"
+        ];
+        const isAllowedAppPage = allowedAppPages.some(page => pathname.startsWith(page));
+
+        if (!isAllowedAppPage && !onAuth) {
           return NextResponse.redirect(new URL("/dashboard", origin));
         }
         return response;
       }
 
-      if (!completed) {
-        if (!hasCode) {
-          if (!onOnboardingPage && !onQuestionnairePage && !onAuth) {
-            return NextResponse.redirect(new URL("/onboarding", origin));
-          }
-        } else {
-          if (!onQuestionnairePage && !onAuth) {
-            return NextResponse.redirect(new URL("/questionnaire", origin));
-          }
-        }
+      // User hasn't completed onboarding/questionnaire - redirect to dashboard where modals will show
+      if (!completed && !onDashboardPage && !onAuth) {
+        return NextResponse.redirect(new URL("/dashboard", origin));
       }
     }
   }

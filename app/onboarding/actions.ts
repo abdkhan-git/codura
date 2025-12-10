@@ -113,7 +113,8 @@ export async function saveEducationChoice(choice: {
     // Swallow DB error to ensure redirect; you can read logs server-side
     console.error("saveEducationChoice update error:", e);
   } finally {
-    redirect("/questionnaire");
+    // Redirect to dashboard where questionnaire modal will show
+    redirect("/dashboard");
   }
 
   // Unreachable after redirect, but kept for type completeness if redirect is ever removed

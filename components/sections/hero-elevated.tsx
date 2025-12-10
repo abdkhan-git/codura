@@ -197,9 +197,9 @@ export default function HeroElevated({
             </div>
             {badge !== false && badge}
             
-            <h1 className="animate-appear text-white relative inline-block text-5xl leading-tight font-medium tracking-tight text-balance sm:text-6xl sm:leading-tight md:text-8xl md:leading-tight">
+            <h1 className="animate-appear text-foreground relative inline-block text-5xl leading-tight font-medium tracking-tight text-balance sm:text-6xl sm:leading-tight md:text-8xl md:leading-tight">
               Where preparation <br className="hidden md:block" />
-              <span className="text-neutral-400">meets execution.</span>
+              <span className="text-muted-foreground">meets execution.</span>
             </h1>
             
             {/* Updated description text size and spacing */}

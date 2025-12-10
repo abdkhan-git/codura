@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+server/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -42,3 +43,11 @@ utils/supabase/config.toml*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# vs code
+/.vscode
+
+/.idea
+
+/.claude
+

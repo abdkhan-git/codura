@@ -31,7 +31,7 @@ export async function login(formData: FormData) {
 
   if (error) {
     console.error('Login error:', error)
-    redirect('/error')
+    redirect(`/login?error=${encodeURIComponent(error.message || 'Login failed. Please check your credentials.')}`)
   }
 
   revalidatePath('/', 'layout')
@@ -48,17 +48,8 @@ export async function login(formData: FormData) {
     .eq('user_id', user.id)
     .single()
 
-  const fafsaCode = (profile?.federal_school_code ?? '').trim()
-  const hasValidCode = /^[0-9A-Za-z]{6}$/.test(fafsaCode)
-  const isCompleted = !!profile?.questionnaire_completed
-
-  if (isCompleted) {
-    redirect('/dashboard')
-  } else if (hasValidCode) {
-    redirect('/questionnaire')
-  } else {
-    redirect('/onboarding')
-  }
+  // Always redirect to dashboard - modals will handle onboarding/questionnaire
+  redirect('/dashboard')
 }
 
 /**
@@ -73,23 +64,43 @@ export async function signup(formData: FormData) {
   const password = formData.get('password') as string
   const confirmPassword = formData.get('confirm-password') as string
   const fullName = formData.get('full_name') as string
+  const username = formData.get('username') as string
 
-  console.log('Signup data:', { email, fullName, hasPassword: !!password })
+  console.log('Signup data:', { email, fullName, username, hasPassword: !!password })
 
   // Validate inputs
-  if (!email || !password || !fullName) {
+  if (!email || !password || !fullName || !username) {
     console.error('Missing required fields')
-    redirect('/error')
+    redirect(`/signup?error=${encodeURIComponent('All fields are required')}`)
+  }
+
+  // Validate username format
+  const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/
+  if (!usernameRegex.test(username)) {
+    console.error('Invalid username format')
+    redirect(`/signup?error=${encodeURIComponent('Username must be 3-20 characters and can only contain letters, numbers, underscores and hyphens')}`)
+  }
+
+  // Check if username is already taken
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('username')
+    .eq('username', username.toLowerCase())
+    .maybeSingle()
+
+  if (existingUser) {
+    console.error('Username already taken')
+    redirect(`/signup?error=${encodeURIComponent('Username is already taken. Please choose another one.')}`)
   }
 
   if (password !== confirmPassword) {
     console.error('Passwords do not match')
-    redirect('/error')
+    redirect(`/signup?error=${encodeURIComponent('Passwords do not match')}`)
   }
 
   if (password.length < 6) {
     console.error('Password too short (minimum 6 characters)')
-    redirect('/error')
+    redirect(`/signup?error=${encodeURIComponent('Password must be at least 6 characters long')}`)
   }
 
   const data = {
@@ -98,6 +109,7 @@ export async function signup(formData: FormData) {
     options: {
       data: {
         full_name: fullName,
+        username: username.toLowerCase(),
       }
     }
   }
@@ -106,6 +118,11 @@ export async function signup(formData: FormData) {
 
   if (signUpError) {
     console.error('Signup error:', signUpError)
+    
+    // Handle specific error cases with better messages
+    if (signUpError.message?.includes('already registered')) {
+      redirect(`/signup?error=${encodeURIComponent('Email is already registered. Please login instead.')}`)
+    }
     
     // If there's a database trigger error, the user might still be created in auth.users
     // Let's check and handle it manually
@@ -123,15 +140,15 @@ export async function signup(formData: FormData) {
 
       if (!signInError && signInData.user) {
         console.log('User exists in auth.users, creating profile manually...')
-        
-        // Create the profile manually
+
+        // Create the profile manually in unified users table
         const { error: profileError } = await supabase
           .from('users')
           .upsert({
             user_id: signInData.user.id,
             full_name: fullName,
-            federal_school_code: null,
-            questionnaire_completed: false,
+            username: username.toLowerCase(),
+            email: email,
           }, {
             onConflict: 'user_id',
             ignoreDuplicates: false
@@ -147,16 +164,16 @@ export async function signup(formData: FormData) {
       }
     }
     
-    redirect('/error')
+    redirect(`/signup?error=${encodeURIComponent(signUpError.message || 'Signup failed. Please try again.')}`)
   }
 
   console.log('Signup successful:', signUpData.user?.id)
 
-  // Verify the profile was created by the trigger
+  // Verify the profile was created by the callback
   if (signUpData.user) {
-    // Wait a moment for the trigger to complete
+    // Wait a moment for the callback to complete
     await new Promise(resolve => setTimeout(resolve, 300))
-    
+
     const { data: profile, error: profileCheckError } = await supabase
       .from('users')
       .select('user_id')
@@ -170,14 +187,14 @@ export async function signup(formData: FormData) {
     // If profile doesn't exist, create it manually
     if (!profile) {
       console.log('Profile not found after signup, creating manually...')
-      
+
       const { error: profileError } = await supabase
         .from('users')
         .insert({
           user_id: signUpData.user.id,
           full_name: fullName,
-          federal_school_code: null,
-          questionnaire_completed: false,
+          username: username.toLowerCase(),
+          email: email,
         })
 
       if (profileError && profileError.code !== '23505') {
