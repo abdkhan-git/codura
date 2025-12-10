@@ -12,6 +12,7 @@ import FloatingMessageWidget from "@/components/messaging/floating-message-widge
 import { PublicInterviewProvider } from "@/contexts/public-interview-context";
 import { InterviewStatusProvider } from "@/contexts/interview-status-context";
 import { PublicInterviewGlobalWindow } from "@/components/mock-interview/public-interview-global-window";
+import { Analytics } from '@vercel/analytics/next';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -62,6 +63,7 @@ export default function RootLayout({
                       <LoadingBar />
                       <FaviconAnimation />
                       {children}
+                      <Analytics />
                       <FloatingMessageWidget />
                       <PublicInterviewGlobalWindow />
                       <Toaster position="top-right" richColors />
