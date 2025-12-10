@@ -27,8 +27,8 @@ export function useReadReceipts({
   const [readReceipts, setReadReceipts] = useState<Record<string, any[]>>({});
   const observerRef = useRef<IntersectionObserver | null>(null);
   const markedIdsRef = useRef<Set<string>>(new Set());
-  const refetchTimeoutRef = useRef<NodeJS.Timeout>();
-  const scrollTimeoutRef = useRef<NodeJS.Timeout>();
+  const refetchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // Fetch read receipts for current messages
   const fetchReadReceipts = useCallback(async () => {

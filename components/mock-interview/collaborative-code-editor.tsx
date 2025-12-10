@@ -4,8 +4,9 @@ import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperat
 import Editor, { useMonaco } from '@monaco-editor/react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { RotateCcw, Clipboard, CheckCircle } from 'lucide-react'
+import { RotateCcw, Clipboard, CheckCircle, Play, Loader2, X } from 'lucide-react'
 import { LANGUAGES } from '@/utils/languages'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface CollaborativeCodeEditorProps {
   onCodeChange?: (code: string, language: string) => void
@@ -14,10 +15,12 @@ interface CollaborativeCodeEditorProps {
   initialCode?: string
   initialLanguage?: string
   readOnly?: boolean
+  executeEndpoint?: string // Custom endpoint for code execution
 }
 
 export interface CollaborativeCodeEditorHandle {
   applyRemoteChange: (code: string, language?: string) => void
+  applyRemoteOutput: (output: string) => void
 }
 
 export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle, CollaborativeCodeEditorProps>(({
@@ -27,15 +30,37 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
   initialCode = '',
   initialLanguage = 'python',
   readOnly = false,
+  executeEndpoint = '/api/code/execute',
 }, ref) => {
   const monaco = useMonaco()
   const editorRef = useRef<any>(null)
   const [code, setCode] = useState(initialCode)
   const [language, setLanguage] = useState(() => {
-    return LANGUAGES.find((lang) => lang.value === initialLanguage) || LANGUAGES[0]
+    // Find the language, defaulting to Python if not found
+    const lang = LANGUAGES.find((lang) => lang.value === initialLanguage)
+    if (lang) return lang
+    // If not found, default to Python
+    return LANGUAGES.find((lang) => lang.value === 'python') || LANGUAGES[0]
   })
   const [copied, setCopied] = useState(false)
   const isRemoteChangeRef = useRef(false)
+  const [output, setOutput] = useState<string>('')
+  const [isRunning, setIsRunning] = useState(false)
+  const [showOutput, setShowOutput] = useState(false)
+  const executionInProgressRef = useRef(false)
+
+  // Sync with initial props when they change (e.g., when loading a new problem)
+  useEffect(() => {
+    setCode(initialCode)
+  }, [initialCode])
+
+  useEffect(() => {
+    // Find the language, defaulting to Python if not found
+    const lang = LANGUAGES.find((l) => l.value === initialLanguage)
+      || LANGUAGES.find((l) => l.value === 'python')
+      || LANGUAGES[0]
+    setLanguage(lang)
+  }, [initialLanguage])
 
   // Monaco theme setup
   useEffect(() => {
@@ -142,6 +167,63 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
     }
   }
 
+  // Handle code execution
+  const handleRunCode = async () => {
+    // Prevent double execution
+    if (executionInProgressRef.current) {
+      console.log('[Code Execution] Already running, ignoring duplicate call')
+      return
+    }
+
+    executionInProgressRef.current = true
+    setIsRunning(true)
+    setShowOutput(true)
+    setOutput('Running code...')
+
+    console.log('[Code Execution] Starting execution for language:', language.value)
+
+    try {
+      const response = await fetch(executeEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code,
+          language: language.value,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setOutput(`Error: ${data.error || 'Failed to execute code'}`)
+      } else {
+        const outputText = data.output || '(no output)'
+        const errorText = data.error ? `\nError:\n${data.error}` : ''
+        const finalOutput = outputText + errorText
+        setOutput(finalOutput)
+
+        console.log('[Code Execution] Execution complete, sending output to remote peer')
+
+        // Send output to remote peer via data channel
+        if (sendDataMessage) {
+          sendDataMessage({
+            type: 'code-output',
+            output: finalOutput,
+          })
+        }
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      setOutput(`Error: ${errorMessage}`)
+    } finally {
+      setIsRunning(false)
+      executionInProgressRef.current = false
+      console.log('[Code Execution] Execution finished')
+    }
+  }
+
   // Get starter code for current language
   const getStarterCode = () => {
     const starters: Record<string, string> = {
@@ -170,10 +252,18 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
     }
   }, [])
 
+  // Public method to receive remote output
+  const applyRemoteOutput = useCallback((remoteOutput: string) => {
+    console.log('[Code Execution] Received remote output from peer')
+    setOutput(remoteOutput)
+    setShowOutput(true)
+  }, [])
+
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
     applyRemoteChange,
-  }), [applyRemoteChange])
+    applyRemoteOutput,
+  }), [applyRemoteChange, applyRemoteOutput])
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -202,6 +292,26 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
             <RotateCcw className="w-4 h-4 mr-2" />
             Reset
           </Button>
+
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleRunCode}
+            disabled={isRunning || readOnly}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {isRunning ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Running...
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4 mr-2" />
+                Run
+              </>
+            )}
+          </Button>
         </div>
 
         <Button
@@ -223,9 +333,10 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
         </Button>
       </div>
 
-      {/* Editor */}
-      <div className="flex-1 bg-muted/30 p-4">
-        <div className="h-full border rounded-lg bg-background/50 overflow-hidden">
+      {/* Editor and Output */}
+      <div className="flex-1 bg-muted/30 p-4 flex flex-col gap-4">
+        {/* Editor */}
+        <div className={`${showOutput ? 'h-[60%]' : 'h-full'} border rounded-lg bg-background/50 overflow-hidden transition-all`}>
           <Editor
             height="100%"
             language={language.value}
@@ -268,6 +379,26 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
             onMount={handleEditorMount}
           />
         </div>
+
+        {/* Output Panel */}
+        {showOutput && (
+          <div className="h-[40%] border rounded-lg bg-background/50 overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b p-2 bg-muted/50">
+              <span className="text-sm font-medium">Output</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowOutput(false)}
+                className="h-6 w-6 p-0"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <ScrollArea className="flex-1 p-4">
+              <pre className="text-sm font-mono whitespace-pre-wrap break-words">{output}</pre>
+            </ScrollArea>
+          </div>
+        )}
       </div>
     </div>
   )

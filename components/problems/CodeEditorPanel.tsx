@@ -5,12 +5,13 @@ import React, { useState, useEffect } from 'react'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Play, RotateCcw, Loader2, CloudUploadIcon, CheckCircle2, X } from 'lucide-react'
+import { Play, RotateCcw, Loader2, CloudUpload, CheckCircle2, X } from 'lucide-react'
 import Editor, { useMonaco } from '@monaco-editor/react'
 import { LANGUAGES } from '@/utils/languages'
 import TestCasesSection from './TestCasesSection'
 import SubmissionResultModal from './SubmissionResultModal'
 import { createClient } from '@/utils/supabase/client'
+import type { editor } from 'monaco-editor'
 
 // ============================================
 // INTERFACES
@@ -35,6 +36,14 @@ interface SubmissionResult {
   passedTests?: number
   memory?: string
   runtime?: string
+  timeComplexity?: string
+  complexityConfidence?: number
+  complexityAnalysis?: string
+  spaceComplexity?: string
+  spaceConfidence?: number
+  spaceAnalysis?: string
+  timeComplexitySnippets?: string[]
+  spaceComplexitySnippets?: string[]
 }
 
 interface CodeEditorPanelProps {
@@ -48,6 +57,9 @@ interface CodeEditorPanelProps {
 
   // required to unlock the AIChatbot in the parent
   onSubmissionComplete: (submission: Submission) => void
+
+  // NEW: Collaboration support
+  onEditorMount?: (editor: editor.IStandaloneCodeEditor) => void
 
   // optional hooks (parent-owned panel state, savedSubmission, etc.)
   onSetActiveLeftPanelTab?: (tab: string) => void
@@ -68,6 +80,7 @@ export default function CodeEditorPanel({
   setUsersCode,
   getStarterCode,
   onSubmissionComplete,
+  onEditorMount,
   onSetActiveLeftPanelTab,
   onSavedSubmission,
   onSubmit,
@@ -133,6 +146,19 @@ export default function CodeEditorPanel({
   // Editor change
   const handleEditorChange = (value: string | undefined) => {
     setUsersCode(value)
+  }
+
+  // NEW: Handle editor mount and pass to parent for collaboration
+  const handleEditorMount = (editor: editor.IStandaloneCodeEditor) => {
+    console.log('🎯 Editor mounted, passing to parent for collaboration')
+    if (onEditorMount) {
+      onEditorMount(editor)
+    }
+    
+    // Log cursor position changes for debugging
+    editor.onDidChangeCursorPosition((e) => {
+      console.log('📍 Cursor moved to:', e.position)
+    })
   }
 
 // Run (quick execute against first testcase)
@@ -236,7 +262,7 @@ const handleCodeSubmission = async () => {
       };
       onSubmissionComplete(submissionForAI);
 
-      // don’t call /api/ai/initial-analysis here because your route verifies a real submission row
+      // don't call /api/ai/initial-analysis here because your route verifies a real submission row
       // (it would 403 when judge is offline). You can enable a bypass flag on the route if you want.
 
       // call legacy hooks (optional) AFTER unlock so UI stays consistent
@@ -278,38 +304,14 @@ const handleCodeSubmission = async () => {
     throw new Error('Invalid JSON from judge /submit'); 
   }
 
-  const { judge0Result, savedSubmission, testcaseResults } = responseData;
-
-  // testcaseResults now has this structure:
-// {
-//   label: 'Accepted' | 'Wrong Answer' | 'Runtime Error' | etc.,
-//   passed: 2,
-//   failed: 1,
-//   errors: 0,
-//   total: 3,
-//   results: [
-//     {
-//       testcase_number: 1,
-//       input: { nums: [2,7,11,15], target: 9 },
-//       expected: [0, 1],
-//       actual: [0, 1],
-//       status: 'passed',
-//       error: null,
-//       passed: true
-//     },
-//     // ... more results
-//   ],
-//   stdout: '...',
-//   stderr: '...',
-//   runtime: '0.023',
-//   memory: 9216
-// }
+  const { judge0Result, savedSubmission, testcaseResults, complexityAnalysis } = responseData;
 
     console.log('Label:', testcaseResults.label);
     console.log('Results:', testcaseResults);
     console.log('Stats:', `${testcaseResults.passed}/${testcaseResults.total} passed`);
     console.log('passed:',testcaseResults.passed)
     console.log('total:',testcaseResults.total)
+    console.log('Complexity:', complexityAnalysis)
 
     // bottom panel - keep showing test case results from run
     setTestcaseResults(testcaseResults.results);
@@ -337,7 +339,7 @@ const handleCodeSubmission = async () => {
       memory,
     };
 
-    // ---------- 4) Unlock chatbot FIRST (don’t early return before this) ----------
+    // ---------- 4) Unlock chatbot FIRST (don't early return before this) ----------
     onSubmissionComplete(submissionForAI);
 
     // ---------- 5) Optionally ping initial-analysis (now safe, DB has a submission row) ----------
@@ -382,6 +384,7 @@ const handleCodeSubmission = async () => {
     }
 
     // Create submission result for modal
+    // Note: Complexity snippets now come from backend (savedSubmission)
     const modalResult: SubmissionResult = {
       status,
       description: testcaseResults.label || '',
@@ -390,6 +393,14 @@ const handleCodeSubmission = async () => {
       passedTests: testsPassed,
       runtime,
       memory,
+      timeComplexity: complexityAnalysis?.timeComplexity,
+      complexityConfidence: complexityAnalysis?.confidence,
+      complexityAnalysis: complexityAnalysis?.analysis,
+      spaceComplexity: complexityAnalysis?.spaceComplexity,
+      spaceConfidence: complexityAnalysis?.spaceConfidence,
+      spaceAnalysis: complexityAnalysis?.spaceAnalysis,
+      timeComplexitySnippets: savedSubmission?.time_complexity_snippets || undefined,
+      spaceComplexitySnippets: savedSubmission?.space_complexity_snippets || undefined,
     };
 
     setSubmissionResult(modalResult);
@@ -461,17 +472,17 @@ const handleCodeSubmission = async () => {
       <ResizablePanelGroup direction="vertical">
         {/* Code Editor */}
         <ResizablePanel defaultSize={60} minSize={30}>
-          <div className="h-full flex flex-col">
-          <div className="flex justify-between">
+          <div className="h-full flex flex-col bg-gradient-to-br from-card/30 via-card/10 to-transparent backdrop-blur-sm">
+          <div className="flex justify-between border-b border-border/20 bg-gradient-to-r from-card/50 via-card/30 to-transparent backdrop-blur-sm shadow-sm">
             {/* Left: language + actions */}
-            <div className="border-b p-2 flex items-center gap-3">
+            <div className="p-2 flex items-center gap-3">
               <Select value={userLang.value} onValueChange={handleLanguageChange}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="cursor-pointer w-[180px] bg-muted/50 border-border/30 hover:border-brand/50 transition-colors backdrop-blur-sm">
                   <SelectValue placeholder="Select Language" />
                 </SelectTrigger>
                 <SelectContent>
                   {LANGUAGES.map((lang) => (
-                    <SelectItem key={lang.id} value={lang.value}>
+                    <SelectItem key={lang.id} value={lang.value} className='cursor-pointer'>
                       {lang.name}
                     </SelectItem>
                   ))}
@@ -480,18 +491,18 @@ const handleCodeSubmission = async () => {
 
               <Button
                 size="sm"
-                className="cursor-pointer font-weight-300 text-sm text-zinc-300 bg-zinc-700 hover:bg-zinc-600"
+                className="cursor-pointer font-weight-300 text-sm text-zinc-300 bg-zinc-700/80 hover:bg-zinc-600 border border-zinc-600/50 hover:border-zinc-500 hover:scale-105 transition-all duration-300 shadow-lg shine-effect"
                 onClick={handleCodeRunning}
                 disabled={isRunning || isSubmitting}
               >
                 {isRunning ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin mr-1" />
                     Running...
                   </>
                 ) : (
                   <>
-                    <Play className="w-5 h-5" />
+                    <Play className="w-5 h-5 mr-1" />
                     Run
                   </>
                 )}
@@ -499,18 +510,18 @@ const handleCodeSubmission = async () => {
 
               <Button
                 size="sm"
-                className="cursor-pointer font-weight-300 text-sm bg-green-500 hover:bg-green-400"
+                className="cursor-pointer font-weight-300 text-sm bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/30 hover:scale-105 transition-all duration-300 shine-effect"
                 onClick={handleCodeSubmission}
                 disabled={isSubmitting || isRunning}
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin mr-1" />
                     Submitting...
                   </>
                 ) : (
                   <>
-                    <CloudUploadIcon className="w-5 h-5" />
+                    <CloudUpload className="w-5 h-5 mr-1" />
                     Submit
                   </>
                 )}
@@ -520,21 +531,21 @@ const handleCodeSubmission = async () => {
               {hasSubmitted && submissionResult && (
                 <Button
                   size="sm"
-                  className={`cursor-pointer font-weight-300 text-sm ${
+                  className={`cursor-pointer font-weight-300 text-sm hover:scale-105 transition-all duration-300 ${
                     submissionResult.status === 'Accepted'
-                      ? 'bg-green-600 hover:bg-green-500 text-white'
-                      : 'bg-red-600 hover:bg-red-500 text-white'
+                      ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/30'
+                      : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/30'
                   }`}
                   onClick={() => setIsModalOpen(true)}
                 >
                   {submissionResult.status === 'Accepted' ? (
                     <>
-                      <CheckCircle2 className="w-4 h-4" />
+                      <CheckCircle2 className="w-4 h-4 mr-1" />
                       Accepted
                     </>
                   ) : (
                     <>
-                      <X className="w-4 h-4" />
+                      <X className="w-4 h-4 mr-1" />
                       {submissionResult.status}
                     </>
                   )}
@@ -543,11 +554,11 @@ const handleCodeSubmission = async () => {
             </div>
 
             {/* Right: reset */}
-            <div className="flex items-center">
+            <div className="flex items-center p-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer h-[70%]"
+                className="cursor-pointer hover:scale-105 transition-all duration-300 hover:border-brand/50 hover:bg-brand/5"
                 onClick={handleReset}
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
@@ -557,47 +568,50 @@ const handleCodeSubmission = async () => {
           </div>
 
           {/* Editor */}
-          <div className="flex-1 bg-muted/30 p-4">
-            <div className="h-full border rounded-lg bg-background/50 overflow-hidden">
+          <div className="flex-1 bg-gradient-to-br from-muted/20 via-transparent to-muted/10 p-4">
+            <div className="h-full border-2 border-border/20 rounded-xl bg-background overflow-hidden shadow-xl hover:border-brand/30 transition-all duration-500 relative group">
+              {/* Glow effect on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
               <Editor
                 height="100%"
                 language={userLang.value}
                 value={usersCode || getStarterCode()}
                 theme="vs-dark"
                 options={{
-                  fontSize: 14,
-                  fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
-                  minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
-                  lineNumbers: 'on',
-                  renderLineHighlight: 'line',
-                  cursorBlinking: 'blink',
-                  cursorStyle: 'line',
-                  smoothScrolling: true,
-                  padding: { top: 12, bottom: 12 },
-                  automaticLayout: true,
-                  wordWrap: 'off',
-                  lineDecorationsWidth: 8,
-                  lineNumbersMinChars: 3,
-                  glyphMargin: false,
-                  folding: true,
-                  renderWhitespace: 'none',
-                  scrollbar: {
-                    vertical: 'visible',
-                    horizontal: 'visible',
-                    useShadows: false,
-                    verticalScrollbarSize: 10,
-                    horizontalScrollbarSize: 10,
-                  },
-                  suggest: { showKeywords: true, showSnippets: true },
-                  quickSuggestions: { other: true, comments: false, strings: false },
-                  tabSize: 4,
-                  insertSpaces: true,
-                  detectIndentation: false,
-                  bracketPairColorization: { enabled: true },
-                }}
-                onChange={handleEditorChange}
-              />
+                    fontSize: 14,
+                    fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    lineNumbers: 'on',
+                    renderLineHighlight: 'line',
+                    cursorBlinking: 'blink',
+                    cursorStyle: 'line',
+                    smoothScrolling: true,
+                    padding: { top: 12, bottom: 12 },
+                    automaticLayout: true,
+                    wordWrap: 'off',
+                    lineDecorationsWidth: 8,
+                    lineNumbersMinChars: 3,
+                    glyphMargin: false,
+                    folding: true,
+                    renderWhitespace: 'none',
+                    scrollbar: {
+                      vertical: 'visible',
+                      horizontal: 'visible',
+                      useShadows: false,
+                      verticalScrollbarSize: 10,
+                      horizontalScrollbarSize: 10,
+                    },
+                    suggest: { showKeywords: true, showSnippets: true },
+                    quickSuggestions: { other: true, comments: false, strings: false },
+                    tabSize: 4,
+                    insertSpaces: true,
+                    detectIndentation: false,
+                    bracketPairColorization: { enabled: true },
+                  }}
+                  onChange={handleEditorChange}
+                  onMount={handleEditorMount}
+                />
             </div>
           </div>
           </div>
@@ -613,6 +627,7 @@ const handleCodeSubmission = async () => {
             testcaseResults={testcaseResults}
             activeBottomTab={activeBottomTab}
             setActiveBottomTab={setActiveBottomTab}
+            isLoading={isRunning || isSubmitting}  // ADD THIS LINE
           />
         </ResizablePanel>
       </ResizablePanelGroup>

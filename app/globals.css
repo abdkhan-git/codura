@@ -1,7 +1,31 @@
 @import "tailwindcss";
 @import "../styles/utils.css";
+@import "react-day-picker/style.css";
 
 @import "tw-animate-css";
+
+/* React Day Picker - Study Pods Emerald Accent */
+.rdp {
+  --rdp-accent-color: #10b981 !important;
+  --rdp-accent-color-dark: #10b981 !important;
+}
+
+/* Force emerald color on selected days - override default blue */
+.rdp-selected {
+  background: linear-gradient(to bottom right, #34d399, #14b8a6) !important;
+  color: white !important;
+  border-color: #10b981 !important;
+}
+
+.rdp-selected:hover {
+  background: linear-gradient(to bottom right, #34d399, #14b8a6) !important;
+}
+
+/* Force emerald border on today */
+.rdp-today:not(.rdp-selected) {
+  border: 2px solid #10b981 !important;
+  color: #10b981 !important;
+}
 
 /* Theme transition utilities - only for theme-related properties */
 html {
@@ -844,4 +868,51 @@ body {
 
 .animation-delay-4000 {
   animation-delay: 4s;
+}
+
+/* Excalidraw Customizations */
+.excalidraw {
+  --ui-font: 'Inter', sans-serif !important;
+}
+
+.excalidraw .App-menu_top {
+  background: transparent !important;
+}
+
+.excalidraw .App-menu__left {
+  background: rgba(18, 18, 18, 0.95) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.excalidraw .Island {
+  background: rgba(18, 18, 18, 0.95) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.excalidraw .ToolIcon_type_button {
+  background: transparent !important;
+}
+
+.excalidraw .ToolIcon_type_button:hover {
+  background: rgba(245, 158, 11, 0.2) !important;
+}
+
+.excalidraw .ToolIcon_type_button--selected {
+  background: rgba(245, 158, 11, 0.3) !important;
+  border-color: #f59e0b !important;
+}
+
+.excalidraw-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+.excalidraw .App-bottom-bar {
+  background: rgba(18, 18, 18, 0.95) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }

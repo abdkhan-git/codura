@@ -12,37 +12,67 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import html2canvas from 'html2canvas'
+
+// ImageCapture API type declaration
+declare global {
+  class ImageCapture {
+    constructor(track: MediaStreamTrack)
+    grabFrame(): Promise<ImageBitmap>
+  }
+}
 
 interface CollaborativeWhiteboardProps {
   onDrawingChange?: (imageData: string) => void
   sendDataMessage?: (message: any) => void
   initialPosition?: { x: number; y: number }
   initialSize?: { width: number; height: number }
+  remoteWhiteboardOpen?: boolean
 }
 
 export interface CollaborativeWhiteboardHandle {
   applyRemoteDrawing: (imageData: string) => void
-  clear: () => void
+  applyRemoteStroke: (strokeData: StrokeData) => void
+  clear: (options?: { broadcast?: boolean }) => void
+  applyRemoteSettings: (settings: WhiteboardSettingsUpdate) => void
+}
+
+interface StrokeData {
+  tool: DrawingTool
+  color: string
+  strokeWidth: number
+  fromX: number
+  fromY: number
+  toX: number
+  toY: number
 }
 
 type DrawingTool = 'pen' | 'eraser'
+type WhiteboardSettingsUpdate = {
+  isTransparent?: boolean
+  position?: { x: number; y: number }
+  size?: { width: number; height: number }
+}
 
 export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle, CollaborativeWhiteboardProps>(({
   onDrawingChange,
   sendDataMessage,
   initialPosition = { x: 100, y: 100 },
   initialSize = { width: 600, height: 400 },
+  remoteWhiteboardOpen = false,
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Drawing states
+  // @ts-ignore - Keep for potential future UI feedback
   const [isDrawing, setIsDrawing] = useState(false)
   const [tool, setTool] = useState<DrawingTool>('pen')
   const [color, setColor] = useState('#ffffff')
   const [strokeWidth, setStrokeWidth] = useState(3)
   const [isTransparent, setIsTransparent] = useState(false)
-  const [isMinimized, setIsMinimized] = useState(false)
+  const [remoteUserDrawing, setRemoteUserDrawing] = useState(false)
+  const [bothWhiteboardsOpen, setBothWhiteboardsOpen] = useState(false)
 
   // Position and size states
   const [position, setPosition] = useState(initialPosition)
@@ -53,7 +83,34 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 })
 
   const lastPositionRef = useRef({ x: 0, y: 0 })
-  const isRemoteDrawingRef = useRef(false)
+  const isApplyingRemoteStrokeRef = useRef(false)
+
+  const broadcastSettings = useCallback((overrides?: WhiteboardSettingsUpdate) => {
+    if (!sendDataMessage) return
+
+    // Only broadcast position/size when transparent mode is active
+    const finalTransparent = overrides?.isTransparent ?? isTransparent
+
+    const payload: WhiteboardSettingsUpdate = {
+      isTransparent: finalTransparent,
+      // Only include position and size if transparent
+      ...(finalTransparent && {
+        position: overrides?.position ?? position,
+        size: overrides?.size ?? size,
+      }),
+    }
+
+    sendDataMessage({
+      type: 'whiteboard-settings',
+      settings: payload,
+    })
+  }, [sendDataMessage, isTransparent, position, size])
+
+  const handleTransparentToggle = useCallback(() => {
+    const nextTransparent = !isTransparent
+    setIsTransparent(nextTransparent)
+    broadcastSettings({ isTransparent: nextTransparent })
+  }, [isTransparent, broadcastSettings])
 
   // Colors palette
   const colors = [
@@ -69,9 +126,16 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    console.log('[Whiteboard] Initializing canvas')
+
     // Set canvas size
     canvas.width = size.width - 16 // Account for padding
     canvas.height = size.height - 100 // Account for toolbar height
+
+    // Reset canvas context to default state
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
 
     // Fill with background (transparent if enabled, dark otherwise)
     if (!isTransparent) {
@@ -103,6 +167,11 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    // Reset canvas context to default state after resize
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
     // Restore background (transparent if enabled, dark otherwise)
     if (!isTransparent) {
       ctx.fillStyle = '#1a1a1a'
@@ -125,6 +194,11 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
 
     // Save current drawing
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+
+    // Reset canvas context to default state
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
 
     // Clear and set new background
     if (!isTransparent) {
@@ -157,6 +231,58 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
     setIsDrawing(true)
   }
 
+  // Draw stroke helper function with interpolation for smooth lines
+  const drawStroke = useCallback((fromX: number, fromY: number, toX: number, toY: number, drawTool: DrawingTool, drawColor: string, drawWidth: number) => {
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    if (!ctx || !canvas) {
+      return
+    }
+
+    // Set up context settings
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    if (drawTool === 'pen') {
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.strokeStyle = drawColor
+      ctx.lineWidth = drawWidth
+    } else {
+      // Eraser: if board is opaque simply paint with background color,
+      // otherwise punch holes via destination-out.
+      if (isTransparent) {
+        ctx.globalCompositeOperation = 'destination-out'
+        ctx.strokeStyle = 'rgba(0,0,0,1)'
+      } else {
+        ctx.globalCompositeOperation = 'source-over'
+        ctx.strokeStyle = '#1a1a1a'
+      }
+      ctx.lineWidth = drawWidth * 3
+    }
+
+    // Interpolate aggressively to avoid gaps when moving fast
+    const distance = Math.hypot(toX - fromX, toY - fromY)
+    const steps = Math.max(1, Math.ceil(distance / 2)) // 2px step for dense coverage
+    const stepX = (toX - fromX) / steps
+    const stepY = (toY - fromY) / steps
+
+    let prevX = fromX
+    let prevY = fromY
+    for (let i = 1; i <= steps; i++) {
+      const nextX = fromX + stepX * i
+      const nextY = fromY + stepY * i
+      ctx.beginPath()
+      ctx.moveTo(prevX, prevY)
+      ctx.lineTo(nextX, nextY)
+      ctx.stroke()
+      prevX = nextX
+      prevY = nextY
+    }
+
+    // Always reset to source-over after drawing
+    ctx.globalCompositeOperation = 'source-over'
+  }, [isTransparent])
+
   // Draw on canvas
   const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return
@@ -167,34 +293,35 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
 
     const coords = getCanvasCoordinates(e)
 
-    ctx.beginPath()
-    ctx.moveTo(lastPositionRef.current.x, lastPositionRef.current.y)
-    ctx.lineTo(coords.x, coords.y)
+    // Reuse stroke helper for consistent interpolation
+    drawStroke(
+      lastPositionRef.current.x,
+      lastPositionRef.current.y,
+      coords.x,
+      coords.y,
+      tool,
+      color,
+      strokeWidth
+    )
 
-    if (tool === 'pen') {
-      ctx.strokeStyle = color
-      ctx.lineWidth = strokeWidth
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-    } else {
-      ctx.strokeStyle = '#1a1a1a'
-      ctx.lineWidth = strokeWidth * 3
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-    }
-
-    ctx.stroke()
-    lastPositionRef.current = coords
-
-    // Send drawing data to remote peer
-    if (!isRemoteDrawingRef.current && sendDataMessage) {
-      const imageData = canvas.toDataURL()
+    // Send stroke data to remote peer (only if this is not a remote stroke being applied)
+    if (!isApplyingRemoteStrokeRef.current && sendDataMessage) {
       sendDataMessage({
-        type: 'whiteboard-draw',
-        imageData,
+        type: 'whiteboard-stroke',
+        strokeData: {
+          tool,
+          color,
+          strokeWidth,
+          fromX: lastPositionRef.current.x,
+          fromY: lastPositionRef.current.y,
+          toX: coords.x,
+          toY: coords.y,
+        },
       })
     }
-  }, [isDrawing, tool, color, strokeWidth, sendDataMessage])
+
+    lastPositionRef.current = coords
+  }, [isDrawing, tool, color, strokeWidth, sendDataMessage, isTransparent])
 
   // Stop drawing
   const stopDrawing = () => {
@@ -207,58 +334,309 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
     }
   }
 
-  // Clear canvas
-  const clearCanvas = () => {
+  // Clear canvas. Optionally skip broadcasting to avoid loops when responding to remote clears.
+  const clearCanvas = useCallback((options?: { broadcast?: boolean }) => {
+    const shouldBroadcast = options?.broadcast ?? true
     const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!ctx || !canvas) return
+    if (!canvas) return
 
-    // Clear based on transparency mode
+    // Fully reset drawing references so next stroke starts fresh
+    setIsDrawing(false)
+    lastPositionRef.current = { x: 0, y: 0 }
+
+    // Reset intrinsic canvas size to flush any lingering context state
+    const width = canvas.width
+    const height = canvas.height
+    canvas.width = width
+    canvas.height = height
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
     if (!isTransparent) {
       ctx.fillStyle = '#1a1a1a'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.fillRect(0, 0, width, height)
     } else {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.clearRect(0, 0, width, height)
     }
 
-    if (sendDataMessage) {
+    ctx.beginPath()
+
+    if (shouldBroadcast && sendDataMessage) {
       sendDataMessage({
         type: 'whiteboard-clear',
       })
     }
-  }
+  }, [isTransparent, sendDataMessage])
 
   // Download canvas as image
-  const downloadCanvas = () => {
+  const downloadCanvas = useCallback(async () => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const link = document.createElement('a')
-    link.download = `whiteboard-${Date.now()}.png`
-    link.href = canvas.toDataURL()
-    link.click()
-  }
+    const fileName = `whiteboard-${Date.now()}.png`
 
-  // Apply remote drawing
+    // For opaque mode, just export the canvas directly
+    if (!isTransparent) {
+      const link = document.createElement('a')
+      link.download = fileName
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+      return
+    }
+
+    // For transparent mode, try DOM capture first (no permission prompt). Fallback to screen capture.
+
+    try {
+      // Capture full page; includes background behind transparent canvas
+      const fullCanvas = await html2canvas(document.body, {
+        backgroundColor: null,
+        scale: window.devicePixelRatio || 1,
+        logging: false,
+        useCORS: true,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+        onclone: (cloneDoc) => {
+          // Strip unsupported CSS color functions from root backgrounds
+          cloneDoc.documentElement.style.background = "transparent";
+          cloneDoc.body.style.background = "transparent";
+          const nextRoot = cloneDoc.getElementById("__next");
+          if (nextRoot) {
+            (nextRoot as HTMLElement).style.background = "transparent";
+          }
+        },
+      })
+
+      // Get whiteboard position on screen (prefer full container so buttons/borders are captured)
+      const canvasRect = canvas.getBoundingClientRect()
+      const containerRect = containerRef.current?.getBoundingClientRect()
+      const targetRect = containerRect || canvasRect
+
+      // Ratios from viewport CSS px to captured canvas px
+      const ratioX = fullCanvas.width / window.innerWidth
+      const ratioY = fullCanvas.height / window.innerHeight
+
+      // Compute crop rect in captured pixel space
+      const sourceX = targetRect.left * ratioX
+      const sourceY = targetRect.top * ratioY
+      const sourceWidth = targetRect.width * ratioX
+      const sourceHeight = targetRect.height * ratioY
+
+      console.log('[Whiteboard] Cropping region (DOM capture):', { sourceX, sourceY, sourceWidth, sourceHeight, fullWidth: fullCanvas.width, fullHeight: fullCanvas.height })
+
+      // Prepare export canvas at cropped resolution
+      const exportCanvas = document.createElement('canvas')
+      exportCanvas.width = Math.round(sourceWidth)
+      exportCanvas.height = Math.round(sourceHeight)
+      const exportCtx = exportCanvas.getContext('2d')
+      if (!exportCtx) return
+
+      // Draw cropped screenshot
+      exportCtx.drawImage(
+        fullCanvas,
+        sourceX, sourceY, sourceWidth, sourceHeight,
+        0, 0, exportCanvas.width, exportCanvas.height
+      )
+
+      // Now overlay the whiteboard drawing on top
+      const drawingImage = new Image()
+      await new Promise<void>((resolve, reject) => {
+        drawingImage.onload = () => {
+          // Position drawing where the canvas sits within the container so buttons/borders remain visible
+          const drawScaleX = exportCanvas.width / (targetRect.width * ratioX)
+          const drawScaleY = exportCanvas.height / (targetRect.height * ratioY)
+          const offsetX = (canvasRect.left - targetRect.left) * ratioX * drawScaleX
+          const offsetY = (canvasRect.top - targetRect.top) * ratioY * drawScaleY
+
+          exportCtx.drawImage(
+            drawingImage,
+            offsetX,
+            offsetY,
+            canvasRect.width * ratioX * drawScaleX,
+            canvasRect.height * ratioY * drawScaleY
+          )
+          console.log('[Whiteboard] Drawing overlaid on screenshot')
+          resolve()
+        }
+        drawingImage.onerror = reject
+        drawingImage.src = canvas.toDataURL('image/png')
+      })
+
+      // Download the combined image
+      const link = document.createElement('a')
+      link.download = fileName
+      link.href = exportCanvas.toDataURL('image/png')
+      link.click()
+
+      console.log('[Whiteboard] Transparent whiteboard with background saved via DOM capture!')
+    } catch (error) {
+      console.error('[Whiteboard] DOM capture failed, falling back to screen capture:', error)
+
+      try {
+        // Request screen capture
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            displaySurface: 'window', // Prefer current window to simplify coordinate mapping
+            preferCurrentTab: true,
+          },
+          audio: false,
+        })
+
+        const videoTrack = displayStream.getVideoTracks()[0]
+        const imageCapture = new ImageCapture(videoTrack)
+
+        // Capture a frame from the screen
+        const bitmap = await imageCapture.grabFrame()
+
+        // Stop the stream immediately
+        displayStream.getTracks().forEach(track => track.stop())
+
+        console.log('[Whiteboard] Screen captured:', bitmap.width, 'x', bitmap.height)
+
+        // Get whiteboard position on screen (prefer full container so buttons/borders are captured)
+        const canvasRect = canvas.getBoundingClientRect()
+        const containerRect = containerRef.current?.getBoundingClientRect()
+        const targetRect = containerRect || canvasRect
+
+        // Create a canvas to extract the whiteboard region from the screenshot
+        const exportCanvas = document.createElement('canvas')
+        exportCanvas.width = Math.round(targetRect.width)
+        exportCanvas.height = Math.round(targetRect.height)
+        const exportCtx = exportCanvas.getContext('2d')
+        if (!exportCtx) return
+
+        // Map CSS pixels (viewport) to captured bitmap pixels.
+        const captureWidth = bitmap.width
+        const captureHeight = bitmap.height
+        const scaleX = captureWidth / window.innerWidth
+        const scaleY = captureHeight / window.innerHeight
+
+        const sourceX = targetRect.left * scaleX
+        const sourceY = targetRect.top * scaleY
+        const sourceWidth = targetRect.width * scaleX
+        const sourceHeight = targetRect.height * scaleY
+
+        console.log('[Whiteboard] Cropping region (window capture):', { sourceX, sourceY, sourceWidth, sourceHeight, captureWidth, captureHeight })
+
+        exportCtx.drawImage(
+          bitmap,
+          sourceX, sourceY, sourceWidth, sourceHeight,
+          0, 0, exportCanvas.width, exportCanvas.height
+        )
+
+        // Now overlay the whiteboard drawing on top
+        const drawingImage = new Image()
+        await new Promise<void>((resolve, reject) => {
+          drawingImage.onload = () => {
+            // Position drawing where the canvas sits within the container so buttons/borders remain visible
+            const drawScaleX = exportCanvas.width / targetRect.width
+            const drawScaleY = exportCanvas.height / targetRect.height
+            const offsetX = (canvasRect.left - targetRect.left) * drawScaleX
+            const offsetY = (canvasRect.top - targetRect.top) * drawScaleY
+
+            exportCtx.drawImage(
+              drawingImage,
+              offsetX,
+              offsetY,
+              canvasRect.width * drawScaleX,
+              canvasRect.height * drawScaleY
+            )
+            console.log('[Whiteboard] Drawing overlaid on screenshot')
+            resolve()
+          }
+          drawingImage.onerror = reject
+          drawingImage.src = canvas.toDataURL('image/png')
+        })
+
+        // Download the combined image
+        const link = document.createElement('a')
+        link.download = fileName
+        link.href = exportCanvas.toDataURL('image/png')
+        link.click()
+
+        console.log('[Whiteboard] Transparent whiteboard with background saved (screen capture fallback)!')
+      } catch (fallbackError) {
+        console.error('[Whiteboard] Screen capture failed:', fallbackError)
+        console.log('[Whiteboard] Falling back to drawing-only export')
+
+        // Fallback to just the drawing
+        const link = document.createElement('a')
+        link.download = fileName
+        link.href = canvas.toDataURL('image/png')
+        link.click()
+      }
+    }
+  }, [isTransparent])
+
+  const handleDownloadClick = useCallback(() => {
+    void downloadCanvas()
+  }, [downloadCanvas])
+
+  // Apply remote drawing (for backward compatibility, not actively used)
   const applyRemoteDrawing = useCallback((imageData: string) => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!ctx || !canvas) return
 
-    isRemoteDrawingRef.current = true
     const img = new Image()
     img.onload = () => {
       ctx.drawImage(img, 0, 0)
-      isRemoteDrawingRef.current = false
     }
     img.src = imageData
+  }, [])
+
+  // Apply remote stroke (real-time drawing)
+  const applyRemoteStroke = useCallback((strokeData: StrokeData) => {
+    console.log('[Whiteboard] Received remote stroke', strokeData)
+    isApplyingRemoteStrokeRef.current = true
+
+    // Indicate remote user is drawing
+    setRemoteUserDrawing(true)
+    setTimeout(() => setRemoteUserDrawing(false), 500)
+
+    // Draw the remote stroke on our canvas
+    drawStroke(
+      strokeData.fromX,
+      strokeData.fromY,
+      strokeData.toX,
+      strokeData.toY,
+      strokeData.tool,
+      strokeData.color,
+      strokeData.strokeWidth
+    )
+
+    // Reset flag immediately after drawing
+    isApplyingRemoteStrokeRef.current = false
+  }, [drawStroke])
+
+  const applyRemoteSettings = useCallback((settings: WhiteboardSettingsUpdate) => {
+    if (typeof settings.isTransparent === 'boolean') {
+      setIsTransparent(settings.isTransparent)
+    }
+    if (settings.position) {
+      setIsDragging(false)
+      setPosition(settings.position)
+    }
+    if (settings.size) {
+      setIsResizing(false)
+      setSize({
+        width: Math.max(400, settings.size.width),
+        height: Math.max(300, settings.size.height),
+      })
+    }
   }, [])
 
   // Expose methods to parent
   useImperativeHandle(ref, () => ({
     applyRemoteDrawing,
+    applyRemoteStroke,
     clear: clearCanvas,
-  }), [applyRemoteDrawing])
+    applyRemoteSettings,
+  }), [applyRemoteDrawing, applyRemoteStroke, clearCanvas, applyRemoteSettings])
 
   // Handle dragging
   const handleDragStart = (e: React.MouseEvent) => {
@@ -280,7 +658,11 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
 
   const handleDragEnd = useCallback(() => {
     setIsDragging(false)
-  }, [])
+    // Only broadcast position when transparent
+    if (isTransparent) {
+      broadcastSettings()
+    }
+  }, [broadcastSettings, isTransparent])
 
   // Handle resizing
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -308,7 +690,11 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
 
   const handleResizeEnd = useCallback(() => {
     setIsResizing(false)
-  }, [])
+    // Only broadcast size when transparent
+    if (isTransparent) {
+      broadcastSettings()
+    }
+  }, [broadcastSettings, isTransparent])
 
   // Add mouse event listeners
   useEffect(() => {
@@ -333,38 +719,33 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
     }
   }, [isResizing, handleResize, handleResizeEnd])
 
-  if (isMinimized) {
-    return (
-      <div
-        style={{
-          position: 'fixed',
-          left: position.x,
-          top: position.y,
-          zIndex: 100,
-        }}
-        className="bg-background border-2 border-black rounded-lg shadow-2xl"
-      >
-        <div
-          className="flex items-center justify-center p-2 cursor-move bg-muted/50 relative"
-          onMouseDown={handleDragStart}
-        >
-          <span className="text-sm font-medium">Whiteboard</span>
-          {/* Expand button in corner */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setIsMinimized(false)
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center hover:bg-muted/80 rounded transition-colors border border-black"
-            title="Expand"
-          >
-            <span className="text-[10px] font-bold">□</span>
-          </button>
-        </div>
-      </div>
-    )
-  }
+  // Broadcast that whiteboard is open when component mounts
+  useEffect(() => {
+    if (sendDataMessage) {
+      sendDataMessage({
+        type: 'whiteboard-opened',
+      })
+    }
+    // Broadcast closed when unmounting
+    return () => {
+      if (sendDataMessage) {
+        sendDataMessage({
+          type: 'whiteboard-closed',
+        })
+      }
+    }
+  }, [sendDataMessage])
+
+  // Clear canvas when both whiteboards become open
+  useEffect(() => {
+    const nowBothOpen = remoteWhiteboardOpen
+    if (nowBothOpen && !bothWhiteboardsOpen) {
+      setBothWhiteboardsOpen(true)
+      clearCanvas({ broadcast: false })
+    } else if (!nowBothOpen && bothWhiteboardsOpen) {
+      setBothWhiteboardsOpen(false)
+    }
+  }, [remoteWhiteboardOpen, bothWhiteboardsOpen, clearCanvas])
 
   return (
     <div
@@ -385,24 +766,30 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
       {/* Header */}
       <div
         className={cn(
-          'flex items-center justify-center p-2 cursor-move border-b border-black relative',
+          'flex items-center justify-between p-2 cursor-move border-b border-black relative',
           isTransparent ? 'bg-muted/70 backdrop-blur-md' : 'bg-muted/50'
         )}
         onMouseDown={handleDragStart}
       >
-        <span className="text-sm font-medium">Whiteboard (Drag to move)</span>
-        {/* Minimize button in corner */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            setIsMinimized(true)
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center hover:bg-muted/80 rounded transition-colors"
-          title="Minimize"
-        >
-          <span className="text-xs font-bold">_</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium">Whiteboard</span>
+          {remoteUserDrawing && (
+            <span className="text-xs text-muted-foreground">(Partner drawing...)</span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5" title="Your whiteboard status">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+            <span className="text-xs text-muted-foreground">You</span>
+          </div>
+          <div className="flex items-center gap-1.5" title={remoteWhiteboardOpen ? "Partner's whiteboard is open" : "Partner's whiteboard is closed"}>
+            <div className={cn(
+              "w-2 h-2 rounded-full transition-all",
+              remoteWhiteboardOpen ? "bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" : "bg-gray-400"
+            )} />
+            <span className="text-xs text-muted-foreground">Partner</span>
+          </div>
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -488,14 +875,14 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
           <Button
             variant="outline"
             size="sm"
-            onClick={clearCanvas}
+            onClick={() => clearCanvas()}
           >
             Clear
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={downloadCanvas}
+            onClick={handleDownloadClick}
           >
             Save
           </Button>
@@ -504,7 +891,7 @@ export const CollaborativeWhiteboard = forwardRef<CollaborativeWhiteboardHandle,
           <Button
             variant={isTransparent ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setIsTransparent(!isTransparent)}
+            onClick={handleTransparentToggle}
             title={isTransparent ? 'Opaque mode' : 'Transparent mode'}
           >
             Transparent

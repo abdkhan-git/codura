@@ -2,7 +2,7 @@
 'use client'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CopyCheck, ListChecks, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { CopyCheck, ListChecks, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 interface TestCase {
@@ -44,6 +44,7 @@ interface TestCasesSectionProps {
   testcaseResults?: TestcaseResult[] | undefined
   activeBottomTab: BottomTab
   setActiveBottomTab: (tab: BottomTab) => void
+  isLoading?: boolean  // NEW PROP
 }
 
 export default function TestCasesSection({
@@ -51,6 +52,7 @@ export default function TestCasesSection({
   testcaseResults,
   activeBottomTab,
   setActiveBottomTab,
+  isLoading = false,  // NEW PROP
 }: TestCasesSectionProps) {
   return (
     <div className="h-full border-t flex flex-col">
@@ -69,6 +71,9 @@ export default function TestCasesSection({
             <TabsTrigger value="results" className="px-4 flex-shrink-0 cursor-pointer !text-zinc-500 data-[state=active]:!text-white">
               <ListChecks className="text-green-600 w-4 h-4 mr-2" />
               Results
+              {isLoading && (
+                <Loader2 className="w-3 h-3 ml-2 animate-spin text-green-600" />
+              )}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -106,8 +111,9 @@ export default function TestCasesSection({
 
         {/* Results Tab */}
         <TabsContent value="results" className="flex-1 overflow-y-auto flex flex-col m-0 min-h-0">
-          {/* Show testcaseResults from run, or empty state */}
-          {testcaseResults && testcaseResults.length > 0 ? (
+          {isLoading ? (
+            <LoadingState />
+          ) : testcaseResults && testcaseResults.length > 0 ? (
             <TestcaseResultsDisplay testcaseResults={testcaseResults} />
           ) : (
             <div className="p-4">
@@ -125,6 +131,26 @@ export default function TestCasesSection({
 // ============================================
 // SUB-COMPONENTS
 // ============================================
+
+function LoadingState() {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-4">
+      <div className="relative">
+        <Loader2 className="w-12 h-12 text-green-600 animate-spin" />
+        <div className="absolute inset-0 bg-green-600/20 blur-xl animate-pulse" />
+      </div>
+      <div className="text-center space-y-2">
+        <p className="text-sm font-medium text-foreground">Running Test Cases</p>
+        <p className="text-xs text-muted-foreground">Evaluating your code...</p>
+      </div>
+      <div className="flex gap-1">
+        <div className="w-2 h-2 bg-green-600 rounded-full animate-bounce [animation-delay:-0.3s]" />
+        <div className="w-2 h-2 bg-green-600 rounded-full animate-bounce [animation-delay:-0.15s]" />
+        <div className="w-2 h-2 bg-green-600 rounded-full animate-bounce" />
+      </div>
+    </div>
+  )
+}
 
 function TestCaseContent({ testCase }: { testCase: TestCase }) {
   // Parse "x = 1, y = 2" style inputs but stay safe if format differs

@@ -1,20 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Circle,
-  Square,
-  Home,
   Users,
   Settings,
-  Info,
   Copy,
   Check,
+  Clock,
+  Bell,
+  UserCheck,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,26 +19,33 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { PendingUser } from "./admission-modal";
 
 interface SessionNavbarProps {
   sessionId: string;
   isHost: boolean;
-  isRecording: boolean;
-  onStartRecording: () => void;
-  onStopRecording: () => void;
   onLeave: () => void;
+  isPublic?: boolean;
+  timerEndMs?: number | null;
+  timerRemainingMs?: number;
+  formatMs?: (ms: number) => string;
+  pendingUsers?: PendingUser[];
 }
 
 export function SessionNavbar({
   sessionId,
   isHost,
-  isRecording,
-  onStartRecording,
-  onStopRecording,
   onLeave,
+  isPublic = false,
+  timerEndMs,
+  timerRemainingMs = 0,
+  formatMs,
+  pendingUsers = [],
 }: SessionNavbarProps) {
   const [copied, setCopied] = useState(false);
-  const [showSessionInfo, setShowSessionInfo] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationUser, setNotificationUser] = useState<PendingUser | null>(null);
 
   const copySessionId = () => {
     navigator.clipboard.writeText(sessionId);
@@ -50,178 +54,143 @@ export function SessionNavbar({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleRecordingToggle = () => {
-    if (isRecording) {
-      if (confirm("Stop recording? The recording will be downloaded.")) {
-        onStopRecording();
-      }
-    } else {
-      if (confirm("Start recording this session? Both participants will be notified.")) {
-        onStartRecording();
-      }
+  // Show notification when a new user joins
+  useEffect(() => {
+    if (pendingUsers.length > 0 && isHost) {
+      const latestUser = pendingUsers[pendingUsers.length - 1];
+      setNotificationUser(latestUser);
+      setShowNotification(true);
+
+      const timer = setTimeout(() => {
+        setShowNotification(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
     }
-  };
+  }, [pendingUsers.length, isHost]);
 
   return (
-    <div className="bg-card/50 backdrop-blur-xl border-b border-border/20 px-6 py-3">
+    <div className="bg-zinc-900/60 backdrop-blur-2xl border-b border-white/10 px-6 py-3 shadow-lg relative">
       <div className="flex items-center justify-between">
-        {/* Left Side - Session Info */}
+        {/* Left Side - Live Indicator & Timer */}
         <div className="flex items-center gap-4">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <Home className="w-4 h-4" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </Button>
-          </Link>
-
-          <div className="h-6 w-px bg-border/20" />
-
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-sm font-medium">Live Interview</span>
-            </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-xs"
-              onClick={() => setShowSessionInfo(!showSessionInfo)}
-            >
-              <Info className="w-3.5 h-3.5" />
-              Session Info
-            </Button>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-sm font-medium">Live Interview</span>
           </div>
 
-          {/* Session Info Dropdown */}
-          {showSessionInfo && (
-            <div className="absolute top-full left-0 mt-2 bg-card border border-border/20 rounded-lg shadow-xl p-4 z-50 min-w-[300px]">
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Session ID</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs bg-muted px-2 py-1 rounded font-mono truncate">
-                      {sessionId}
-                    </code>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={copySessionId}
-                    >
-                      {copied ? (
-                        <Check className="w-3.5 h-3.5 text-green-500" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Role</p>
-                  <p className="text-sm font-medium">
-                    {isHost ? "Host" : "Participant"}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setShowSessionInfo(false)}
-                >
-                  Close
-                </Button>
-              </div>
+          {/* Timer Display */}
+          {timerEndMs && formatMs && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/60 border border-white/10">
+              <Clock className="w-3.5 h-3.5 text-brand" />
+              <span className="text-sm font-mono font-medium text-brand">
+                {formatMs(timerRemainingMs)}
+              </span>
             </div>
           )}
         </div>
 
         {/* Right Side - Actions */}
         <div className="flex items-center gap-2">
-          {/* Recording Control (Host Only) */}
-          {isHost && (
-            <>
-              <Button
-                variant={isRecording ? "destructive" : "default"}
-                size="sm"
-                onClick={handleRecordingToggle}
-                className={cn(
-                  "gap-2",
-                  isRecording &&
-                    "bg-red-500 hover:bg-red-600 animate-pulse-subtle"
-                )}
-              >
-                {isRecording ? (
-                  <>
-                    <Square className="w-4 h-4 fill-white" />
-                    Stop Recording
-                  </>
-                ) : (
-                  <>
-                    <Circle className="w-4 h-4" />
-                    Record
-                  </>
-                )}
-              </Button>
-
-              <div className="h-6 w-px bg-border/20" />
-            </>
+          {/* Pending Requests Indicator - Only show for hosts */}
+          {isHost && pendingUsers.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-yellow-500/50 bg-yellow-500/10 hover:bg-yellow-500/20 relative"
+                >
+                  <div className="relative">
+                    <Bell className="w-4 h-4 text-yellow-500 animate-pulse" />
+                    <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-yellow-500" />
+                  </div>
+                  <span className="text-yellow-500 font-medium">{pendingUsers.length}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                  Pending Requests
+                </div>
+                <DropdownMenuSeparator />
+                {pendingUsers.map((user) => (
+                  <DropdownMenuItem key={user.user_id} className="flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-brand" />
+                    <span className="text-sm">{user.full_name || user.username}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
 
-          {/* Invite Partner */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={copySessionId}
-            className="gap-2"
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4" />
-                Copied!
-              </>
-            ) : (
-              <>
-                <Users className="w-4 h-4" />
-                <span className="hidden sm:inline">Invite</span>
-              </>
-            )}
-          </Button>
+          {/* Invite Partner - Hidden for non-host in public interviews */}
+          {!(isPublic && !isHost) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copySessionId}
+              className="gap-2"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Users className="w-4 h-4" />
+                  <span className="hidden sm:inline">Invite</span>
+                </>
+              )}
+            </Button>
+          )}
 
-          {/* More Options */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Settings className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={copySessionId}>
-                <Copy className="w-4 h-4 mr-2" />
-                Copy Session ID
-              </DropdownMenuItem>
+          {/* More Options - Hidden for non-host in public interviews */}
+          {!(isPublic && !isHost) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={copySessionId}>
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copy Session ID
+                </DropdownMenuItem>
 
-              <DropdownMenuSeparator />
+                <DropdownMenuSeparator />
 
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard" className="w-full cursor-pointer">
-                  <Home className="w-4 h-4 mr-2" />
-                  Back to Dashboard
-                </Link>
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuItem
-                onClick={onLeave}
-                className="text-red-600 focus:text-red-600"
-              >
-                Leave Interview
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuItem
+                  onClick={onLeave}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  Leave Interview
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
+
+      {/* Notification Dropdown - Shows when new user joins */}
+      {showNotification && notificationUser && isHost && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 animate-in slide-in-from-top-2 fade-in duration-200">
+          <div className="bg-zinc-900 border border-yellow-500/50 rounded-lg px-4 py-3 shadow-xl backdrop-blur-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+                {notificationUser.full_name?.charAt(0) || notificationUser.username?.charAt(0) || "U"}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-white">
+                  {notificationUser.full_name || notificationUser.username}
+                </span>
+                <span className="text-sm text-yellow-500">wants to join</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

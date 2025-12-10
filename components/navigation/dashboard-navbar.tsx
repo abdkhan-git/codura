@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { NotificationsDropdown } from "@/components/social/notifications-dropdown";
 import { DefaultAvatar } from "@/components/ui/default-avatar";
+import { PublicInterviewStatusButton } from "@/components/mock-interview/public-interview-status-button";
 
 interface UserData {
   name: string;
@@ -420,23 +421,24 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
               </DropdownMenuItem>
 
               <DropdownMenuItem asChild className="relative z-10">
-                <Link href="/discuss" className="flex items-center gap-3 px-3 py-2 cursor-pointer rounded-lg group">
+                <Link href="/live-streams" className="flex items-center gap-3 px-3 py-2 cursor-pointer rounded-lg group">
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:scale-110",
                     currentTheme === 'light'
-                      ? "bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25"
-                      : "bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/25"
+                      ? "bg-gradient-to-br from-purple-500 to-violet-500 shadow-lg shadow-purple-500/25"
+                      : "bg-gradient-to-br from-purple-600 to-violet-600 shadow-lg shadow-purple-500/25"
                   )}>
-                    <MessageSquare className="w-4 h-4 text-white" strokeWidth={2.5} />
+                    <Video className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium">Discuss</p>
+                    <p className="text-sm font-medium">Live Stream</p>
                     <p className={cn("text-xs", currentTheme === 'light' ? "text-zinc-500" : "text-zinc-400")}>
-                      Forums & Q&A
+                      Create or watch live streams
                     </p>
                   </div>
                 </Link>
               </DropdownMenuItem>
+              
             </DropdownMenuContent>
           </DropdownMenu>
         </nav>
@@ -460,6 +462,9 @@ export default function DashboardNavbar({ user }: DashboardNavbarProps) {
           >
             <MessageSquare className="w-4 h-4" />
           </Button>
+
+          {/* Public Interview Status */}
+          <PublicInterviewStatusButton />
 
           {/* Notifications */}
           <NotificationsDropdown />

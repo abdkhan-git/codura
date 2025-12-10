@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,13 @@ const EMOJI_LIST = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 export default function FloatingMessageWidget() {
   const { theme } = useTheme();
+  const pathname = usePathname();
   const supabase = createClient();
+  
+  // Hide widget on problems and live streams pages to avoid blocking stream chat send button
+  const isProblemsPage = pathname?.startsWith('/problems/');
+  const isLiveStreamsPage = pathname?.startsWith('/live-streams/');
+  const shouldHideWidget = isProblemsPage || isLiveStreamsPage;
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -333,21 +340,27 @@ export default function FloatingMessageWidget() {
     (c) => c.id === selectedConversationId
   );
 
+  // Don't render on problems or live streams pages
+  if (shouldHideWidget) {
+    return null;
+  }
+
   if (!isOpen) {
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-6 left-6 z-30">
         <Button
           onClick={() => setIsOpen(true)}
           className={cn(
             "relative h-14 w-14 rounded-full shadow-lg transition-all hover:scale-110",
             "bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
           )}
+          aria-label="Open Messages"
         >
           <Send className="w-6 h-6 text-white" />
           {unreadCount > 0 && (
             <Badge
               className={cn(
-                "absolute -top-1 -right-1 h-6 w-6 rounded-full p-0 flex items-center justify-center",
+                "absolute -top-1 -right-1 h-6 w-6 rounded-full p-0 flex items-center justify-center animate-pulse",
                 "bg-red-500 text-white text-xs font-bold border-2 border-background"
               )}
             >
@@ -359,8 +372,13 @@ export default function FloatingMessageWidget() {
     );
   }
 
+  // Don't render on problems page
+  if (isProblemsPage) {
+    return null;
+  }
+
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-6 left-6 z-30">
       <Card
         className={cn(
           "backdrop-blur-xl border-2 shadow-2xl transition-all duration-300",

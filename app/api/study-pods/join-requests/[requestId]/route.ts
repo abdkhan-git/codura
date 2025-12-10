@@ -172,6 +172,26 @@ export async function PATCH(
       );
     }
 
+    // Create notification for the requester
+    await supabase.from('notifications').insert({
+      user_id: joinRequest.user_id,
+      actor_id: user.id,
+      type: action === 'approve' ? 'connection_accepted' : 'connection_request',
+      notification_type: action === 'approve' ? 'connection_accepted' : 'connection_request',
+      title: action === 'approve' ? 'Join Request Approved' : 'Join Request Rejected',
+      message: action === 'approve'
+        ? `Your request to join ${joinRequest.pod.name} has been approved!`
+        : `Your request to join ${joinRequest.pod.name} was not approved.`,
+      link: `/study-pods/${joinRequest.pod_id}`,
+      priority: action === 'approve' ? 'high' : 'normal',
+      metadata: {
+        pod_id: joinRequest.pod_id,
+        pod_name: joinRequest.pod.name,
+        action: action,
+        rejection_reason: rejection_reason || null,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       message: action === 'approve'

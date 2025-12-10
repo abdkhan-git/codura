@@ -26,13 +26,7 @@ import {
   BarChart3,
   Settings,
 } from "lucide-react";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart"; // Ensure this file exists or update the path to the correct location
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { PlanDialog } from "@/components/study-plans/plan-dialog";
 import { StudyPlanDetailDialog } from "@/components/study-plans/study-plan-detail-dialog";
@@ -354,8 +348,6 @@ export default function DashboardPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
-  const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
@@ -363,12 +355,9 @@ export default function DashboardPage() {
   const [eventToEdit, setEventToEdit] = useState<any>(null);
   const [activityChartData, setActivityChartData] = useState<any[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1M');
-  const [selectedStudyPlan, setSelectedStudyPlan] = useState<{ id: string; name: string; color: string; is_public?: boolean } | null>(null);
-  const [showStudyPlanDialog, setShowStudyPlanDialog] = useState(false);
   
   // Onboarding and Questionnaire modal state
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
-  const [hasSchoolCode, setHasSchoolCode] = useState(true);
   const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false);
   const [questionnaireData, setQuestionnaireData] = useState<any>(null);
   const [questionnaireCompleted, setQuestionnaireCompleted] = useState(true);
@@ -396,9 +385,9 @@ export default function DashboardPage() {
 
         const data = await response.json();
 
-        // Set all state at once
+        // Set all state at once (study plans hidden for now)
         setUser(data.user);
-        setStudyPlans(data.studyPlans || []);
+        // setStudyPlans([]); // Disabled - study plans feature hidden
         setRecentActivity(data.recentActivity || []);
         setUpcomingEvents(data.upcomingEvents || []);
         setDailyChallenge(data.dailyChallenge);
@@ -409,13 +398,14 @@ export default function DashboardPage() {
           const code = data.user.federalSchoolCode;
           const codeStr = code === null || code === undefined ? "" : String(code).trim();
           const hasCode = codeStr.length > 0 && codeStr !== "no_school";
-          
-          setHasSchoolCode(hasCode || codeStr === "no_school");
-          
-          // Priority 1: Show onboarding if no school code at all
-          if (!hasCode && codeStr !== "no_school") {
+
+          // Check if user has completed onboarding (has age and academic_year)
+          const hasCompletedOnboarding = data.user.age && data.user.academicYear;
+
+          // Priority 1: Show onboarding if no school code at all AND hasn't completed onboarding
+          if (!hasCode && codeStr !== "no_school" && !hasCompletedOnboarding) {
             setShowOnboardingModal(true);
-          } 
+          }
           // Priority 2: Show questionnaire if has code but not completed
           else if (data.user.questionnaireCompleted === false) {
             setQuestionnaireCompleted(false);
@@ -437,11 +427,49 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchActivityChart() {
       try {
+        console.log('🔵 Fetching chart data for timeframe:', selectedTimeframe);
         const response = await fetch(`/api/dashboard/activity-chart?timeframe=${selectedTimeframe}`);
+        console.log('🔵 Response status:', response.status, response.statusText);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('🔴 API Error Response:', errorText);
+          throw new Error(`Failed to fetch data: ${response.status}`);
+        }
+        
         const data = await response.json();
-        setActivityChartData(data.data || []);
+        console.log('🟢 Activity Chart Data Received:', {
+          hasData: !!data.data,
+          dataLength: data.data?.length || 0,
+          timeframe: data.timeframe,
+          first3Items: data.data?.slice(0, 3),
+          last3Items: data.data?.slice(-3)
+        });
+        
+        // Ensure data is valid
+        if (data.data && Array.isArray(data.data)) {
+          // Filter out any invalid entries and ensure problems is a number
+          const validData = data.data.filter((item: any) => 
+            item && 
+            typeof item.problems === 'number' && 
+            item.label
+          );
+          
+          console.log('🟢 Valid data points:', validData.length);
+          
+          if (validData.length > 0) {
+            setActivityChartData(validData);
+          } else {
+            console.warn('⚠️ No valid data points after filtering');
+            setActivityChartData([]);
+          }
+        } else {
+          console.warn('⚠️ No data array in response');
+          setActivityChartData([]);
+        }
       } catch (error) {
-        console.error('Error fetching activity chart:', error);
+        console.error('🔴 Error fetching activity chart:', error);
+        setActivityChartData([]);
       }
     }
 
@@ -465,7 +493,6 @@ export default function DashboardPage() {
   // Handle onboarding completion - show questionnaire next
   const handleOnboardingComplete = () => {
     setShowOnboardingModal(false);
-    setHasSchoolCode(true);
     // Now show questionnaire modal
     fetchQuestionnaireData();
   };
@@ -489,7 +516,7 @@ export default function DashboardPage() {
       }
       const data = await response.json();
       setUser(data.user);
-      setStudyPlans(data.studyPlans || []);
+      // setStudyPlans([]); // Disabled - study plans feature hidden
       setRecentActivity(data.recentActivity || []);
       setUpcomingEvents(data.upcomingEvents || []);
       setDailyChallenge(data.dailyChallenge);
@@ -831,52 +858,83 @@ export default function DashboardPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="h-[300px]">
-                <ChartContainer config={chartConfig} className="h-full w-full">
-                  <AreaChart
-                    accessibilityLayer
-                    data={activityChartData}
-                    margin={{
-                      left: 0,
-                      right: 0,
-                      top: 10,
-                      bottom: 0,
-                    }}
-                  >
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis
-                      dataKey="label"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-                      interval="preserveStartEnd"
-                    />
-                    <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                    <defs>
-                      <linearGradient id="fillProblems" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="5%"
-                          stopColor="var(--brand)"
-                          stopOpacity={0.8}
+              <CardContent className="h-[300px] p-6">
+                {activityChartData.length > 0 ? (
+                  <div className="h-full w-full" style={{ minHeight: '280px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={activityChartData}
+                        margin={{
+                          left: 0,
+                          right: 0,
+                          top: 10,
+                          bottom: 0,
+                        }}
+                      >
+                        <defs>
+                          <linearGradient id="fillProblems" x1="0" y1="0" x2="0" y2="1">
+                            <stop
+                              offset="5%"
+                              stopColor="var(--brand)"
+                              stopOpacity={0.8}
+                            />
+                            <stop
+                              offset="95%"
+                              stopColor="var(--brand)"
+                              stopOpacity={0.1}
+                            />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
+                        <XAxis
+                          dataKey="label"
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                          interval="preserveStartEnd"
                         />
-                        <stop
-                          offset="95%"
-                          stopColor="var(--brand)"
-                          stopOpacity={0.1}
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                          width={40}
                         />
-                      </linearGradient>
-                    </defs>
-                    <Area
-                      dataKey="problems"
-                      type="monotone"
-                      fill="url(#fillProblems)"
-                      fillOpacity={0.4}
-                      stroke="var(--brand)"
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ChartContainer>
+                        <Tooltip 
+                          cursor={false} 
+                          content={({ active, payload }) => {
+                            if (!active || !payload || !payload.length) return null;
+                            const data = payload[0].payload;
+                            return (
+                              <div className="rounded-lg border bg-background/95 backdrop-blur-sm p-2 shadow-md">
+                                <p className="font-medium text-sm">{data.label}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Problems: <span className="font-semibold text-foreground">{data.problems}</span>
+                                </p>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Area
+                          dataKey="problems"
+                          type="monotone"
+                          fill="url(#fillProblems)"
+                          fillOpacity={0.4}
+                          stroke="var(--brand)"
+                          strokeWidth={2}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+                    <div className="text-center">
+                      <BarChart3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No activity data available</p>
+                      <p className="text-xs mt-1">Try selecting a different timeframe</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1050,129 +1108,6 @@ export default function DashboardPage() {
           <div className="space-y-6">
             <Calendar streak={user.streak} />
 
-            {/* Study Plan Progress */}
-            <Card 
-              className="relative border-2 border-border/20 bg-gradient-to-br from-card/50 via-card/30 to-transparent backdrop-blur-xl overflow-hidden group hover:border-green-500/30 transition-all duration-500 shadow-xl hover:scale-[1.01] shine-effect"
-              style={{ '--glow-color': '#22c55e' } as React.CSSProperties}
-            >
-              {/* Animated glow borders */}
-              <div className="glow-border-top" />
-              <div className="glow-border-bottom" />
-              <div className="glow-border-left" />
-              <div className="glow-border-right" />
-              
-              {/* Enhanced background gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-15 transition-opacity duration-700 pointer-events-none" />
-
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                    <Target className="w-5 h-5 text-green-500" />
-                    Study Plans
-                  </CardTitle>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 gap-1 hover:bg-brand/10 hover:text-brand"
-                    onClick={() => setShowPlanDialog(true)}
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span className="hidden sm:inline">Create</span>
-                  </Button>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {studyPlans.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p className="text-sm mb-4">No study plans yet</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowPlanDialog(true)}
-                      className="border-brand/30 hover:bg-brand/10 hover:border-brand/50"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Your First Plan
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    {studyPlans.slice(0, 3).map((plan) => {
-                      // Calculate progress stats
-                      const total = plan.problem_count || 0;
-                      const completed = plan.solved_count || 0; // Will be real data from API
-                      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-                      return (
-                        <div
-                          key={plan.id}
-                          className="group/plan cursor-pointer"
-                          onClick={() => {
-                            setSelectedStudyPlan({ id: plan.id, name: plan.name, color: plan.color, is_public: plan.is_public });
-                            setShowStudyPlanDialog(true);
-                          }}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-foreground hover:text-brand transition-colors">{plan.name}</span>
-                              {plan.is_default && (
-                                <Badge variant="outline" className="text-xs h-5 border-brand/30">
-                                  Default
-                                </Badge>
-                              )}
-                              {plan.is_public && (
-                                <Badge variant="outline" className="text-xs h-5 bg-green-500/10 text-green-500 border-green-500/30">
-                                  Public
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">
-                                {completed}/{total} solved ({percentage}%)
-                              </span>
-                            </div>
-                          </div>
-                          <div className="relative w-full bg-muted/30 rounded-full h-2.5 overflow-hidden group-hover/plan:h-3 transition-all">
-                            <div
-                              className={`bg-gradient-to-r ${plan.color} h-full rounded-full transition-all duration-500 relative`}
-                              style={{ width: `${percentage}%` }}
-                            >
-                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {studyPlans.length > 3 && (
-                      <Link href="/study-plans" className="block">
-                        <Button variant="outline" size="sm" className="w-full border-brand/30 hover:bg-brand/10 hover:border-brand/50">
-                          View All Plans ({studyPlans.length})
-                        </Button>
-                      </Link>
-                    )}
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full border-brand/30 hover:bg-brand/10 hover:border-brand/50"
-                      onClick={() => setShowPlanDialog(true)}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Custom Plan
-                    </Button>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <PlanDialog
-              open={showPlanDialog}
-              onOpenChange={setShowPlanDialog}
-              onPlanCreated={refetchDashboard}
-            />
-
             <EventDialog
               open={showUpcomingEventDialog}
               onOpenChange={setShowUpcomingEventDialog}
@@ -1181,20 +1116,10 @@ export default function DashboardPage() {
               existingEvent={eventToEdit}
             />
 
-            {selectedStudyPlan && (
-              <StudyPlanDetailDialog
-                open={showStudyPlanDialog}
-                onOpenChange={setShowStudyPlanDialog}
-                listId={selectedStudyPlan.id}
-                listName={selectedStudyPlan.name}
-                listColor={selectedStudyPlan.color}
-                isPublic={selectedStudyPlan.is_public}
-                onListUpdated={refetchDashboard}
-              />
-            )}
+            {/* StudyPlanDetailDialog removed - study plans feature hidden */}
 
-            {/* Onboarding Modal - Shows for users without school code */}
-            {showOnboardingModal && !hasSchoolCode && (
+            {/* Onboarding Modal - Shows for users who haven't completed onboarding */}
+            {showOnboardingModal && (
               <OnboardingModal onComplete={handleOnboardingComplete} />
             )}
 

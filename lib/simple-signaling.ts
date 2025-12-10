@@ -20,10 +20,12 @@ export class SimpleSignaling {
   private userId: string;
   private channel: any = null;
   private messageCallback: ((message: SignalingMessage) => void) | null = null;
+  private channelPrefix: string;
 
-  constructor(sessionId: string, userId: string) {
+  constructor(sessionId: string, userId: string, channelPrefix: string = 'mock-interview') {
     this.sessionId = sessionId;
     this.userId = userId;
+    this.channelPrefix = channelPrefix;
   }
 
   /**
@@ -32,7 +34,7 @@ export class SimpleSignaling {
   async connect(initialData?: Record<string, any>) {
     try {
       // Subscribe to session channel
-      this.channel = this.supabase.channel(`mock-interview:${this.sessionId}`);
+      this.channel = this.supabase.channel(`${this.channelPrefix}:${this.sessionId}`);
 
       // Listen for broadcast messages
       this.channel

@@ -1,0 +1,65 @@
+{
+  "name": "blind_75_essentials",
+  "display_name": "Blind 75 Essentials",
+  "description": "The legendary 75 LeetCode problems that cover all essential patterns for coding interviews. Originally shared on Blind, this list has helped thousands land FAANG offers.",
+  "source_url": "https://www.teamblind.com/post/New-Year-Gift---Curated-List-of-Top-75-LeetCode-Questions-to-Save-Your-Time-OaM1orEU",
+  "total_problems": 0,
+  "categories": [
+    {
+      "category": "Arrays & Hashing",
+      "order": 1,
+      "problems": []
+    },
+    {
+      "category": "Two Pointers",
+      "order": 2,
+      "problems": []
+    },
+    {
+      "category": "Sliding Window",
+      "order": 3,
+      "problems": []
+    },
+    {
+      "category": "Binary Search",
+      "order": 4,
+      "problems": []
+    },
+    {
+      "category": "Linked Lists",
+      "order": 5,
+      "problems": []
+    },
+    {
+      "category": "Trees",
+      "order": 6,
+      "problems": []
+    },
+    {
+      "category": "Heaps & Priority Queue",
+      "order": 7,
+      "problems": []
+    },
+    {
+      "category": "Dynamic Programming",
+      "order": 8,
+      "problems": []
+    },
+    {
+      "category": "Graphs",
+      "order": 9,
+      "problems": []
+    },
+    {
+      "category": "Backtracking & Combinations",
+      "order": 10,
+      "problems": []
+    },
+    {
+      "category": "Bit Manipulation",
+      "order": 11,
+      "problems": []
+    }
+  ],
+  "all_problems": []
+}

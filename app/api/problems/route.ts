@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const difficulty = searchParams.get('difficulty');
     const search = searchParams.get('search');
     const tags = searchParams.get('tags')?.split(',').filter(Boolean);
+    const ids = searchParams.get('ids')?.split(',').filter(Boolean).map(Number);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = (page - 1) * limit;
@@ -18,6 +19,25 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('problems')
       .select('*', { count: 'exact' });
+
+    // Filter by specific IDs (for challenge problems)
+    if (ids && ids.length > 0) {
+      query = query.in('id', ids);
+      // When filtering by IDs, return all matching (no pagination)
+      const { data: problems, error } = await query;
+
+      if (error) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        problems: problems || [],
+        total: problems?.length || 0,
+      });
+    }
 
     // Filter by difficulty
     if (difficulty && ['Easy', 'Medium', 'Hard'].includes(difficulty)) {

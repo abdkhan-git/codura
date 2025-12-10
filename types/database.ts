@@ -13,6 +13,10 @@ export interface UserProfile {
   github_username: string | null;
   linkedin_username: string | null;
   is_public: boolean | null;
+  federal_school_code: string | null;
+  major: string | null;
+  age: number | null;
+  academic_year: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -46,6 +50,13 @@ export interface Submission {
   memory: number | null;
   submitted_at: string;
   created_at: string;
+  time_complexity?: string | null;
+  complexity_confidence?: number | null;
+  complexity_analysis?: string | null;
+  space_complexity?: string | null;
+  space_complexity_analysis?: string | null;
+  time_complexity_snippets?: string[] | null;
+  space_complexity_snippets?: string[] | null;
 }
 
 export interface Achievement {
@@ -152,4 +163,21 @@ export interface UserSearchResult {
   connection_status: 'none' | 'pending_sent' | 'pending_received' | 'connected' | 'blocked';
   mutual_connections_count: number;
   is_public: boolean;
+}
+
+// Leaderboard entry type
+export interface LeaderboardEntry {
+  rank: number;
+  user_id: string;
+  username: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  total_solved: number;
+  easy_solved: number;
+  medium_solved: number;
+  hard_solved: number;
+  current_streak: number;
+  total_points: number;
+  contest_rating: number;
+  federal_school_code: string | null;
 }
