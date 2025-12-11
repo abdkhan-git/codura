@@ -37,7 +37,8 @@ export async function POST(request: NextRequest) {
       stdin
     };
 
-    const response = await fetch(`https://${process.env.RAPIDAPI_HOST}/submissions`, {
+    // Use wait=true to get results synchronously (faster response)
+    const response = await fetch(`https://${process.env.RAPIDAPI_HOST}/submissions?base64_encoded=false&wait=true`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,10 +48,16 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body)
     });
 
-    const data = await response.json();
-    const token = data.token;
+    const judge0Result = await response.json();
 
-    const judge0Result = await pollSubmissionStatus(token);
+    // If wait=true didn't work (some Judge0 instances), fall back to polling
+    if (judge0Result.token && !judge0Result.stdout && !judge0Result.stderr) {
+      console.log('⏳ Falling back to polling...');
+      const polledResult = await pollSubmissionStatus(judge0Result.token);
+      if (polledResult) {
+        Object.assign(judge0Result, polledResult);
+      }
+    }
     const testcaseResults = parseTestResults(judge0Result, testcases);
 
     return NextResponse.json({ judge0Result, testcaseResults });
