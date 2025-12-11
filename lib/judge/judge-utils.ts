@@ -950,6 +950,28 @@ function getJavaComparison(metadata: any): string {
         }
         return result.equals(expected);
     }
+}`,
+    float: `class Comparison {
+    static boolean compare(Object result, Object expected) {
+        if (result == null && expected == null) return true;
+        if (result == null || expected == null) return false;
+
+        // Handle numeric comparisons with tolerance
+        double r = 0, e = 0;
+        boolean isNumeric = false;
+
+        if (result instanceof Number && expected instanceof Number) {
+            r = ((Number)result).doubleValue();
+            e = ((Number)expected).doubleValue();
+            isNumeric = true;
+        }
+
+        if (isNumeric) {
+            return Math.abs(r - e) < 1e-5;
+        }
+
+        return result.equals(expected);
+    }
 }`
   };
 
@@ -1456,6 +1478,29 @@ bool compareResults(string result, string expected) {
 
 bool compareResults(string result, string expected) {
     return result == expected;
+}`,
+    float: `template<typename T>
+bool compareResults(T result, T expected) {
+    if constexpr (std::is_floating_point<T>::value) {
+        return abs(result - expected) < 1e-5;
+    }
+    return result == expected;
+}
+
+bool compareResults(double result, int expected) {
+    return abs(result - expected) < 1e-5;
+}
+
+bool compareResults(int result, double expected) {
+    return abs(result - expected) < 1e-5;
+}
+
+bool compareResults(float result, int expected) {
+    return abs(result - expected) < 1e-5;
+}
+
+bool compareResults(int result, float expected) {
+    return abs(result - expected) < 1e-5;
 }`
   };
 
@@ -1713,6 +1758,21 @@ function getCSharpComparison(metadata: any): string {
         }
         return result.Equals(expected);
     }
+}`,
+    float: `public class Comparison {
+    public static bool Compare(object result, object expected) {
+        if (result == null && expected == null) return true;
+        if (result == null || expected == null) return false;
+
+        // Handle numeric comparisons with tolerance
+        try {
+            double r = Convert.ToDouble(result);
+            double e = Convert.ToDouble(expected);
+            return Math.Abs(r - e) < 1e-5;
+        } catch {
+            return result.Equals(expected);
+        }
+    }
 }`
   };
 
@@ -1803,6 +1863,7 @@ function generateGoTestHarness(
 
 import (
     "fmt"
+    "math"
     "reflect"
 )
 
@@ -1943,6 +2004,43 @@ function getGoComparison(metadata: any): string {
             sort.Ints(e[i])
         }
         return reflect.DeepEqual(r, e)
+    }
+    return reflect.DeepEqual(result, expected)
+}`,
+    float: `func compareResults(result, expected interface{}) bool {
+    // Try to convert both to float64 for numeric comparison
+    var r, e float64
+    var ok bool
+
+    switch v := result.(type) {
+    case float64:
+        r = v
+    case float32:
+        r = float64(v)
+    case int:
+        r = float64(v)
+    case int64:
+        r = float64(v)
+    default:
+        return reflect.DeepEqual(result, expected)
+    }
+
+    switch v := expected.(type) {
+    case float64:
+        e = v
+    case float32:
+        e = float64(v)
+    case int:
+        e = float64(v)
+    case int64:
+        e = float64(v)
+    default:
+        return reflect.DeepEqual(result, expected)
+    }
+
+    ok = true
+    if ok {
+        return math.Abs(r-e) < 1e-5
     }
     return reflect.DeepEqual(result, expected)
 }`
