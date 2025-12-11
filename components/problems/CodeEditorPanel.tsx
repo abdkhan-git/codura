@@ -104,9 +104,6 @@ export default function CodeEditorPanel({
       setActiveBottomTab('results');
     }
   }, [testcaseResults, submissionResult]);
-  
-  const JUDGE_URL = process.env.NEXT_PUBLIC_JUDGE_URL ?? '';
-  const judgeDisabled = () => !JUDGE_URL.trim();
 
   // Monaco theme (Caffeine)
   useEffect(() => {
@@ -174,20 +171,6 @@ const handleCodeRunning = async () => {
       return
     }
 
-    // ---------- DEV path: if judge is disabled, don't call /run ----------
-    if (judgeDisabled()) {
-      console.warn('[DEV] Judge disabled — skipping /run')
-      const results = (testcases || []).map((_, i) => ({
-        status: 'error',
-        message: 'Judge unavailable',
-        testNumber: i + 1,
-      }))
-      setTestcaseResults(results)
-      setResultsVersion(v => v + 1); setActiveBottomTab('results');
-      setIsRunning(false)
-      return
-    }
-
     const body = {
       problem_title_slug: problem?.title_slug,
       language_id: userLang.id,
@@ -233,45 +216,6 @@ const handleCodeSubmission = async () => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
 
-    // ---------- 1) If judge is disabled, fabricate a minimal result and unlock AI ----------
-    if (judgeDisabled()) {
-      console.warn('[DEV] Judge disabled — skipping /submit');
-
-      const testsPassed = 0;
-      const totalTests = testcases?.length || 0;
-      const status = 'Judge Offline';
-
-      // bottom panel - keep showing test case results
-      setTestcaseResults((testcases || []).map((_, i) => ({
-        status: 'error',
-        message: 'Judge unavailable',
-        testNumber: i + 1,
-      })));
-      setResultsVersion(v => v + 1); setActiveBottomTab('results');
-
-      // unlock AI
-      const submissionForAI: Submission = {
-        code: usersCode || '',
-        language: userLang.value,
-        timestamp: new Date(),
-        testsPassed,
-        totalTests,
-        status,
-        runtime: undefined,
-        memory: undefined,
-      };
-      onSubmissionComplete(submissionForAI);
-
-      // don't call /api/ai/initial-analysis here because your route verifies a real submission row
-      // (it would 403 when judge is offline). You can enable a bypass flag on the route if you want.
-
-      // call legacy hooks (optional) AFTER unlock so UI stays consistent
-      if (onAiChat) await onAiChat(usersCode, userLang.id);
-      if (onSubmit) await onSubmit(usersCode, userLang.id);
-      return;
-    }
-
-    // ---------- 2) Normal path: call your judge service ----------
     const body = {
       problem_title: problem?.title,
       problem_title_slug: problem?.title_slug,

@@ -356,11 +356,30 @@ export function normalizeComplexityNotation(notation: string): string {
 }
 
 export async function pollSubmissionStatus(token: string) {
-  const submissionUri = `https://${process.env.RAPIDAPI_HOST}/submissions/${token}`
-  const maxAttempts = 10
-  const pollInterval = 1000
+  const submissionUri = `https://${process.env.RAPIDAPI_HOST}/submissions/${token}?base64_encoded=false`
+  const maxAttempts = 20
+  const initialPollInterval = 100 // Start with 100ms
+  const maxPollInterval = 1000 // Max 1 second between polls
 
   let attempts = 0
+  let pollInterval = initialPollInterval
+
+  // Terminal statuses that mean we're done
+  const terminalStatuses = [
+    'Accepted',
+    'Wrong Answer',
+    'Runtime Error (NZEC)',
+    'Runtime Error (SIGSEGV)',
+    'Runtime Error (SIGXFSZ)',
+    'Runtime Error (SIGFPE)',
+    'Runtime Error (SIGABRT)',
+    'Runtime Error (Other)',
+    'Compilation Error',
+    'Time Limit Exceeded',
+    'Internal Error',
+    'Exec Format Error'
+  ]
+
   while (attempts < maxAttempts) {
     try {
       const response = await fetch(submissionUri, {
@@ -375,31 +394,37 @@ export async function pollSubmissionStatus(token: string) {
       if (!response.ok) {
         console.log(`Received ${response.status} -- trying again in ${pollInterval} ms`)
         await sleep(pollInterval)
+        attempts++
+        continue
       }
 
       const data = await response.json()
       const status = data.status?.description
-      console.log(`Current status = ${status}`)
+      const statusId = data.status?.id
+      console.log(`[Poll ${attempts + 1}] Status: ${status} (ID: ${statusId})`)
 
-      if (status === 'Accepted') {
-        console.log('Submission has been accepted, returning response body.')
+      // Check if we're done (status ID 3 = Accepted, 4-14 are various errors)
+      if (terminalStatuses.includes(status) || (statusId && statusId >= 3)) {
+        console.log(`✅ Terminal status reached: ${status}`)
         return data
       }
 
-      if (status === 'Wrong Answer' || status == 'Runtime Error (NZEC)' || status == 'Compilation Error' || status == 'Time Limit Exceeded') {
-        console.log(`Submission failed with status: ${status}`)
-        return data
-      }
-
+      // Still processing (status ID 1 = In Queue, 2 = Processing)
       if (attempts < maxAttempts) {
         attempts++
         await sleep(pollInterval)
+        // Exponential backoff: gradually increase polling interval
+        pollInterval = Math.min(pollInterval * 1.5, maxPollInterval)
       }
 
     } catch (error) {
+      console.error('Polling error:', error)
       return error
     }
   }
+
+  console.warn('⚠️ Max polling attempts reached')
+  return null
 }
 
 export function parseTestResults(judge0Result: any, testcases: any[]) {
