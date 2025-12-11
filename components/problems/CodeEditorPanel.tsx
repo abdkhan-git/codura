@@ -173,6 +173,7 @@ const handleCodeRunning = async () => {
 
     const body = {
       problem_title_slug: problem?.title_slug,
+      language: userLang.value,
       language_id: userLang.id,
       source_code: usersCode,
       stdin: 'test',

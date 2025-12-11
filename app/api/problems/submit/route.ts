@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     submitted_at
   } = await request.json();
 
-  console.log('Submitting:', problem_title_slug, 'User:', user_id);
+  console.log('Submitting:', problem_title_slug, 'User:', user_id, 'Language:', language, 'Language ID:', language_id);
 
   try {
     const testcases = await getTestCasesForProblem(problem_title_slug, true);
@@ -35,11 +35,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Normalize language value
+    const normalizedLanguage = (language || 'python').toLowerCase().trim();
+    console.log('Normalized language:', normalizedLanguage);
+
     // Analyze code complexity with AI (includes snippets)
     let complexityResult;
     try {
       console.log('[Submit] Starting AI complexity analysis...');
-      const aiResult = await analyzeComplexityWithAI(source_code, language || 'python');
+      const aiResult = await analyzeComplexityWithAI(source_code, normalizedLanguage);
 
       if (aiResult) {
         complexityResult = aiResult;
@@ -72,7 +76,7 @@ export async function POST(request: NextRequest) {
       source_code,
       problem_title_slug,
       true,
-      language || 'python'
+      normalizedLanguage
     );
 
     const body = {
