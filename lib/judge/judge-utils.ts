@@ -482,13 +482,17 @@ export function parseTestResults(judge0Result: any, testcases: any[]) {
 
   let label = 'Accepted';
 
-  if (judge0Result.status.id === 6) {
+  // Safely check judge0Result.status
+  const statusId = judge0Result.status?.id;
+
+  if (statusId === 6) {
     label = 'Compilation Error';
-  } else if (judge0Result.status.id === 5) {
+  } else if (statusId === 5) {
     label = 'Time Limit Exceeded';
-  } else if (judge0Result.status.id === 11 || judge0Result.status.id === 12) {
+  } else if (statusId === 11 || statusId === 12) {
     label = 'Runtime Error';
-  } else if (judge0Result.status.id === 3) {
+  } else if (statusId === 3 || !statusId) {
+    // If statusId is undefined or 3 (Accepted), determine from test results
     if (passed === total) {
       label = 'Accepted';
     } else if (errors > 0) {
@@ -1409,6 +1413,14 @@ bool compareResults(T result, T expected) {
     return result == expected;
 }
 
+bool compareResults(bool result, int expected) {
+    return (result ? 1 : 0) == expected;
+}
+
+bool compareResults(int result, bool expected) {
+    return result == (expected ? 1 : 0);
+}
+
 bool compareResults(vector<int> result, vector<int> expected) {
     return result == expected;
 }
@@ -1511,6 +1523,7 @@ function convertToCppVector2D(arr: any[][]): string {
 
 function convertToCppLiteral(value: any): string {
   if (value === null) return '0';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'string') return `"${value}"`;
   if (typeof value === 'number') return String(value);
   if (Array.isArray(value)) {
@@ -1762,6 +1775,7 @@ function convertToCSharpArray2D(arr: any[][]): string {
 
 function convertToCSharpLiteral(value: any): string {
   if (value === null) return 'null';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'string') return `"${value}"`;
   if (typeof value === 'number') return String(value);
   if (Array.isArray(value)) {
@@ -1995,6 +2009,7 @@ function convertToGoSlice2D(arr: any[][]): string {
 
 function convertToGoLiteral(value: any): string {
   if (value === null) return 'nil';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'string') return `"${value}"`;
   if (typeof value === 'number') return String(value);
   if (Array.isArray(value)) {

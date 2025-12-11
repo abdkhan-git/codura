@@ -10,7 +10,8 @@ import {
 
 export async function POST(request: NextRequest) {
   const { problem_title_slug, source_code, language_id, language, stdin } = await request.json();
-  console.log('Running:', problem_title_slug, 'Language:', language);
+  console.log('Running:', problem_title_slug, 'Language:', language, 'Language ID:', language_id);
+  console.log('Source code preview:', source_code?.substring(0, 100));
 
   try {
     const testcases = await getTestCasesForProblem(problem_title_slug, false);
@@ -22,11 +23,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Normalize language value
+    const normalizedLanguage = (language || 'python').toLowerCase().trim();
+    console.log('Normalized language:', normalizedLanguage);
+
     const wrappedCode = await wrapCodeWithTestcases(
       source_code,
       problem_title_slug,
       false,
-      language || 'python'
+      normalizedLanguage
     );
 
     console.log('Generated wrapped code:', wrappedCode);
@@ -49,15 +54,22 @@ export async function POST(request: NextRequest) {
     });
 
     const judge0Result = await response.json();
+    console.log('Judge0 full response:', judge0Result);
+    console.log('Has token?', !!judge0Result.token, 'Token:', judge0Result.token);
 
-    // If wait=true didn't work (some Judge0 instances), fall back to polling
-    if (judge0Result.token && !judge0Result.stdout && !judge0Result.stderr) {
-      console.log('⏳ Falling back to polling...');
+    // Always poll if we got a token, regardless of wait=true
+    if (judge0Result.token) {
+      console.log('⏳ Polling for submission:', judge0Result.token);
       const polledResult = await pollSubmissionStatus(judge0Result.token);
       if (polledResult) {
+        console.log('✅ Poll successful, got stdout:', !!polledResult.stdout);
         Object.assign(judge0Result, polledResult);
+      } else {
+        console.log('❌ Polling failed or timed out');
       }
     }
+
+    console.log('Final Judge0 result - status:', judge0Result.status, 'stdout length:', judge0Result.stdout?.length);
     const testcaseResults = parseTestResults(judge0Result, testcases);
 
     return NextResponse.json({ judge0Result, testcaseResults });

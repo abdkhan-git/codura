@@ -1559,12 +1559,12 @@ export default function ProblemPage() {
     if (params.id) fetchProblem()
   }, [params.id, supabase])
 
-  // Initialize starter code when problem loads (only once)
+  // Initialize starter code when problem loads OR language changes
   useEffect(() => {
     if (!problem?.code_snippets) return
     const starter = problem.code_snippets.find(s => s.langSlug === userLang.value)?.code || ''
     setUsersCode(starter)
-  }, [problem?.id]) // Only run when problem changes, not language
+  }, [problem?.id, userLang.value]) // Run when problem OR language changes
 
   // Starter code getter
   const getStarterCode = useCallback(() => {
