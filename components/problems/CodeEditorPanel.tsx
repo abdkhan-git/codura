@@ -195,8 +195,8 @@ const handleCodeRunning = async () => {
       stdin: 'test',
     }
 
-    // ✅ use the env-configured judge base URL
-    const response = await fetch(`http://localhost:8080/api/problems/run`, {
+    // ✅ use relative URL for Next.js API route
+    const response = await fetch(`/api/problems/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -285,7 +285,7 @@ const handleCodeSubmission = async () => {
       submitted_at: new Date().toISOString(),
     };
 
-   const resp = await fetch(`http://localhost:8080/api/problems/submit`, {
+   const resp = await fetch(`/api/problems/submit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
