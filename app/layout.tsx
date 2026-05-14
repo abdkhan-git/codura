@@ -13,6 +13,7 @@ import { PublicInterviewProvider } from "@/contexts/public-interview-context";
 import { InterviewStatusProvider } from "@/contexts/interview-status-context";
 import { PublicInterviewGlobalWindow } from "@/components/mock-interview/public-interview-global-window";
 import { Analytics } from '@vercel/analytics/next';
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,21 +57,23 @@ export default function RootLayout({
             enableColorScheme={true}
           >
             <ThemeWrapper>
-              <Suspense fallback={null}>
-                <LoadingProvider>
-                  <PublicInterviewProvider>
-                    <InterviewStatusProvider>
-                      <LoadingBar />
-                      <FaviconAnimation />
-                      {children}
-                      <Analytics />
-                      <FloatingMessageWidget />
-                      <PublicInterviewGlobalWindow />
-                      <Toaster position="top-right" richColors />
-                    </InterviewStatusProvider>
-                  </PublicInterviewProvider>
-                </LoadingProvider>
-              </Suspense>
+              <ErrorBoundary>
+                <Suspense fallback={null}>
+                  <LoadingProvider>
+                    <PublicInterviewProvider>
+                      <InterviewStatusProvider>
+                        <LoadingBar />
+                        <FaviconAnimation />
+                        {children}
+                        <Analytics />
+                        <FloatingMessageWidget />
+                        <PublicInterviewGlobalWindow />
+                        <Toaster position="top-right" richColors />
+                      </InterviewStatusProvider>
+                    </PublicInterviewProvider>
+                  </LoadingProvider>
+                </Suspense>
+              </ErrorBoundary>
             </ThemeWrapper>
           </ThemeProvider>
         </body>
