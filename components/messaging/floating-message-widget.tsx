@@ -266,21 +266,41 @@ export default function FloatingMessageWidget() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() || !selectedConversationId || isSending) return;
+    const content = messageInput.trim();
+    if (!content || !selectedConversationId || isSending) return;
+
+    // Optimistic update — show the message immediately before the DB round-trip
+    const tempId = `optimistic-${Date.now()}`;
+    const optimisticMessage = {
+      id: tempId,
+      conversation_id: selectedConversationId,
+      sender_id: currentUserId,
+      content,
+      created_at: new Date().toISOString(),
+      sender: null,
+      reactions: {},
+      reply_to_message: replyToMessage ?? null,
+      _optimistic: true,
+    };
+
+    setMessages((prev) => [...prev, optimisticMessage]);
+    setMessageInput("");
+    const pendingReply = replyToMessage;
+    setReplyToMessage(null);
+    setTimeout(() => scrollToBottom(), 50);
 
     try {
       setIsSending(true);
-      await sendMessageUtil(
-        selectedConversationId,
-        messageInput.trim(),
-        replyToMessage?.id
-      );
-      setMessageInput("");
-      setReplyToMessage(null);
+      await sendMessageUtil(selectedConversationId, content, pendingReply?.id);
       if (selectedConversationId) {
         await clearTypingIndicator(selectedConversationId);
       }
+      // Real-time subscription will fire and replace messages with the real DB row
     } catch (error) {
+      // Roll back — remove the optimistic message and restore input
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setMessageInput(content);
+      setReplyToMessage(pendingReply);
       console.error("Error sending message:", error);
       toast.error("Failed to send message");
     } finally {
