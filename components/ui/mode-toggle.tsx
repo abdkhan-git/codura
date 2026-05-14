@@ -55,7 +55,7 @@ export function ModeToggle() {
           <span className="sr-only">Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="rounded-xl border border-border/50 bg-background/80 backdrop-blur-sm shadow-lg">
+      <DropdownMenuContent align="end" className="rounded-xl border border-border/50 bg-background/80 backdrop-blur-sm shadow-lg z-70">
         <DropdownMenuItem 
           onClick={() => handleThemeChange("light")} 
           className={`rounded-lg hover:bg-muted/50 flex items-center gap-2 ${currentTheme === "light" ? "bg-muted/30" : ""}`}

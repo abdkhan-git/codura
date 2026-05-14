@@ -54,11 +54,13 @@ export default function FloatingMessageWidget() {
   const pathname = usePathname();
   const supabase = createClient();
   
-  // Hide widget on problems and live streams pages to avoid blocking stream chat send button
+  // Hide widget on problems, live streams, and the public landing page
   const isProblemsPage = pathname?.startsWith('/problems/');
   const isLiveStreamsPage = pathname?.startsWith('/live-streams/');
-  const shouldHideWidget = isProblemsPage || isLiveStreamsPage;
+  const isLandingPage = pathname === '/';
+  const shouldHideWidget = isProblemsPage || isLiveStreamsPage || isLandingPage;
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
@@ -93,9 +95,8 @@ export default function FloatingMessageWidget() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUserId(user.id);
-      }
+      setCurrentUserId(user?.id ?? null);
+      setAuthChecked(true);
     }
     fetchUser();
   }, [supabase.auth]);
@@ -353,8 +354,8 @@ export default function FloatingMessageWidget() {
     return () => window.removeEventListener('toggle-messenger', handleToggle);
   }, [isHidden]);
 
-  // Don't render on problems or live streams pages, or if hidden by user
-  if (shouldHideWidget || isHidden) {
+  // Don't render until auth resolves, on excluded routes, for unauthenticated users, or if hidden by user
+  if (!authChecked || !currentUserId || shouldHideWidget || isHidden) {
     return null;
   }
 
@@ -383,11 +384,6 @@ export default function FloatingMessageWidget() {
         </Button>
       </div>
     );
-  }
-
-  // Don't render on problems page
-  if (isProblemsPage) {
-    return null;
   }
 
   return (
