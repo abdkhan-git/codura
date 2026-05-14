@@ -9,7 +9,38 @@ import {
   analyzeComplexityWithAI,
 } from '@/lib/judge/judge-utils';
 
+// In-memory sliding window rate limiter: 5 submissions per 60s per user
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(userId);
+  if (!entry || now >= entry.resetAt) {
+    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
 export async function POST(request: NextRequest) {
+  // Authenticate from session — never trust user_id from the client body
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!checkRateLimit(user.id)) {
+    return NextResponse.json(
+      { error: 'Too many submissions. Please wait a moment before trying again.' },
+      { status: 429 }
+    );
+  }
+
   const {
     problem_title,
     problem_title_slug,
@@ -19,9 +50,10 @@ export async function POST(request: NextRequest) {
     source_code,
     language_id,
     stdin,
-    user_id,
     submitted_at
   } = await request.json();
+
+  const user_id = user.id;
 
   console.log('Submitting:', problem_title_slug, 'User:', user_id, 'Language:', language, 'Language ID:', language_id);
 

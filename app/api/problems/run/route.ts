@@ -8,7 +8,37 @@ import {
   parseTestResults,
 } from '@/lib/judge/judge-utils';
 
+// In-memory sliding window: 10 runs per 60s per user
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(userId);
+  if (!entry || now >= entry.resetAt) {
+    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
 export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!checkRateLimit(user.id)) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please wait before running again.' },
+      { status: 429 }
+    );
+  }
+
   const { problem_title_slug, source_code, language_id, language, stdin } = await request.json();
   console.log('Running:', problem_title_slug, 'Language:', language, 'Language ID:', language_id);
   console.log('Source code preview:', source_code?.substring(0, 100));
