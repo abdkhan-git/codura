@@ -79,6 +79,7 @@ export default function FloatingMessageWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const isOpenRef = useRef(false);
 
   // Read receipts
   const { readReceipts } = useReadReceipts({
@@ -101,7 +102,12 @@ export default function FloatingMessageWidget() {
     fetchUser();
   }, [supabase.auth]);
 
-  // Fetch conversations
+  // Keep ref in sync so subscription callbacks read current open state without re-subscribing
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  // Fetch conversations and subscribe — only re-runs when the authenticated user changes
   useEffect(() => {
     if (!currentUserId) return;
 
@@ -109,8 +115,6 @@ export default function FloatingMessageWidget() {
       try {
         const convs = await getUserConversations();
         setConversations(convs);
-
-        // Calculate unread count
         const totalUnread = convs.reduce(
           (acc: number, conv: any) => acc + (conv.unread_count || 0),
           0
@@ -123,42 +127,28 @@ export default function FloatingMessageWidget() {
 
     fetchConversations();
 
-    // Subscribe to conversation updates
     const channel = supabase
-      .channel("widget-conversations")
+      .channel(`widget-conversations:${currentUserId}`)
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "conversations",
-        },
-        () => {
-          fetchConversations();
-        }
+        { event: "*", schema: "public", table: "conversations" },
+        () => { fetchConversations(); }
       )
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "messages",
-        },
+        { event: "*", schema: "public", table: "messages" },
         async (payload) => {
           if (payload.eventType === "INSERT") {
             const newMessage = payload.new as any;
-            // Auto-open widget for new messages from others
-            if (newMessage.sender_id !== currentUserId && !isOpen) {
+            // Use ref so this never goes stale between re-subscriptions
+            if (newMessage.sender_id !== currentUserId && !isOpenRef.current) {
               setIsOpen(true);
               setIsMinimized(false);
-              // Find and select the conversation
               const convs = await getUserConversations();
               const conv = convs.find(
                 (c: any) => c.id === newMessage.conversation_id
               );
-              if (conv) {
-                setSelectedConversationId(conv.id);
-              }
+              if (conv) setSelectedConversationId(conv.id);
             }
           }
           fetchConversations();
@@ -169,7 +159,7 @@ export default function FloatingMessageWidget() {
     return () => {
       channel.unsubscribe();
     };
-  }, [currentUserId, isOpen, supabase]);
+  }, [currentUserId, supabase]);
 
   // Fetch messages for selected conversation
   useEffect(() => {
