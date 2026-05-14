@@ -20,6 +20,7 @@ const XCircle: any = dynamic(() => import('lucide-react').then(mod => mod.XCircl
 const Shield: any = dynamic(() => import('lucide-react').then(mod => mod.Shield), { ssr: false });
 
 interface UserData {
+  id: string;
   name: string;
   email: string;
   avatar: string;
@@ -30,6 +31,8 @@ interface LeaderboardResponse {
   leaderboard: LeaderboardEntry[];
   userRank: number | null;
   totalUsers: number;
+  totalPages: number;
+  page: number;
   schoolCode: string | null;
   isOwnSchool: boolean;
   message: string | null;
@@ -49,6 +52,7 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardResponse | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [filter, setFilter] = useState<FilterType>('total');
   const [schoolSearchQuery, setSchoolSearchQuery] = useState('');
   const [schoolResults, setSchoolResults] = useState<School[]>([]);
@@ -62,7 +66,7 @@ export default function LeaderboardPage() {
     fetchUserAndLeaderboard();
   }, []);
 
-  const fetchUserAndLeaderboard = async (schoolCode?: string) => {
+  const fetchUserAndLeaderboard = async (schoolCode?: string, page = 1) => {
     try {
       setError(null);
       setLoading(true);
@@ -83,6 +87,7 @@ export default function LeaderboardPage() {
         .slice(0, 2);
 
       const userData = {
+        id: profileData.user?.id || '',
         name: fullName,
         email: profileData.user?.email || '',
         avatar: profileData.profile?.avatar_url || initials,
@@ -108,16 +113,16 @@ export default function LeaderboardPage() {
         }
       }
 
-      // Fetch leaderboard with optional school code
-      const url = schoolCode
-        ? `/api/leaderboard?school_code=${encodeURIComponent(schoolCode)}`
-        : '/api/leaderboard';
-      const leaderboardResponse = await fetch(url);
+      // Fetch leaderboard with optional school code and page
+      const params = new URLSearchParams({ page: String(page) });
+      if (schoolCode) params.set('school_code', schoolCode);
+      const leaderboardResponse = await fetch(`/api/leaderboard?${params}`);
       if (!leaderboardResponse.ok) {
         throw new Error('Failed to load leaderboard data');
       }
       const leaderboard = await leaderboardResponse.json();
       setLeaderboardData(leaderboard);
+      setCurrentPage(leaderboard.page ?? page);
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -183,11 +188,12 @@ export default function LeaderboardPage() {
 
   const handleSelectSchool = (school: School) => {
     setSelectedSchool(school);
-    skipSearchRef.current = true; // Prevent debounced search from running
+    skipSearchRef.current = true;
     setSchoolSearchQuery(school.name);
     setShowSchoolResults(false);
-    setSchoolResults([]); // Clear results
-    fetchUserAndLeaderboard(school.code);
+    setSchoolResults([]);
+    setCurrentPage(1);
+    fetchUserAndLeaderboard(school.code, 1);
   };
 
   const handleViewMySchool = () => {
@@ -195,7 +201,14 @@ export default function LeaderboardPage() {
     setSelectedSchool(null);
     setSchoolResults([]);
     setShowSchoolResults(false);
-    fetchUserAndLeaderboard();
+    setCurrentPage(1);
+    fetchUserAndLeaderboard(undefined, 1);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    fetchUserAndLeaderboard(selectedSchool?.code, newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const getRankIcon = (rank: number) => {
@@ -276,7 +289,8 @@ export default function LeaderboardPage() {
   };
 
   const filteredLeaderboard = getFilteredLeaderboard();
-  const userRankInFiltered = filteredLeaderboard.find(entry => entry.user_id === user?.username)?.rank || null;
+  // userRank from the API is the authoritative DB-computed rank
+  const displayUserRank = leaderboardData?.userRank ?? null;
 
   const getFilterLabel = (filterType: FilterType) => {
     switch (filterType) {
@@ -526,23 +540,21 @@ export default function LeaderboardPage() {
         )}
 
         {/* User's Current Rank Card */}
-        {!loading && !error && leaderboardData && userRankInFiltered && (
+        {!loading && !error && leaderboardData && displayUserRank && (
           <Card className="mb-6 border-2 border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-card/30 to-transparent backdrop-blur-xl shadow-xl">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={cn(
                     "w-16 h-16 rounded-full flex items-center justify-center",
-                    getRankBadgeColor(userRankInFiltered)
+                    getRankBadgeColor(displayUserRank)
                   )}>
-                    {getRankIcon(userRankInFiltered)}
+                    {getRankIcon(displayUserRank)}
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">
-                      Your Rank ({getFilterLabel(filter)})
-                    </p>
-                    <h3 className="text-3xl font-bold text-foreground">#{userRankInFiltered}</h3>
-                    <p className="text-sm text-muted-foreground">out of {filteredLeaderboard.length} students</p>
+                    <p className="text-sm text-muted-foreground">Your Rank</p>
+                    <h3 className="text-3xl font-bold text-foreground">#{displayUserRank}</h3>
+                    <p className="text-sm text-muted-foreground">out of {leaderboardData.totalUsers} students</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-amber-500">
@@ -583,7 +595,7 @@ export default function LeaderboardPage() {
                   </thead>
                   <tbody>
                     {filteredLeaderboard.map((entry) => {
-                      const isCurrentUser = entry.user_id === user?.username;
+                      const isCurrentUser = entry.user_id === user?.id;
                       return (
                         <tr
                           key={entry.user_id}
@@ -652,6 +664,31 @@ export default function LeaderboardPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Pagination */}
+        {!loading && !error && leaderboardData && leaderboardData.totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground px-2">
+              Page {currentPage} of {leaderboardData.totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= leaderboardData.totalPages}
+            >
+              Next
+            </Button>
+          </div>
         )}
 
         {/* Privacy Notice */}

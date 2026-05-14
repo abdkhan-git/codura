@@ -2,31 +2,33 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { LeaderboardEntry } from '@/types/database';
 
-export const revalidate = 60; // Cache for 60 seconds
+export const revalidate = 60;
 export const dynamic = 'force-dynamic';
 
+const PAGE_SIZE = 50;
+
 /**
- * Leaderboard API - Returns ranked users from a school
- * Filters by federal_school_code and only shows public profiles
+ * Leaderboard API - Returns paginated, DB-sorted ranked users from a school.
  * Query params:
- *  - school_code (optional): View leaderboard for a specific school
+ *  - school_code (optional): view another school's leaderboard
+ *  - page (optional, default 1): which page of results
  */
 export async function GET(request: Request) {
   try {
     const supabase = await createClient();
 
-    // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get query params
     const { searchParams } = new URL(request.url);
     const requestedSchoolCode = searchParams.get('school_code');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
-    // Get current user's profile
+    // Fetch current user's school in parallel with nothing yet — just their profile
     const { data: currentUserProfile, error: profileError } = await supabase
       .from('users')
       .select('federal_school_code')
@@ -34,14 +36,11 @@ export async function GET(request: Request) {
       .single();
 
     if (profileError) {
-      console.error('Error fetching user profile:', profileError);
       return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
     }
 
-    // Determine which school code to use
     const schoolCode = requestedSchoolCode || currentUserProfile?.federal_school_code;
 
-    // If no school code available, return empty leaderboard
     if (!schoolCode) {
       return NextResponse.json({
         leaderboard: [],
@@ -49,111 +48,126 @@ export async function GET(request: Request) {
         totalUsers: 0,
         schoolCode: null,
         isOwnSchool: false,
+        page,
+        totalPages: 0,
         message: 'No school affiliation found. Update your profile to see your school leaderboard.'
       });
     }
 
     const isOwnSchool = schoolCode === currentUserProfile?.federal_school_code;
 
-    // Fetch all public users from the same school
-    const { data: usersData, error: usersError } = await supabase
+    // Step 1: Get only the public user_ids for this school (IDs only — minimal data transfer)
+    const { data: schoolUsers, error: schoolUsersError } = await supabase
       .from('users')
-      .select('user_id, username, full_name, avatar_url, federal_school_code, is_public')
+      .select('user_id')
       .eq('federal_school_code', schoolCode)
       .eq('is_public', true);
 
-    if (usersError) {
-      console.error('Error fetching users:', usersError);
-      return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    if (schoolUsersError) {
+      return NextResponse.json({ error: 'Failed to fetch school users' }, { status: 500 });
     }
-
-    if (!usersData || usersData.length === 0) {
+    if (!schoolUsers || schoolUsers.length === 0) {
       return NextResponse.json({
-        leaderboard: [],
-        userRank: null,
-        totalUsers: 0,
-        schoolCode,
-        message: null
+        leaderboard: [], userRank: null, totalUsers: 0,
+        schoolCode, isOwnSchool, page, totalPages: 0, message: null
       });
     }
 
-    // Get user IDs
-    const userIds = usersData.map(u => u.user_id);
+    const schoolUserIds = schoolUsers.map(u => u.user_id);
 
-    // Fetch stats for all those users
-    const { data: statsData, error: statsError } = await supabase
+    // Step 2: Fetch paginated stats sorted at the DB level — only PAGE_SIZE rows come back
+    const { data: statsPage, error: statsError, count } = await supabase
       .from('user_stats')
-      .select('user_id, total_solved, easy_solved, medium_solved, hard_solved, current_streak, total_points, contest_rating')
-      .in('user_id', userIds);
+      .select('user_id, total_solved, easy_solved, medium_solved, hard_solved, current_streak, total_points, contest_rating', { count: 'exact' })
+      .in('user_id', schoolUserIds)
+      .gt('total_solved', 0)
+      .order('total_solved', { ascending: false })
+      .order('total_points', { ascending: false })
+      .order('contest_rating', { ascending: false })
+      .range(from, to);
 
     if (statsError) {
-      console.error('Error fetching stats:', statsError);
       return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });
     }
+    if (!statsPage || statsPage.length === 0) {
+      return NextResponse.json({
+        leaderboard: [], userRank: null, totalUsers: count ?? 0,
+        schoolCode, isOwnSchool, page, totalPages: 0, message: null
+      });
+    }
 
-    // Create a map of user_id to stats
-    const statsMap = new Map(
-      (statsData || []).map(stat => [stat.user_id, stat])
-    );
+    // Step 3: Fetch profiles for only the PAGE_SIZE users we got back
+    const pageUserIds = statsPage.map(s => s.user_id);
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('users')
+      .select('user_id, username, full_name, avatar_url, federal_school_code')
+      .in('user_id', pageUserIds);
 
-    // Combine users and stats
-    const rankedLeaderboard: LeaderboardEntry[] = usersData
-      .map((user: any) => {
-        const stats = statsMap.get(user.user_id);
-        if (!stats || stats.total_solved === 0) {
-          return null; // Filter out users with no stats or no solved problems
-        }
-        return {
-          user_id: user.user_id,
-          username: user.username,
-          full_name: user.full_name,
-          avatar_url: user.avatar_url,
-          federal_school_code: user.federal_school_code,
-          total_solved: stats.total_solved || 0,
-          easy_solved: stats.easy_solved || 0,
-          medium_solved: stats.medium_solved || 0,
-          hard_solved: stats.hard_solved || 0,
-          current_streak: stats.current_streak || 0,
-          total_points: stats.total_points || 0,
-          contest_rating: stats.contest_rating || 0,
-          rank: 0, // Will be assigned below
-        };
-      })
-      .filter((entry): entry is LeaderboardEntry => entry !== null)
-      .sort((a: any, b: any) => {
-        // Primary sort: total_solved (descending)
-        if (b.total_solved !== a.total_solved) {
-          return b.total_solved - a.total_solved;
-        }
-        // Secondary sort: total_points (descending)
-        if (b.total_points !== a.total_points) {
-          return b.total_points - a.total_points;
-        }
-        // Tertiary sort: contest_rating (descending)
-        return b.contest_rating - a.contest_rating;
-      })
-      .map((entry: any, index: number) => ({
-        ...entry,
-        rank: index + 1,
-      }));
+    if (profilesError) {
+      return NextResponse.json({ error: 'Failed to fetch profiles' }, { status: 500 });
+    }
 
-    // Find current user's rank
-    const userRank = rankedLeaderboard.find(entry => entry.user_id === user.id)?.rank || null;
+    const profileMap = new Map((profilesData || []).map(p => [p.user_id, p]));
+
+    const leaderboard: LeaderboardEntry[] = statsPage.map((stat, index) => {
+      const profile = profileMap.get(stat.user_id);
+      return {
+        user_id: stat.user_id,
+        username: profile?.username ?? '',
+        full_name: profile?.full_name ?? '',
+        avatar_url: profile?.avatar_url ?? null,
+        federal_school_code: profile?.federal_school_code ?? schoolCode,
+        total_solved: stat.total_solved ?? 0,
+        easy_solved: stat.easy_solved ?? 0,
+        medium_solved: stat.medium_solved ?? 0,
+        hard_solved: stat.hard_solved ?? 0,
+        current_streak: stat.current_streak ?? 0,
+        total_points: stat.total_points ?? 0,
+        contest_rating: stat.contest_rating ?? 0,
+        rank: from + index + 1,
+      };
+    });
+
+    // Step 4: Determine current user's rank — count users ahead of them at the DB level
+    let userRank: number | null = null;
+    const userStatInPage = leaderboard.find(e => e.user_id === user.id);
+    if (userStatInPage) {
+      userRank = userStatInPage.rank;
+    } else {
+      // User not on this page — count how many school members beat them
+      const { data: currentUserStat } = await supabase
+        .from('user_stats')
+        .select('total_solved, total_points, contest_rating')
+        .eq('user_id', user.id)
+        .single();
+
+      if (currentUserStat && currentUserStat.total_solved > 0) {
+        const { count: ahead } = await supabase
+          .from('user_stats')
+          .select('user_id', { count: 'exact', head: true })
+          .in('user_id', schoolUserIds)
+          .gt('total_solved', currentUserStat.total_solved);
+
+        userRank = (ahead ?? 0) + 1;
+      }
+    }
+
+    const totalUsers = count ?? 0;
+    const totalPages = Math.ceil(totalUsers / PAGE_SIZE);
 
     return NextResponse.json({
-      leaderboard: rankedLeaderboard,
+      leaderboard,
       userRank,
-      totalUsers: rankedLeaderboard.length,
+      totalUsers,
       schoolCode,
       isOwnSchool,
+      page,
+      totalPages,
       message: null
     });
 
   } catch (error) {
     console.error('Unexpected error in leaderboard API:', error);
-    return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }
