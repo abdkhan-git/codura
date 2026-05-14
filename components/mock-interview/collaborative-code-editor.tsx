@@ -1,10 +1,20 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
-import Editor, { useMonaco } from '@monaco-editor/react'
+import dynamic from 'next/dynamic'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { RotateCcw, Clipboard, CheckCircle, Play, Loader2, X } from 'lucide-react'
+import type Monaco from 'monaco-editor'
+
+const Editor = dynamic(() => import('@monaco-editor/react'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-[#2d2d2d]">
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+    </div>
+  ),
+})
 import { LANGUAGES } from '@/utils/languages'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
@@ -32,7 +42,6 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
   readOnly = false,
   executeEndpoint = '/api/code/execute',
 }, ref) => {
-  const monaco = useMonaco()
   const editorRef = useRef<any>(null)
   const [code, setCode] = useState(initialCode)
   const [language, setLanguage] = useState(() => {
@@ -62,44 +71,38 @@ export const CollaborativeCodeEditor = forwardRef<CollaborativeCodeEditorHandle,
     setLanguage(lang)
   }, [initialLanguage])
 
-  // Monaco theme setup
-  useEffect(() => {
-    if (monaco) {
-      monaco.editor.defineTheme('caffeine-dark', {
-        base: 'vs-dark',
-        inherit: true,
-        rules: [
-          { token: '', foreground: 'f2f2f2', background: '2d2d2d' },
-          { token: 'comment', foreground: 'c5c5c5', fontStyle: 'italic' },
-          { token: 'keyword', foreground: 'f4d394' },
-          { token: 'string', foreground: 'a8d191' },
-          { token: 'number', foreground: 'd4a5c7' },
-          { token: 'function', foreground: '8ec8d8' },
-          { token: 'variable', foreground: 'f2f2f2' },
-          { token: 'type', foreground: '8ec8d8' },
-          { token: 'class', foreground: 'f4d394' },
-        ],
-        colors: {
-          'editor.background': '#2d2d2d',
-          'editor.foreground': '#f2f2f2',
-          'editor.lineHighlightBackground': '#3a3a3a',
-          'editorLineNumber.foreground': '#c5c5c5',
-          'editorLineNumber.activeForeground': '#f2f2f2',
-          'editor.selectionBackground': '#404040',
-          'editor.inactiveSelectionBackground': '#353535',
-          'editorCursor.foreground': '#f4d394',
-          'editorWhitespace.foreground': '#404040',
-          'editorIndentGuide.background': '#404040',
-          'editorIndentGuide.activeBackground': '#505050',
-        },
-      })
-      monaco.editor.setTheme('caffeine-dark')
-    }
-  }, [monaco])
-
-  // Handle editor mount
-  const handleEditorMount = (editor: any) => {
+  // Handle editor mount — define theme here so Monaco is guaranteed to be loaded
+  const handleEditorMount = (editor: any, monaco: typeof Monaco) => {
     editorRef.current = editor
+    monaco.editor.defineTheme('caffeine-dark', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        { token: '', foreground: 'f2f2f2', background: '2d2d2d' },
+        { token: 'comment', foreground: 'c5c5c5', fontStyle: 'italic' },
+        { token: 'keyword', foreground: 'f4d394' },
+        { token: 'string', foreground: 'a8d191' },
+        { token: 'number', foreground: 'd4a5c7' },
+        { token: 'function', foreground: '8ec8d8' },
+        { token: 'variable', foreground: 'f2f2f2' },
+        { token: 'type', foreground: '8ec8d8' },
+        { token: 'class', foreground: 'f4d394' },
+      ],
+      colors: {
+        'editor.background': '#2d2d2d',
+        'editor.foreground': '#f2f2f2',
+        'editor.lineHighlightBackground': '#3a3a3a',
+        'editorLineNumber.foreground': '#c5c5c5',
+        'editorLineNumber.activeForeground': '#f2f2f2',
+        'editor.selectionBackground': '#404040',
+        'editor.inactiveSelectionBackground': '#353535',
+        'editorCursor.foreground': '#f4d394',
+        'editorWhitespace.foreground': '#404040',
+        'editorIndentGuide.background': '#404040',
+        'editorIndentGuide.activeBackground': '#505050',
+      },
+    })
+    monaco.editor.setTheme('caffeine-dark')
   }
 
   // Handle local code changes
