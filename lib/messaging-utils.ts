@@ -326,6 +326,52 @@ export async function getConversationMessages(conversationId: string, limit = 50
 }
 
 /**
+ * Fetch a single message by ID with sender and reply enrichment.
+ * Used by real-time subscription handlers to avoid full-list refetches.
+ */
+export async function getSingleMessage(messageId: string) {
+  try {
+    const { data: msg, error } = await supabase
+      .from('messages')
+      .select('id, conversation_id, sender_id, content, message_type, is_edited, is_deleted, reactions, reply_to_message_id, sent_at, created_at, updated_at')
+      .eq('id', messageId)
+      .eq('is_deleted', false)
+      .single();
+
+    if (error || !msg) return null;
+
+    const [{ data: senderData }, replyData] = await Promise.all([
+      supabase
+        .from('users')
+        .select('user_id, full_name, email, avatar_url, username')
+        .eq('user_id', msg.sender_id)
+        .single(),
+      msg.reply_to_message_id
+        ? supabase
+            .from('messages')
+            .select('id, sender_id, content')
+            .eq('id', msg.reply_to_message_id)
+            .single()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    let replyWithSender = null;
+    if (replyData.data) {
+      const { data: replySender } = await supabase
+        .from('users')
+        .select('user_id, full_name, avatar_url')
+        .eq('user_id', replyData.data.sender_id)
+        .single();
+      replyWithSender = { ...replyData.data, sender: replySender ?? null };
+    }
+
+    return { ...msg, sender: senderData ?? null, reply_to_message: replyWithSender };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Send a message
  */
 export async function sendMessage(conversationId: string, content: string, replyToMessageId?: string) {

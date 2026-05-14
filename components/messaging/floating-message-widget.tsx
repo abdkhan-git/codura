@@ -26,6 +26,7 @@ import {
 import {
   getUserConversations,
   getConversationMessages,
+  getSingleMessage,
   sendMessage as sendMessageUtil,
   addReaction,
   deleteMessage as deleteMessageUtil,
@@ -181,7 +182,7 @@ export default function FloatingMessageWidget() {
 
     fetchMessages();
 
-    // Subscribe to message updates
+    // Subscribe to message updates — fetch only the affected row, not the full list
     const messageChannel = supabase
       .channel(`widget-messages:${selectedConversationId}`)
       .on(
@@ -192,9 +193,22 @@ export default function FloatingMessageWidget() {
           table: "messages",
           filter: `conversation_id=eq.${selectedConversationId}`,
         },
-        async () => {
-          const msgs = await getConversationMessages(selectedConversationId);
-          setMessages(msgs);
+        async (payload) => {
+          const newMsg = await getSingleMessage(payload.new.id);
+          if (!newMsg) return;
+          // Replace the optimistic placeholder if this is our own message, otherwise append
+          setMessages((prev) => {
+            const hasOptimistic = prev.some(
+              (m) => (m as any)._optimistic && m.sender_id === newMsg.sender_id
+            );
+            if (hasOptimistic) {
+              return [
+                ...prev.filter((m) => !(m as any)._optimistic),
+                newMsg,
+              ];
+            }
+            return [...prev, newMsg];
+          });
           setTimeout(() => scrollToBottom(), 100);
         }
       )
@@ -206,9 +220,12 @@ export default function FloatingMessageWidget() {
           table: "messages",
           filter: `conversation_id=eq.${selectedConversationId}`,
         },
-        async () => {
-          const msgs = await getConversationMessages(selectedConversationId);
-          setMessages(msgs);
+        async (payload) => {
+          const updated = await getSingleMessage(payload.new.id);
+          if (!updated) return;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === updated.id ? updated : m))
+          );
         }
       )
       .subscribe();
