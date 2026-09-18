@@ -1,835 +1,267 @@
-# Codura - Technical Interview Preparation Platform
+# Codura
+
+**A collaborative technical-interview preparation platform.**
+*Where preparation meets execution.*
+
+[codura.dev](https://codura.dev) · [github.com/abdkhan-git/codura](https://github.com/abdkhan-git/codura)
+
+Codura combines a multi-language code judge, AI-assisted feedback, and real-time collaborative study sessions into a single platform built for university CS students. Users solve problems against a hidden test suite, get Big-O complexity analysis on every accepted submission, form study pods with live shared-editor sessions and video, and track progress against curated plans like Blind 75 and Grind 75.
+
+---
 
 ## Table of Contents
 
-1. [Project Overview](#project-overview)
-2. [GitHub Repository](#github-repository)
-3. [Description of the Project](#description-of-the-project)
-   - [Problem Statement](#problem-statement)
-   - [Project Description](#project-description)
-   - [Solution Description](#solution-description)
-4. [Product Backlog](#product-backlog)
-5. [Interface Prototype and UX/UI Description](#interface-prototype-and-uxui-description)
-6. [Completed System Features](#completed-system-features)
-7. [System Architecture](#system-architecture)
-8. [Database Description](#database-description)
-9. [Testing and Quality Assurance](#testing-and-quality-assurance)
-10. [Technologies and Citations](#technologies-and-citations)
-11. [Team Retrospective](#team-retrospective)
-12. [Conclusion](#conclusion)
+1. [Tech Stack](#tech-stack)
+2. [Architecture](#architecture)
+3. [Codebase at a Glance](#codebase-at-a-glance)
+4. [Core Subsystems](#core-subsystems)
+5. [API Surface](#api-surface)
+6. [Local Development](#local-development)
+7. [Known Limitations & Roadmap](#known-limitations--roadmap)
+8. [Resume Bullets](#resume-bullets)
 
 ---
 
-## Project Overview
+## Tech Stack
 
-**Codura** is a comprehensive, community-driven technical interview preparation platform designed to help university students and aspiring software engineers master coding interviews through collaborative learning, AI-powered feedback, and real-world mock interview experiences.
-
-**Tagline**: *Where preparation meets execution.*
-
----
-
-## GitHub Repository
-
-**Repository URL**: [https://github.com/abdkhan-git/codura](https://github.com/abdkhan-git/codura)
-
-**Live Demo**: [Codura.dev](https://codura.dev)
-
----
-
-## Description of the Project
-
-### Problem Statement
-
-Technical interviews remain one of the most challenging hurdles for computer science students and job seekers. Current solutions suffer from several critical limitations:
-
-- **Lack of Community Support**: Most platforms are isolated learning experiences without peer collaboration
-- **Generic Feedback**: Limited personalized feedback and insights on performance
-- **No Real Interview Practice**: Insufficient opportunities to practice with peers in realistic interview scenarios
-- **Fragmented Resources**: Students must juggle multiple platforms for problems, collaboration, and feedback
-- **High Cost**: Premium interview prep platforms are expensive and inaccessible to many students
-- **No University Integration**: Existing platforms don't leverage university communities for mentorship and networking
-
-### Project Description
-
-Codura is an all-in-one technical interview preparation platform that combines:
-
-- **Collaborative Learning**: Study pods and peer-to-peer mock interviews
-- **AI-Powered Intelligence**: Real-time code analysis, complexity evaluation, and optimization suggestions
-- **Real-Time Collaboration**: Live coding sessions with Monaco editor integration, voice/video communication
-- **University Communities**: School-specific channels with leaderboards and peer mentorship
-- **Comprehensive Problem Library**: Curated problem sets including Blind 75, Grind 75, and custom study plans
-- **Interview Recording & Review**: Session recording for self-improvement and mentor feedback
-
-### Solution Description
-
-Codura addresses these challenges through:
-
-1. **Study Pods System**: Small collaborative groups with shared goals, live coding sessions, and competitive challenges
-2. **Mock Interview Platform**: Bidirectional interview practice where students can be both interviewer and interviewee
-3. **Live Code Judge**: Real-time code execution with comprehensive test cases and performance metrics
-4. **AI Code Analysis**: Instant feedback on time/space complexity, optimization opportunities, and best practices
-5. **Progress Tracking**: Detailed analytics with personalized insights and interview readiness forecasting
-6. **Messaging & Networking**: Connect with peers, form study groups, and build professional networks
-7. **Student-First Pricing**: Core features completely free for university students
-
-**Technology Stack**:
-- **Frontend**: Next.js 16, React 19, TailwindCSS, Radix UI, Framer Motion
-- **Backend**: Supabase (PostgreSQL), Express.js, Socket.io
-- **Real-Time Features**: LiveKit for video/audio, Yjs for collaborative editing
-- **AI Integration**: OpenAI API for code analysis and feedback
-- **Code Editor**: Monaco Editor with real-time collaboration
-- **Deployment**: Vercel
+| Layer | Technologies |
+|---|---|
+| **Framework** | Next.js 16 (App Router), React 19, TypeScript 5 (`strict`) |
+| **Backend** | Next.js Route Handlers (154 endpoints), Server Actions |
+| **Database** | Supabase Postgres — RLS, plpgsql functions/RPCs, triggers |
+| **Auth** | Supabase Auth via `@supabase/ssr` (cookie-bound), GitHub + Google OAuth |
+| **Code Execution** | Judge0 (RapidAPI) for judged submissions; Piston for scratch/session runs |
+| **AI** | OpenAI `gpt-4o-mini` — complexity analysis, tutoring, code review |
+| **Real-Time** | Supabase Realtime (broadcast + presence), LiveKit SFU, native WebRTC |
+| **Editor** | Monaco (`@monaco-editor/react`) |
+| **UI** | Tailwind CSS v4, Radix UI primitives (shadcn/ui `new-york`), Framer Motion, Recharts, Lucide |
+| **Forms/Validation** | React Hook Form, Zod |
+| **Deployment** | Vercel + Vercel Analytics |
 
 ---
 
-## Product Backlog
-
-### Sprint 1: Core Platform Foundation (Completed)
-- **User Story 1**: As a student, I want to create an account so I can access the platform
-  - Task 1.1: Implement Supabase authentication (Complete)
-  - Task 1.2: Create onboarding flow with university selection (Complete)
-  - Task 1.3: Build user profile management (Complete)
-
-- **User Story 2**: As a user, I want to solve coding problems so I can practice for interviews
-  - Task 2.1: Build problem library with filtering/search (Complete)
-  - Task 2.2: Integrate Monaco code editor (Complete)
-  - Task 2.3: Implement code execution engine (Complete)
-  - Task 2.4: Add test case validation (Complete)
-
-- **User Story 3**: As a user, I want to track my progress so I can measure improvement
-  - Task 3.1: Create dashboard with activity calendar (Complete)
-  - Task 3.2: Implement problem completion tracking (Complete)
-  - Task 3.3: Build analytics and insights page (Complete)
-
-### Sprint 2: Collaborative Features (Completed)
-- **User Story 4**: As a student, I want to join study pods so I can learn with peers
-  - Task 4.1: Create study pod system with group creation (Complete)
-  - Task 4.2: Implement pod member management (Complete)
-  - Task 4.3: Build pod-specific problem assignments (Complete)
-  - Task 4.4: Add pod analytics and leaderboards (Complete)
-
-- **User Story 5**: As a user, I want to connect with other students so I can network and collaborate
-  - Task 5.1: Implement connection request system (Complete)
-  - Task 5.2: Build messaging infrastructure (Complete)
-  - Task 5.3: Create group chat for study pods (Complete)
-  - Task 5.4: Add real-time message delivery (Complete)
-
-- **User Story 6**: As a user, I want to participate in mock interviews so I can practice real scenarios
-  - Task 6.1: Design mock interview system architecture (Complete)
-  - Task 6.2: Implement interview room creation (Complete)
-  - Task 6.3: Integrate LiveKit for video/audio (Complete)
-  - Task 6.4: Add collaborative whiteboard (Complete)
-
-### Sprint 3: AI & Advanced Features (Completed)
-- **User Story 7**: As a user, I want AI feedback on my code so I can improve my solutions
-  - Task 7.1: Integrate OpenAI API (Complete)
-  - Task 7.2: Implement complexity analysis (Complete)
-  - Task 7.3: Build optimization suggestion engine (Complete)
-  - Task 7.4: Add code quality scoring (Complete)
-
-- **User Story 8**: As a user, I want to follow structured study plans so I can prepare systematically
-  - Task 8.1: Create study plan templates (Blind 75, Grind 75) (Complete)
-  - Task 8.2: Implement milestone tracking (Complete)
-  - Task 8.3: Build custom plan creator (Complete)
-  - Task 8.4: Add progress visualization (Complete)
-
-- **User Story 9**: As a user, I want real-time collaboration so I can code with others
-  - Task 9.1: Integrate Yjs for collaborative editing (Complete)
-  - Task 9.2: Implement cursor synchronization (Complete)
-  - Task 9.3: Add typing indicators (Complete)
-  - Task 9.4: Build session recording (Complete)
-
-### Sprint 4: Polish & Optimization (In Progress)
-- **User Story 10**: As a user, I want a seamless UI experience so the platform is enjoyable to use
-  - Task 10.1: Implement dark/light theme throughout (90% Complete)
-  - Task 10.2: Add animations and micro-interactions (Complete)
-  - Task 10.3: Optimize mobile responsiveness (In Progress)
-  - Task 10.4: Improve accessibility (WCAG compliance) (Pending)
-
-- **User Story 11**: As a user, I want fast performance so I can focus on learning
-  - Task 11.1: Optimize database queries and indexing (Complete)
-  - Task 11.2: Implement code splitting and lazy loading (Complete)
-  - Task 11.3: Add caching strategies (In Progress)
-  - Task 11.4: Performance monitoring with Vercel Analytics (Complete)
-
-### Future Enhancements (Fantasy/Stretch Goals)
-- **User Story 12**: As a user, I want pod challenges so my group can compete together
-  - Status: Planned
-
-- **User Story 13**: As a user, I want to showcase my achievements so I can build credibility
-  - Status: Planned
-
-- **User Story 14**: As a user, I want automated interview scheduling so it's easier to practice
-  - Status: Partially Implemented (Smart scheduling system in development)
-
----
-
-## Interface Prototype and UX/UI Description
-
-### Design Philosophy
-
-Codura's UX/UI design prioritizes:
-
-1. **Glassmorphism & Modern Aesthetics**: Translucent cards with backdrop blur effects
-2. **Theme Awareness**: Comprehensive dark/light mode support with optimized color palettes
-3. **Smooth Animations**: Framer Motion for fluid page transitions and micro-interactions
-4. **Accessibility**: WCAG-compliant color contrasts and keyboard navigation
-5. **Responsive Design**: Mobile-first approach with adaptive layouts
-
-### Key UI Components
-
-#### Landing Page
-- **Hero Section**: Animated gradient background with floating orbs
-- **Features Grid**: 8 glassmorphic feature cards with hover effects
-- **University Showcase**: Partnered universities with logo carousel
-- **Social Proof**: Testimonials and success stories
-
-#### Dashboard
-- **Activity Calendar**: GitHub-style contribution heatmap
-- **Quick Stats**: Animated counters for problems solved, streak, accuracy
-- **Recent Activity**: Timeline of completed problems and achievements
-- **Study Plan Progress**: Visual roadmap with milestone tracking
-
-#### Problem Solving Interface
-- **Monaco Editor**: Full-featured code editor with syntax highlighting
-- **Problem Description**: Markdown rendering with examples and constraints
-- **Test Cases**: Input/output validation with real-time feedback
-- **AI Feedback Panel**: Complexity analysis, optimization suggestions
-
-#### Mock Interview Room
-- **Video Grid**: LiveKit-powered video tiles with screen sharing
-- **Collaborative Editor**: Real-time code synchronization with cursor tracking
-- **Whiteboard**: Canvas-based diagramming tool
-- **Timer & Controls**: Interview session management
-
-#### Study Pods
-- **Pod Dashboard**: Member list, assigned problems, group analytics
-- **Leaderboard**: Real-time ranking with smooth transitions
-- **Discussion Threads**: Problem-specific conversations with code snippets
-- **Session Calendar**: Upcoming study sessions with one-click join
-
-### UX Improvements Implemented
-
-1. **Reduced Cognitive Load**: Consistent navigation patterns across all pages
-2. **Progressive Disclosure**: Advanced features hidden behind intuitive tooltips
-3. **Instant Feedback**: Loading states, success/error toasts, optimistic UI updates
-4. **Contextual Help**: Inline hints and onboarding tours for new users
-5. **Keyboard Shortcuts**: Power-user features for efficient navigation
-
----
-
-## Completed System Features
-
-### Core Features
-
-1. **Authentication & Onboarding**
-   - University-based registration
-   - Profile customization
-   - Email verification
-   - Password recovery
-
-2. **Problem Library**
-   - 200+ curated coding problems
-   - Difficulty-based filtering
-   - Topic/company tagging
-   - Full-text search
-   - Bookmark functionality
-
-3. **Code Editor & Execution**
-   - Monaco editor integration
-   - Multi-language support (Python, JavaScript, Java, C++, Go)
-   - Real-time syntax highlighting
-   - Code execution with test cases
-   - Performance metrics (time, memory)
-
-4. **Study Pods**
-   - Pod creation and management
-   - Member invitations
-   - Group problem assignments
-   - Pod-specific leaderboards
-   - Group chat integration
-
-5. **Mock Interviews**
-   - Peer-to-peer interview sessions
-   - Video/audio communication (LiveKit)
-   - Collaborative code editor
-   - Whiteboard functionality
-   - Session recording
-
-6. **AI Code Analysis**
-   - Time/space complexity detection
-   - Optimization suggestions
-   - Code quality scoring
-   - Best practice recommendations
-
-7. **Messaging System**
-   - Direct messaging
-   - Group chats
-   - Real-time delivery (Socket.io)
-   - Read receipts
-   - Typing indicators
-
-8. **Progress Tracking**
-   - Activity calendar
-   - Problem completion stats
-   - Streak tracking
-   - Skill-based analytics
-   - Interview readiness score
-
-9. **Study Plans**
-   - Blind 75 template
-   - Grind 75 template
-   - Custom plan builder
-   - Milestone checkpoints
-   - Progress visualization
-
-10. **Leaderboards**
-    - University-specific rankings
-    - Global leaderboards
-    - Pod competitions
-    - Weekly/monthly challenges
-
-### UX/UI Changes & Improvements
-
-- **Theme System**: Comprehensive dark/light mode with smooth transitions
-- **Animation Library**: Framer Motion for page transitions and component animations
-- **Responsive Navigation**: Mobile-optimized sidebar and hamburger menu
-- **Loading States**: Skeleton screens and shimmer effects
-- **Error Handling**: User-friendly error messages with recovery actions
-- **Accessibility**: ARIA labels, keyboard navigation, screen reader support
-
----
-
-## System Architecture
-
-### Context Diagram
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         CODURA PLATFORM                         │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
-│   Students   │    │  University      │    │   Mentors/   │
-│              │    │  Administrators  │    │   Alumni     │
-└──────┬───────┘    └────────┬─────────┘    └──────┬───────┘
-       │                     │                     │
-       └─────────────────────┼─────────────────────┘
-                             │
-                             ▼
-                  ┌──────────────────────┐
-                  │   Codura Web App     │
-                  │   (Next.js Frontend) │
-                  └──────────┬───────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │              │              │
-              ▼              ▼              ▼
-    ┌─────────────┐  ┌──────────────┐  ┌──────────────┐
-    │  Supabase   │  │  Socket.io   │  │  LiveKit     │
-    │  (Database  │  │  (Real-time  │  │  (Video/     │
-    │   & Auth)   │  │  Messaging)  │  │   Audio)     │
-    └─────┬───────┘  └──────┬───────┘  └──────────────┘
-          │                 │
-          │                 │
-          ▼                 ▼
-    ┌──────────────────────────┐
-    │  External Services       │
-    ├──────────────────────────┤
-    │  - OpenAI API            │
-    │  - Vercel Analytics      │
-    │  - Email Service         │
-    └──────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                      Next.js 16 Client (React 19)                │
+│   Monaco · Whiteboard · Video Tiles · Recharts · Radix/Tailwind  │
+└───────────────┬──────────────────────────────────┬───────────────┘
+                │ HTTP (fetch / apiClient)         │ WebSocket
+                │ dedup + 30s TTL cache            │
+                ▼                                  ▼
+┌───────────────────────────────┐   ┌──────────────────────────────┐
+│  middleware.ts                │   │   Real-Time Transports       │
+│  session refresh · route gate │   │                              │
+└───────────────┬───────────────┘   │  Supabase Realtime           │
+                ▼                   │   └ code_sync, chat, typing, │
+┌───────────────────────────────┐   │     presence, whiteboard     │
+│  154 Route Handlers           │   │                              │
+│  /app/api/** — 28 domains     │   │  LiveKit SFU                 │
+│  auth · RBAC · orchestration  │   │   └ pod session A/V + screen │
+└──┬────────┬────────┬──────────┘   │                              │
+   │        │        │              │  WebRTC (RTCPeerConnection)  │
+   ▼        ▼        ▼              │   └ mock interviews, streams │
+┌────────┐┌───────┐┌────────┐       └──────────────┬───────────────┘
+│Supabase││Judge0 ││ OpenAI │                      │
+│Postgres││RapidAPI│gpt-4o- │        signaling ────┘
+│  RLS   ││ 7 lang││  mini  │        over Supabase broadcast
+│  RPCs  │└───────┘└────────┘
+└────────┘
+     │
+     ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  53 tables · 230 RLS policies · 65 plpgsql functions             │
+│  212 indexes · 42 triggers (denormalized counters)               │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Architecture
-
-- **Presentation Layer**: React components, TailwindCSS styling, Radix UI primitives
-- **Application Layer**: Next.js App Router, server actions, middleware
-- **Business Logic**: Custom hooks, context providers, state management (Zustand)
-- **Data Layer**: Supabase client, real-time subscriptions, RLS policies
-- **External Integrations**: OpenAI, LiveKit, Socket.io server
+**Design note.** Business logic lives in route handlers, not a separate server. Read-heavy aggregations (feeds, streaks, leaderboards, connection graphs) are pushed into plpgsql RPCs so they execute as one round trip inside Postgres instead of N+1 queries from Node.
 
 ---
 
-## Database Description
+## Codebase at a Glance
 
-### Database Schema Overview
+| Directory | Files | Lines |
+|---|---:|---:|
+| `app/` (pages + 154 API routes) | 195 | 47,636 |
+| `components/` | 175 | 53,595 |
+| `lib/` | 12 | 5,227 |
+| `hooks/` | 8 | 1,721 |
+| `types/` | 4 | 682 |
+| `utils/` | 10 | 687 |
+| `contexts/` | 2 | 222 |
+| **Total (TypeScript)** | **406** | **109,770** |
 
-Codura uses **Supabase (PostgreSQL)** with the following key entities:
+**SQL layer:** 72 files — 53 tables, 65 plpgsql functions, 230 RLS policies, 212 indexes, 42 triggers.
 
-#### Core Tables
-
-1. **users**
-   - id (uuid, primary key)
-   - email (text, unique)
-   - username (text, unique)
-   - full_name (text)
-   - university (text)
-   - avatar_url (text)
-   - created_at (timestamp)
-
-2. **problems**
-   - id (uuid, primary key)
-   - title (text)
-   - description (text)
-   - difficulty (enum: easy, medium, hard)
-   - topics (text[])
-   - companies (text[])
-   - solution_template (jsonb)
-   - test_cases (jsonb)
-   - created_at (timestamp)
-
-3. **problem_submissions**
-   - id (uuid, primary key)
-   - user_id (uuid, foreign key)
-   - problem_id (uuid, foreign key)
-   - code (text)
-   - language (text)
-   - status (enum: accepted, wrong_answer, runtime_error)
-   - runtime (integer)
-   - memory (integer)
-   - created_at (timestamp)
-
-4. **study_pods**
-   - id (uuid, primary key)
-   - name (text)
-   - description (text)
-   - owner_id (uuid, foreign key)
-   - study_plan_id (uuid, foreign key, nullable)
-   - is_private (boolean)
-   - max_members (integer)
-   - created_at (timestamp)
-
-5. **study_pod_members**
-   - id (uuid, primary key)
-   - pod_id (uuid, foreign key)
-   - user_id (uuid, foreign key)
-   - role (enum: owner, moderator, member)
-   - joined_at (timestamp)
-
-6. **study_pod_sessions**
-   - id (uuid, primary key)
-   - pod_id (uuid, foreign key)
-   - title (text)
-   - scheduled_at (timestamp)
-   - duration (integer)
-   - recording_url (text, nullable)
-   - created_at (timestamp)
-
-7. **conversations**
-   - id (uuid, primary key)
-   - type (enum: direct, group, pod)
-   - name (text, nullable)
-   - created_at (timestamp)
-
-8. **messages**
-   - id (uuid, primary key)
-   - conversation_id (uuid, foreign key)
-   - sender_id (uuid, foreign key)
-   - content (text)
-   - created_at (timestamp)
-
-9. **connections**
-   - id (uuid, primary key)
-   - sender_id (uuid, foreign key)
-   - receiver_id (uuid, foreign key)
-   - status (enum: pending, accepted, rejected)
-   - created_at (timestamp)
-
-10. **study_plans**
-    - id (uuid, primary key)
-    - name (text)
-    - description (text)
-    - is_template (boolean)
-    - created_by (uuid, foreign key)
-    - created_at (timestamp)
-
-11. **study_plan_milestones**
-    - id (uuid, primary key)
-    - study_plan_id (uuid, foreign key)
-    - title (text)
-    - problem_ids (uuid[])
-    - order (integer)
-
-12. **mock_interviews**
-    - id (uuid, primary key)
-    - interviewer_id (uuid, foreign key)
-    - interviewee_id (uuid, foreign key)
-    - problem_id (uuid, foreign key)
-    - scheduled_at (timestamp)
-    - duration (integer)
-    - recording_url (text, nullable)
-    - feedback (text, nullable)
-    - rating (integer, nullable)
-    - created_at (timestamp)
-
-### Entity Relationship Diagram
-
-```
-┌──────────────┐         ┌─────────────────┐         ┌──────────────┐
-│    users     │────────<│ problem_submis  │>────────│   problems   │
-│              │         │     sions       │         │              │
-└──────┬───────┘         └─────────────────┘         └──────────────┘
-       │                                                     │
-       │                                                     │
-       │                                                     ▼
-       │                 ┌─────────────────┐         ┌──────────────┐
-       │                 │  study_pod_     │         │  study_pod_  │
-       │                 │   problems      │         │  problem_    │
-       │                 │                 │         │  completions │
-       │                 └─────────────────┘         └──────────────┘
-       │                                                     │
-       ▼                                                     │
-┌──────────────┐         ┌─────────────────┐                │
-│  study_pods  │────────<│  study_pod_     │                │
-│              │         │   members       │>───────────────┘
-└──────┬───────┘         └─────────────────┘
-       │
-       │                 ┌─────────────────┐
-       │                 │  study_pod_     │
-       └────────────────<│   sessions      │
-                         └─────────────────┘
-
-┌──────────────┐         ┌─────────────────┐         ┌──────────────┐
-│    users     │────────<│  conversations  │>───────<│   messages   │
-│              │         │   _participants │         │              │
-└──────┬───────┘         └─────────────────┘         └──────────────┘
-       │                                                     ▲
-       │                 ┌─────────────────┐                │
-       │                 │  conversations  │────────────────┘
-       │                 │                 │
-       │                 └─────────────────┘
-       │
-       │                 ┌─────────────────┐
-       └────────────────<│  connections    │>────────────────┐
-                         └─────────────────┘                 │
-                                                             │
-                               └─────────────────────────────┘
-
-┌──────────────┐         ┌─────────────────┐
-│  study_plans │────────<│  study_plan_    │
-│              │         │   milestones    │
-└──────────────┘         └─────────────────┘
-
-┌──────────────┐         ┌─────────────────┐
-│    users     │────────<│  mock_          │>────────┬───────────────┐
-│              │         │   interviews    │         │    problems   │
-└──────────────┘         └─────────────────┘         └───────────────┘
-```
-
-### Key Relationships
-
-- **Users** can submit multiple **problem submissions**
-- **Users** can join multiple **study pods** (many-to-many through study_pod_members)
-- **Study pods** can have multiple **sessions** with recordings
-- **Users** can participate in multiple **conversations** (direct, group, pod)
-- **Conversations** contain multiple **messages**
-- **Users** can have multiple **connections** with other users
-- **Study plans** contain multiple **milestones** with assigned problems
-- **Mock interviews** involve two users (interviewer/interviewee) and one problem
-
-### Security: Row Level Security (RLS)
-
-All tables implement Supabase RLS policies:
-- Users can only read/update their own profile
-- Pod members can only see their pod's data
-- Messages are only visible to conversation participants
-- Submissions are private to the submitting user
+Largest modules: the collaborative session room (`app/study-pods/[id]/session/[sessionId]/page.tsx`, 4,037 lines), the problem workspace (`app/problems/[id]/page.tsx`, 2,154), and the judge pipeline (`lib/judge/judge-utils.ts`, 2,120).
 
 ---
 
-## Testing and Quality Assurance
+## Core Subsystems
 
-### Test Plan Overview
+### Code Execution & Judging
 
-#### Unit Testing
-- **Component Tests**: React component rendering and interaction
-- **Hook Tests**: Custom hook behavior and state management (e.g., `streak-calculator.test.ts`)
-- **Utility Functions**: Helper function validation
+`lib/judge/judge-utils.ts` · `app/api/problems/{run,submit}`
 
-#### Integration Testing
-- **API Endpoints**: Supabase queries and mutations
-- **Real-time Features**: Socket.io message delivery
-- **Authentication Flow**: Supabase auth integration
-- **Database Queries**: Schema validation and RLS policies
+The most involved subsystem. Users write only a bare function body — everything needed to actually execute it against test cases is generated server-side at submission time.
 
-#### End-to-End Testing (Planned)
-- User registration and onboarding
-- Problem solving workflow
-- Mock interview session flow
-- Study pod creation and collaboration
-- Messaging and notifications
+**Test-harness code generation.** Seven per-language generators (Python, Java, JavaScript, TypeScript, C++, C#, Go) read a problem's row in `problems_metadata` — `function_name`, `parameters`, `return_type`, `comparison_type`, `input_transformers`, `output_transformer` — and emit a complete runnable program:
 
-### Acceptance Criteria by Feature
+- Data-structure definitions (`ListNode`, `TreeNode`) injected only when the signature requires them
+- Converters between JSON test fixtures and native structures, including BFS level-order tree construction and trailing-null trimming
+- A comparison function derived from the problem's `comparison_type` (exact, set-equality, float tolerance, or a custom predicate)
+- Per-language literal conversion so `[[1,2],[3,4]]` becomes a valid `vector<vector<int>>`, `int[][]`, Go slice, etc.
+- A driver loop emitting a strict `Test {i}: PASS | FAIL - Expected X, got Y | ERROR - {msg}` protocol
 
-#### Feature: Problem Solving
-- User can select a problem from the library
-- Code editor loads with correct language template
-- Test cases execute and display results
-- Submission is saved with status and metrics
-- AI feedback is generated and displayed
+The harness is concatenated with the user's code and submitted to **Judge0** as a single file (language IDs: Python 71, Java 62, JS 63, TS 74, C++ 54, C# 51, Go 60).
 
-#### Feature: Study Pods
-- User can create a new study pod
-- Pod owner can invite members
-- Members can see assigned problems
-- Pod leaderboard updates in real-time
-- Group chat is created automatically
+**Result collection.** `pollSubmissionStatus` polls up to 20 times starting at 100 ms with 1.5× exponential backoff capped at 1 s, terminating on any recognized terminal status. `parseTestResults` parses the harness protocol out of stdout, then derives an overall verdict from Judge0's status ID (compile error, TLE, runtime error) or from pass/fail counts.
 
-#### Feature: Mock Interviews
-- User can schedule an interview session
-- Video/audio connection establishes successfully
-- Collaborative editor synchronizes code
-- Session recording is saved and accessible
-- Feedback can be submitted post-interview
+**Visible vs. hidden tests.** `/run` fetches only non-hidden cases for fast iteration; `/submit` runs the full suite including hidden cases before persisting.
 
-#### Feature: Messaging
-- Users can send direct messages
-- Messages deliver in real-time
-- Read receipts update correctly
-- Typing indicators appear
-- Message history persists
+### AI Assistance
 
-### Testing Results Summary
+Four distinct `gpt-4o-mini` surfaces, each with purpose-built prompting.
 
-| Test Category | Tests Passed | Tests Failed | Coverage |
-|--------------|-------------|--------------|----------|
-| Unit Tests | 45 | 0 | 85% |
-| Integration Tests | 32 | 0 | 78% |
-| E2E Tests (Manual) | 28 | 2 | N/A |
-| **Total** | **105** | **2** | **81%** |
+**Big-O complexity analysis** (`analyzeComplexityWithAI`, `judge-utils.ts:219`) runs on submission with `temperature: 0.3` and `response_format: json_object`. It returns time and space complexity, independent confidence scores, prose explanations, and exactly two contributing code snippets per dimension. The prompt encodes language-specific cost rules (Python dict/set lookup O(1), list append amortized O(1); JS Map/Set O(1)) to prevent common misreadings. Output notation is normalized (`O(n^2)` → `O(n²)`) before being persisted to `submissions`.
 
-**Known Issues**:
-1. Mobile responsive layout for code editor needs optimization
-2. Real-time typing indicators occasionally lag under high load
+**Hint-only tutoring** (`app/api/ai/submission-analysis`) is the most carefully constrained surface. Two mechanisms protect it:
 
----
+- `judgeReliabilitySignal()` scores how much to trust the judge output — clamped to ≤0.25 when stderr indicates an internal error or timeout, ≤0.4 when a majority of tests fail with no stderr — so the model doesn't confidently explain a failure that was infrastructural.
+- `sanitizeToHintsOnly()` post-processes every response, stripping fenced code blocks, long inline spans, whole function/class bodies, and any run of four or more consecutive code-like lines. Even if the model ignores its instructions, a complete solution cannot reach the user.
 
-## Technologies and Citations
+Access is gated on the caller actually owning a submission for that problem. Conversation history is truncated to the last 6 messages; every interaction is logged to `ai_interactions`.
 
-### Frontend Technologies
-- **Next.js** (v16.0.0): React framework for production - [https://nextjs.org](https://nextjs.org)
-- **React** (v19.2.0): UI library - [https://react.dev](https://react.dev)
-- **TailwindCSS** (v4): Utility-first CSS framework - [https://tailwindcss.com](https://tailwindcss.com)
-- **Radix UI**: Accessible component primitives - [https://www.radix-ui.com](https://www.radix-ui.com)
-- **Framer Motion** (v12.23.14): Animation library - [https://www.framer.com/motion](https://www.framer.com/motion)
-- **Monaco Editor**: Code editor (VS Code engine) - [https://microsoft.github.io/monaco-editor](https://microsoft.github.io/monaco-editor)
-- **Lucide React**: Icon library - [https://lucide.dev](https://lucide.dev)
-
-### Backend Technologies
-- **Supabase**: Backend-as-a-Service (PostgreSQL, Auth, Storage) - [https://supabase.com](https://supabase.com)
-- **Express.js** (v5.1.0): Node.js web framework - [https://expressjs.com](https://expressjs.com)
-- **Socket.io** (v4.8.1): Real-time bidirectional communication - [https://socket.io](https://socket.io)
+**Pod code review** produces structured markdown feedback on a discussion comment's snippet — complexity, edge cases, style, alternatives — persisted into `thread_comments.metadata.ai_review`.
 
 ### Real-Time Collaboration
-- **Yjs** (v13.6.27): CRDT framework for collaborative editing - [https://yjs.dev](https://yjs.dev)
-- **LiveKit** (v2.16.0): WebRTC infrastructure for video/audio - [https://livekit.io](https://livekit.io)
 
-### AI & External Services
-- **OpenAI API** (v6.9.1): AI code analysis and feedback - [https://openai.com](https://openai.com)
-- **Vercel Analytics**: Performance monitoring - [https://vercel.com/analytics](https://vercel.com/analytics)
+Three transports, each chosen for a different traffic shape.
 
-### State Management & Utilities
-- **Zustand** (v5.0.8): Lightweight state management - [https://zustand-demo.pmnd.rs](https://zustand-demo.pmnd.rs)
-- **React Hook Form** (v7.64.0): Form validation - [https://react-hook-form.com](https://react-hook-form.com)
-- **Zod** (v4.1.12): TypeScript-first schema validation - [https://zod.dev](https://zod.dev)
-- **date-fns** (v4.1.0): Date utility library - [https://date-fns.org](https://date-fns.org)
+**Supabase Realtime** (broadcast + presence, 12 modules) carries application state: `code_sync`, `language_change`, `chat_message`, `typing`, `execution_result`, `whiteboard_elements`, `whiteboard_cursor`, `user_joined_call`. Presence tracks roster and in-call status. Channels open with `ack: false` to avoid a REST fallback, guarded by a `safeBroadcast` helper that verifies connection state; editor changes are debounced before emission.
 
-### Development Tools
-- **TypeScript** (v5): Static type checking - [https://www.typescriptlang.org](https://www.typescriptlang.org)
-- **ESLint**: Code linting - [https://eslint.org](https://eslint.org)
+**LiveKit SFU** powers multi-party audio/video and screen sharing in pod sessions, configured with `adaptiveStream`, `dynacast`, and a 1.2 Mbps encoding cap. Tokens are minted server-side (`app/api/livekit/token/route.ts`): the route resolves the session's pod, requires an **active `study_pod_members` row** for the caller, and only then issues a JWT scoped to that room. Clients never see API credentials and cannot join a pod they aren't in.
 
-### Inspiration & References
-- **LeetCode**: Problem format and structure inspiration
-- **Pramp**: Mock interview concept
-- **Figma**: UI/UX design and prototyping
-- **GitHub**: Contribution calendar design pattern
+**Native WebRTC** handles mock interviews and one-to-many live streams. `lib/simple-signaling.ts` exchanges offers, answers, and ICE candidates over a Supabase broadcast channel, with candidate queueing for races before remote description is set. Streaming maintains a `Map` of per-viewer peer connections for fan-out.
 
----
+### Study Pods
 
-## Team Retrospective
+The largest domain — **60 routes**, spanning membership, sessions, problems, challenges, discussions, analytics, and reputation.
 
-### What We Learned - Technically
+**Role-based access control.** Every route validates an active `study_pod_members` row; mutating routes additionally require `owner` or `moderator`. Finer rules are enforced on member management: only owners may promote or demote moderators, the owner can never be removed or modified, moderators cannot remove peers, and the owner cannot leave without transferring ownership. Live-session control (`start`, `complete`, `stream`) also admits the session host.
 
-1. **Real-Time Collaboration is Complex**
-   - Implementing CRDT (Yjs) for collaborative editing required deep understanding of conflict resolution
-   - Socket.io connection management and reconnection strategies were crucial for reliability
-   - LiveKit integration taught us about WebRTC signaling and peer connection management
+**Challenge scoring** combines a difficulty base with a speed bonus scaled by remaining time and an efficiency bonus scored against a per-difficulty target code length.
 
-2. **Supabase & Database Design**
-   - Row Level Security (RLS) policies are powerful but require careful planning
-   - PostgreSQL JSONB fields provided flexibility for evolving features (metadata, test cases)
-   - Database indexing significantly impacted query performance, especially for leaderboards
+**Pod health** is a weighted composite of engagement (0.30), completion (0.30), consistency (0.25), and collaboration (0.15), served from a precomputed `study_pod_analytics` snapshot when available and recomputed live otherwise.
 
-3. **Next.js Server/Client Architecture**
-   - App Router's server components reduced client-side JavaScript significantly
-   - Server actions simplified form handling and mutations
-   - Proper data fetching strategies (SSR vs ISR vs CSR) made a measurable performance difference
+**Threaded discussions** support voting, reactions, bookmarks, and complexity-annotated solution posts.
 
-4. **AI Integration Challenges**
-   - Prompt engineering for consistent code analysis required iteration
-   - Rate limiting and cost management for OpenAI API calls needed careful implementation
-   - Caching AI responses improved user experience and reduced costs
+### Social Graph & Messaging
 
-5. **State Management at Scale**
-   - Zustand's simplicity scaled well compared to Redux for our use case
-   - React Context caused re-render issues at scale; learned to optimize with selectors
-   - Real-time state synchronization between WebSocket and UI state required careful design
+Bidirectional connections stored in a single table with directional queries; requests, accepts, declines, and cancellations each emit notifications. Suggestions are scored by shared university, mutual connections, and comparable solve counts and ratings. Messaging supports direct and group conversations with reactions, replies, edit/delete, read receipts, typing indicators, pinning, and archiving — backed by `SECURITY DEFINER` helper functions that break the circular RLS dependency between conversations and participants.
 
-### What We Learned - Managerially
+### Data Layer & Security
 
-1. **Agile Development Works**
-   - Two-week sprints with clear user stories kept the team focused
-   - Daily standups (async in our case) prevented blockers from lingering
-   - Retrospectives after each sprint led to continuous process improvement
+Row-level security is enforced on every table — **230 policies** across 58 tables. All API access runs through a cookie-bound client under the caller's own RLS context rather than a service role, so Postgres is the last line of defense rather than the application.
 
-2. **Feature Creep is Real**
-   - Started with a simple problem-solving platform, scope expanded to full collaboration suite
-   - Learned to prioritize ruthlessly using MoSCoW method (Must/Should/Could/Won't have)
-   - "Done is better than perfect" became our mantra for shipping MVPs
+Heavy read paths are implemented as plpgsql RPCs (`get_social_feed`, `calculate_user_streak`, `search_users`, `get_user_pod_statistics`, `get_next_recommended_problem`, `calculate_optimal_meeting_times`), and **42 triggers** maintain denormalized counters — vote totals, comment counts, thread stats, template ratings — so feeds never aggregate at read time.
 
-3. **Communication is Critical**
-   - Clear documentation (like our extensive `/docs` folder) reduced onboarding friction
-   - Git commit conventions and PR templates improved code review efficiency
-   - Weekly demo days kept stakeholders informed and excited
+### Auth & Onboarding
 
-4. **Technical Debt Management**
-   - Early shortcuts (like skipping RLS policies initially) caused issues later
-   - Dedicated "tech debt sprints" were essential to maintain velocity
-   - Balancing new features with refactoring required constant negotiation
+Supabase Auth with GitHub and Google OAuth. `middleware.ts` refreshes the session on every non-asset request and enforces a progressive gate: anonymous users reach only public paths plus public profiles and problem browsing; authenticated users who haven't finished the questionnaire are funneled to `/dashboard`, where onboarding and questionnaire modals render; completed users get the full allowlist.
 
-5. **User Feedback Shapes Product**
-   - Early beta testing with university students revealed usability issues we hadn't anticipated
-   - Analytics showed users abandoned onboarding at specific steps, leading to UX improvements
-   - Feature requests from real users were more valuable than our assumptions
+### Performance
 
-### Challenges Overcome
-
-1. **Performance Bottlenecks**
-   - Initial leaderboard queries took 3+ seconds; optimized to <200ms with proper indexing
-   - Real-time message delivery lagged with 100+ concurrent users; solved with Redis caching (planned)
-   - Code editor loading was slow; implemented lazy loading and code splitting
-
-2. **Theme Consistency**
-   - Dark/light mode caused numerous edge cases with third-party components
-   - Solved by creating a comprehensive theme system with CSS variables and Tailwind extensions
-   - Documented theme guidelines for future development
-
-3. **Mobile Responsiveness**
-   - Code editor on mobile was nearly unusable initially
-   - Redesigned with mobile-first approach and touch-optimized controls
-   - Added responsive navigation and collapsible panels
-
-### Key Wins
-
-- **15,000+ students** expressed interest during beta phase
-- **99.9% uptime** during pilot semester
-- **Average session duration of 42 minutes** (well above industry standard)
-- **4.8/5 rating** from beta testers
-- Successfully scaled to support **5 universities** in pilot program
+- **Request consolidation** — `/api/dashboard` replaced six sequential client calls with one handler running seven queries in a single `Promise.all`, plus a `calculate_user_streak` RPC that moved streak computation from JavaScript into Postgres.
+- **Client-side dedup** — `lib/api-client.ts` collapses concurrent identical in-flight requests into one promise and caches responses with a 30 s TTL.
+- **N+1 elimination** — list endpoints call purpose-built RPCs (e.g. `get_user_study_plans_with_counts`) rather than fetching counts per row.
+- **Asset caching** — immutable long-lived cache headers on static assets; `optimizePackageImports` for Recharts and Lucide; AVIF/WebP image pipeline.
 
 ---
 
-## Conclusion
+## API Surface
 
-### Project Summary
+154 route handlers across 28 domains.
 
-Codura represents a comprehensive solution to technical interview preparation, addressing the fragmented and often isolating experience of traditional coding practice platforms. By combining collaborative learning, AI-powered feedback, and real-world mock interview scenarios, Codura creates a holistic preparation environment that mirrors the actual interview process.
-
-### Key Achievements
-
-1. **Full-Stack Platform**: Built a production-ready web application with modern technologies (Next.js, Supabase, LiveKit)
-2. **Scalable Architecture**: Designed database schema and backend infrastructure to support thousands of concurrent users
-3. **Real-Time Collaboration**: Implemented sophisticated real-time features including collaborative editing, video communication, and messaging
-4. **AI Integration**: Leveraged OpenAI API to provide intelligent code analysis and feedback
-5. **Community-First Design**: Created study pod and networking systems that foster peer learning and support
-6. **Comprehensive Feature Set**: Delivered 10+ major features from problem solving to mock interviews to progress tracking
-
-### Impact & Future Vision
-
-Codura has the potential to democratize technical interview preparation by:
-- **Reducing Costs**: Free core features make interview prep accessible to all students
-- **Building Community**: University-specific channels create supportive peer networks
-- **Improving Outcomes**: Data-driven insights help students focus on high-impact preparation
-- **Scaling Knowledge**: AI and collaborative features enable peer teaching at scale
-
-### Next Steps
-
-1. **Public Launch**: Expand beyond pilot universities to nationwide availability
-2. **Mobile App**: Native iOS/Android apps for on-the-go practice
-3. **Advanced Analytics**: Machine learning models to predict interview readiness
-4. **Career Integration**: Job board and recruiter partnerships for placement support
-5. **International Expansion**: Multi-language support and global university partnerships
-
-### Closing Thoughts
-
-Codura is more than a technical interview platform—it's a community where students support each other through one of the most challenging aspects of starting a tech career. The technical implementation demonstrates proficiency in modern web development, while the thoughtful feature design shows understanding of user needs and product development.
-
-This project showcases our ability to:
-- Design and implement complex full-stack applications
-- Integrate cutting-edge technologies (AI, real-time collaboration, WebRTC)
-- Work collaboratively using agile methodologies
-- Balance technical excellence with user experience
-- Deliver production-ready software that solves real problems
-
-**"Where preparation meets execution"** isn't just a tagline—it's the philosophy that guided every technical decision and feature implementation throughout this project.
+| Domain | Routes | Responsibility |
+|---|---:|---|
+| `study-pods` | 60 | Pods, members, sessions, challenges, discussions, analytics, streaming |
+| `study-plans` | 9 | Plans, templates, curation, problem population |
+| `feed` | 9 | Posts, comments, likes, reposts, bookmarks, preferences |
+| `connections` | 9 | Requests, accept/decline, unfriend, status, mutuals |
+| `users` | 8 | Search, suggestions, profiles, activity, connection counts |
+| `mock-interview` | 8 | Private + public sessions, admission, attendance, messaging |
+| `problems` | 6 | Listing, filtering, run, submit, stats, topics |
+| `profile` | 5 | Profile CRUD, avatar upload, privacy settings |
+| `live-streams` | 5 | Start, stop, list, detail, viewer count |
+| `dashboard` | 5 | Consolidated dashboard, activity chart, daily challenge |
+| `activity` | 4 | Activity feed, auto-post, reactions, comments |
+| `notifications` | 3 | Delivery, preferences, settings |
+| `ai` | 2 | Initial analysis, submission tutoring |
+| `health` | 2 | Migration + feed health probes |
+| Others | 19 | `auth`, `calendar`, `code`, `companies`, `leaderboard`, `livekit`, `locations`, `onboarding`, `questionnaire`, `schools`, `suggestions`, `admin`, plus debug/test routes |
 
 ---
 
-## Getting Started
+## Local Development
 
-### Prerequisites
-- Node.js 20+
-- npm/yarn/pnpm
-- Supabase account
-- OpenAI API key (optional, for AI features)
-- LiveKit account (optional, for video features)
+**Prerequisites:** Node.js 20+, a Supabase project, and API keys for OpenAI, Judge0 (RapidAPI), and LiveKit.
 
-### Installation
-
-1. Clone the repository:
 ```bash
 git clone https://github.com/abdkhan-git/codura.git
 cd codura
-```
-
-2. Install dependencies:
-```bash
 npm install
+cp .env.example .env.local   # then fill in the values below
+npm run dev                  # or: npm run dev:turbo
 ```
 
-3. Set up environment variables:
+Open [http://localhost:3000](http://localhost:3000).
+
+**Environment variables** (names only — never commit values):
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase client key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role — seeding scripts only |
+| `SUPABASE_AUTH_GITHUB_CLIENT_ID` / `SUPABASE_AUTH_GITHUB_SECRET` | GitHub OAuth |
+| `SUPABASE_AUTH_GOOGLE_CLIENT_ID` / `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET` | Google OAuth |
+| `OPENAI_API_KEY` / `OPENAI_CHAT_MODEL` | AI analysis and tutoring |
+| `RAPIDAPI_HOST` / `RAPIDAPI_KEY` | Judge0 code execution |
+| `LIVEKIT_WS_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` | Video sessions |
+| `COLLEGE_SCORECARD_API_KEY` / `COLLEGE_SCORECARD_BASE_URL` | University lookup |
+| `NEXT_PUBLIC_APP_URL` | Absolute app URL for socket + callbacks |
+
+**Scripts**
+
 ```bash
-cp .env.example .env.local
-# Add your Supabase, OpenAI, and LiveKit credentials
+npm run dev          # dev server
+npm run dev:turbo    # dev server with Turbopack
+npm run build        # production build
+npm run start        # serve production build
+npm run type-check   # tsc --noEmit
 ```
 
-4. Run database migrations:
-```bash
-npx supabase db push
-```
+Database setup: apply the SQL in `supabase/migrations/`, then seed with `database/seeds/01_problems_seed_fixed.sql` followed by the study-plan seeds in `database/seeds/study_plans/`.
 
-5. Seed the database (optional):
-```bash
-npm run seed
-```
+---
 
-6. Start the development server:
-```bash
-npm run dev
-```
+## Known Limitations & Roadmap
 
-7. Open [http://localhost:3000](http://localhost:3000) in your browser.
+Honest accounting of what's unfinished.
 
-### Test Account
+**Collaborative editing is last-write-wins.** Code sync broadcasts full editor state over Supabase Realtime rather than merging operations. Concurrent edits to the same region can clobber. CRDT dependencies (`yjs`, `y-monaco`, `y-websocket`) are installed but not wired up — integration was deferred over Monaco ESM bundling issues, and `lib/hooks/use-collaborative-editor.ts` is currently a documented no-op stub. Proper CRDT merge is the top priority.
 
-For testing purposes:
-- Email: test24@gmail.com
-- Password: 123456
+**Auth hardening needed on execution endpoints.** `/api/problems/submit`, `/api/problems/run`, and `/api/code/execute` do not verify the session, and `/submit` trusts a body-supplied `user_id`. These need the same `auth.getUser()` gate the other 137 routes use.
 
+**Unused dependencies to prune.** `zustand` and `simple-peer` are declared but never imported, alongside the CRDT packages above. Client state is `useState`/`useRef` plus two React contexts.
 
+**Migration layout.** Three directories (`supabase/migrations/`, `migrations/`, `scripts/`) hold schema changes, and no file carries a timestamp prefix, leaving apply order undefined. These should be consolidated into one ordered, timestamped set with a baseline migration — several core tables currently exist only in the live project and aren't reproducible from the repo.
+
+**Build strictness.** `next.config.ts` sets `typescript.ignoreBuildErrors` and `eslint.ignoreDuringBuilds` to work around a lucide-react typing issue; both should be re-enabled once the shim in `types/lucide-react.d.ts` is resolved.
+
+**Test coverage.** One test file (`utils/streak-calculator.test.ts`) and no configured runner. Vitest plus coverage on the judge harness generators and scoring logic is the highest-value next step.
+
+**Cross-cutting cleanup.** Auth checks are copy-pasted per route and belong in a shared wrapper; Zod is installed but validation is hand-rolled; `utils/cache.ts` is written but unused; several `debug/*` and `test-*` routes should be stripped from production builds.
